@@ -26,6 +26,9 @@ VALUES
 
   ('usr-ivan-villa', 'Ivan Villalobos', 'ivan.villalobos@exceltecgroup.com',
    crypt('1', gen_salt('bf')), 'Administrador', 'Activo', true),
-   
+
+   ('usr-demo-vendedor', 'Vendedor Demo', 'demo.vendedor@exceltecgroup.com',
+   crypt('1234', gen_salt('bf')), 'Vendedor', 'Activo', true)
+
 ON CONFLICT (usuario_id) DO NOTHING;
 
