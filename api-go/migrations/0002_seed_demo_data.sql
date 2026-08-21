@@ -23,6 +23,9 @@ INSERT INTO usuarios (usuario_id, nombre, correo, pin_hash, rol, estado, puede_v
 VALUES
   ('usr-demo-admin', 'Administrador Demo', 'demo.admin@exceltecgroup.com',
    crypt('1234', gen_salt('bf')), 'Administrador', 'Activo', true),
-  ('usr-demo-vendedor', 'Vendedor Demo', 'demo.vendedor@exceltecgroup.com',
-   crypt('1234', gen_salt('bf')), 'Vendedor', 'Activo', true)
+
+  ('usr-ivan-villa', 'Ivan Villalobos', 'ivan.villalobos@exceltecgroup.com',
+   crypt('1', gen_salt('bf')), 'Administrador', 'Activo', true),
+   
 ON CONFLICT (usuario_id) DO NOTHING;
+
