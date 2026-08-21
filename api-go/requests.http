@@ -1,0 +1,55 @@
+### Cotiza API — requests de prueba
+### Requiere la extensión "REST Client" (humao.rest-client) en VSCode.
+### Con el API corriendo (docker compose up, o modo debug local),
+### hacer click en "Send Request" arriba de cada bloque.
+
+@baseUrl = http://localhost:8080
+
+### Health check — debe responder {"status":"ok","database":"ok"}
+GET {{baseUrl}}/api/health
+
+
+### ---------------------------------------------------------
+### Sprint 1 — POST /api/auth/login (implementado)
+### ---------------------------------------------------------
+
+### Login correcto — 200 {"ok":true,"usuario":{...}}
+### Usar el correo y PIN de un usuario realmente migrado.
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "usuario@exceltecgroup.com",
+  "pin": "1234"
+}
+
+
+### PIN incorrecto — 401 {"ok":false,"error":"Correo o PIN incorrectos."}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "usuario@exceltecgroup.com",
+  "pin": "0000"
+}
+
+
+### Correo inexistente — 401 con el MISMO mensaje que el caso anterior
+### (a propósito: no se debe poder distinguir un caso del otro).
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "nadie@exceltecgroup.com",
+  "pin": "1234"
+}
+
+
+### Campos vacíos — 400 {"ok":false,"error":"Debe indicar correo y PIN."}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "",
+  "pin": ""
+}

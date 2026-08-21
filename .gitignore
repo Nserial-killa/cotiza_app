@@ -1,0 +1,20 @@
+# Entorno
+.env
+
+# Go
+api-go/tmp/
+api-go/*.exe
+api-go/cotiza-api
+
+# Python
+migration-python/__pycache__/
+migration-python/.venv/
+migration-python/*.pyc
+
+# Datos sensibles / export de Sheets (no versionar datos reales de clientes)
+migration-python/data/*.xlsx
+migration-python/data/*.xlsm
+migration-python/data/*.csv
+
+# Sistema
+.DS_Store

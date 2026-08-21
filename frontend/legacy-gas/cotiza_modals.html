@@ -1,0 +1,253 @@
+
+<div id="modalServicioProducto" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalServicioTitulo">Nuevo servicio / producto</h2>
+          <p>Complete los datos del servicio o producto que estará disponible para el cotizador seleccionado.</p>
+        </div>
+        <button id="btnCerrarModalServicio" class="modal-close" type="button">×</button>
+      </div>
+
+      <input id="servicioIdOriginal" type="hidden">
+
+      <div class="param-modal-grid">
+        <div class="field">
+          <label for="servicioCalculadora">Cotizador</label>
+          <select id="servicioCalculadora" class="select"></select>
+        </div>
+
+        <div class="field">
+          <label for="servicioId">ID del servicio / producto</label>
+          <input id="servicioId" class="input" type="text" placeholder="Ejemplo: SES_SERVICIO_ESPECIALIZADO">
+        </div>
+
+        <div class="field full">
+          <label for="servicioNombre">Nombre del servicio / producto</label>
+          <input id="servicioNombre" class="input" type="text" placeholder="Ejemplo: Servicio especializado">
+        </div>
+
+        <div class="field">
+          <label for="servicioModeloCobro">Modelo de cobro default</label>
+          <select id="servicioModeloCobro" class="select"></select>
+        </div>
+
+        <div class="field">
+          <label for="servicioOrden">Orden</label>
+          <input id="servicioOrden" class="input" type="number" min="1" step="1" placeholder="1">
+        </div>
+
+        <div class="field full">
+          <label for="servicioDescripcion">Descripción</label>
+          <textarea id="servicioDescripcion" class="input" placeholder="Descripción del servicio o producto para uso administrativo"></textarea>
+        </div>
+
+        <div class="field full">
+          <label>Servicios relacionados</label>
+          <div class="param-module-help" style="margin:0 0 10px;">
+            Seleccione los servicios que se pueden incluir o están relacionados con este servicio. Estos serán los servicios adicionales disponibles cuando este servicio sea la base de la propuesta.
+          </div>
+          <div id="servicioRelacionadosBox" class="addon-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));"></div>
+        </div>
+
+        <label class="param-switch">
+          <input id="servicioActivo" type="checkbox" checked>
+          Activo
+        </label>
+      </div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarServicio" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnGuardarServicio" class="btn btn-primary" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalFormaPago" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalFormaPagoTitulo">Nueva forma de pago</h2>
+          <p>Complete los datos de la forma de pago para el cotizador y servicio correspondiente.</p>
+        </div>
+        <button id="btnCerrarModalFormaPago" class="modal-close" type="button">×</button>
+      </div>
+
+      <input id="formaPagoIdEditar" type="hidden">
+
+      <div class="param-modal-grid">
+        <div class="field">
+          <label for="formaPagoCalculadora">Cotizador</label>
+          <select id="formaPagoCalculadora" class="select"></select>
+        </div>
+
+        <div class="field">
+          <label for="formaPagoServicio">Servicio</label>
+          <select id="formaPagoServicio" class="select"></select>
+        </div>
+
+        <div class="field full">
+          <label for="formaPagoNombre">Nombre de la forma de pago</label>
+          <input id="formaPagoNombre" class="input" type="text" placeholder="Ejemplo: Mensual Adelantado">
+        </div>
+
+        <div class="field full">
+          <label for="formaPagoDescripcion">Descripción</label>
+          <textarea id="formaPagoDescripcion" class="input" placeholder="Descripción opcional para uso administrativo"></textarea>
+        </div>
+
+        <div class="field full">
+          <label for="formaPagoTextoComercial">Texto comercial</label>
+          <textarea id="formaPagoTextoComercial" class="input" placeholder="Texto que puede mostrarse en la propuesta comercial"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="formaPagoOrden">Orden</label>
+          <input id="formaPagoOrden" class="input" type="number" min="1" step="1" placeholder="1">
+        </div>
+
+        <label class="param-switch">
+          <input id="formaPagoActivo" type="checkbox" checked>
+          Activo
+        </label>
+      </div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarFormaPago" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnGuardarFormaPago" class="btn btn-primary" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="modalParametroGeneral" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalParametroTitulo">Nuevo registro</h2>
+          <p id="modalParametroSubtitulo">Complete los datos del parámetro seleccionado.</p>
+        </div>
+        <button id="btnCerrarModalParametro" class="modal-close" type="button">×</button>
+      </div>
+
+      <input id="paramRegistroIdOriginal" type="hidden">
+      <div class="param-modal-help-layout">
+        <div id="paramGeneralFields" class="param-modal-grid"></div>
+        <aside id="paramSideHelp" class="param-side-help">
+          <span class="param-side-help-badge">Ayuda contextual</span>
+          <h3 id="paramSideHelpTitle">Seleccione un campo</h3>
+          <div id="paramSideHelpBody">
+            <p>Haga clic o ubíquese sobre un campo para ver para qué sirve, cuándo se usa y ejemplos.</p>
+          </div>
+        </aside>
+      </div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarParametro" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnGuardarParametro" class="btn btn-primary" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalCalculadoras" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2>Nueva cotización</h2>
+          <p>Seleccione el cotizador autorizado que desea utilizar.</p>
+        </div>
+        <button id="btnCerrarModalCalculadoras" class="modal-close" type="button">×</button>
+      </div>
+      <div id="modalCalculadorasBody" class="calc-grid">
+        <p>Cargando cotizadores...</p>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="modalCompilacionCotizador" class="modal">
+    <div class="compile-modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalCompilacionTitulo">Validación / Compilación del Cotizador</h2>
+          <p id="modalCompilacionSubtitulo">Revise el resultado antes de continuar.</p>
+        </div>
+        <button id="btnCerrarModalCompilacionX" class="modal-close" type="button">×</button>
+      </div>
+
+      <div class="compile-result-layout">
+        <div id="modalCompilacionEstado" class="compile-status"></div>
+        <div id="modalCompilacionResumen" class="compile-summary-grid"></div>
+        <div id="modalCompilacionErrores"></div>
+        <div id="modalCompilacionAdvertencias"></div>
+        <textarea id="modalCompilacionTexto" class="compile-textarea" readonly></textarea>
+      </div>
+
+      <div class="compile-modal-actions">
+        <button id="btnCopiarResultadoCompilacion" class="btn btn-ghost" type="button">Copiar resultado</button>
+        <button id="btnGuardarResultadoCompilacionTxt" class="btn btn-secondary" type="button">Guardar TXT</button>
+        <button id="btnEjecutarCompilacionConfirmada" class="btn btn-primary hidden" type="button">Sí, compilar</button>
+        <button id="btnCerrarModalCompilacion" class="btn btn-ghost" type="button">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <div id="modalDesignerValorCatalogo" class="modal">
+    <div class="modal-card" style="max-width:820px;">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalDesignerValorTitulo">Nuevo valor de catálogo</h2>
+          <p>Complete el valor visible y técnico para el catálogo seleccionado.</p>
+        </div>
+        <button id="btnCerrarModalDesignerValor" class="modal-close" type="button">×</button>
+      </div>
+
+      <input id="designerValorIdOriginal" type="hidden">
+      <div class="designer-modal-grid">
+        <div class="field">
+          <label for="designerValorCatalogoId">Catálogo</label>
+          <input id="designerValorCatalogoId" class="input" type="text" readonly>
+        </div>
+        <div class="field">
+          <label for="designerValorId">ID valor</label>
+          <input id="designerValorId" class="input" type="text" placeholder="CATV-MODULOS_SESUITE-BPM_STUDIO">
+        </div>
+        <div class="field">
+          <label for="designerValorClave">Clave</label>
+          <input id="designerValorClave" class="input" type="text" placeholder="BPM_STUDIO">
+        </div>
+        <div class="field">
+          <label for="designerValorOpcion">Opción visible</label>
+          <input id="designerValorOpcion" class="input" type="text" placeholder="BPM Studio">
+        </div>
+        <div class="field">
+          <label for="designerValorValor">Valor técnico</label>
+          <input id="designerValorValor" class="input" type="text" placeholder="BPM_STUDIO">
+        </div>
+        <div class="field">
+          <label for="designerValorDependeDe">Depende de</label>
+          <input id="designerValorDependeDe" class="input" type="text" placeholder="BPM / GRC / EQM">
+        </div>
+        <div class="field full">
+          <label for="designerValorDescripcion">Descripción</label>
+          <textarea id="designerValorDescripcion" class="input" placeholder="Descripción opcional"></textarea>
+        </div>
+        <div class="field">
+          <label for="designerValorOrden">Orden</label>
+          <input id="designerValorOrden" class="input" type="number" min="1" step="1" placeholder="1">
+        </div>
+        <label class="param-switch">
+          <input id="designerValorActivo" type="checkbox" checked> Activo
+        </label>
+      </div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarDesignerValor" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnGuardarDesignerValor" class="btn btn-primary" type="button">Guardar valor</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>

@@ -1,0 +1,471 @@
+
+<section id="section-plantillas" class="section tpl-module">
+  <div id="tplGalleryView">
+    <div class="tpl-page-head">
+      <div>
+        <span class="tpl-eyebrow">DISEÑO DE PROPUESTAS</span>
+        <h1>Plantillas de Propuesta</h1>
+        <p>Seleccione, personalice y publique la estructura de sus propuestas comerciales.</p>
+      </div>
+      <button id="tplBtnNueva" class="btn btn-primary" type="button"><span>＋</span> Nueva plantilla</button>
+    </div>
+
+    <div class="tpl-filter-card">
+      <div class="tpl-search-wrap">
+        <input id="tplFiltroBusqueda" class="input" type="search" placeholder="Buscar plantilla">
+        <span>⌕</span>
+      </div>
+      <div class="field">
+        <label for="tplFiltroCotizador">Cotizador</label>
+        <select id="tplFiltroCotizador" class="select"><option value="">Todos</option></select>
+      </div>
+      <div class="field">
+        <label for="tplFiltroTipo">Tipo de propuesta</label>
+        <select id="tplFiltroTipo" class="select"><option value="">Todos</option></select>
+      </div>
+      <div class="field">
+        <label for="tplFiltroEstado">Estado</label>
+        <select id="tplFiltroEstado" class="select">
+          <option value="">Todos</option>
+          <option value="Borrador">Borrador</option>
+          <option value="Publicada">Publicada</option>
+          <option value="Archivada">Archivada</option>
+        </select>
+      </div>
+      <button id="tplBtnAplicarFiltros" class="btn btn-secondary" type="button">⌁ Aplicar filtros</button>
+    </div>
+
+    <div class="tpl-kpi-row">
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">▤</span><strong id="tplKpiTotal">0</strong><span>plantillas</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">✓</span><strong id="tplKpiPublicadas">0</strong><span>publicadas</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">✎</span><strong id="tplKpiBorradores">0</strong><span>borradores</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">▦</span><strong id="tplKpiEstilos">0</strong><span>estilos visuales</span></div>
+    </div>
+
+    <div class="tpl-list-head">
+      <h2>Plantillas disponibles</h2>
+      <span id="tplResultadoTexto">0 resultados</span>
+    </div>
+    <div id="tplCards" class="tpl-card-grid"></div>
+    <div id="tplEmpty" class="tpl-empty hidden">
+      <div>▤</div>
+      <h3>No se encontraron plantillas</h3>
+      <p>Ajuste los filtros o cree una plantilla nueva.</p>
+    </div>
+  </div>
+
+  <div id="tplWizardView" class="hidden">
+    <div class="tpl-wizard-head">
+      <div>
+        <button id="tplBtnVolverGaleria" class="tpl-link-button" type="button">Plantillas / Nueva plantilla</button>
+        <div class="tpl-title-line">
+          <h1>Crear plantilla de propuesta</h1>
+          <span id="tplWizardEstadoBadge" class="tpl-badge tpl-badge-draft">Borrador</span>
+        </div>
+        <p>Defina la información general y las asociaciones de la plantilla.</p>
+      </div>
+      <div class="tpl-wizard-head-actions">
+        <button id="tplBtnVistaPreviaWizard" class="btn btn-ghost hidden" type="button">◉ Vista previa</button>
+        <div id="tplWizardNombreCabecera" class="tpl-current-name">Nueva plantilla</div>
+      </div>
+    </div>
+
+    <div class="tpl-stepper">
+      <button class="tpl-step active" data-tpl-step="1" type="button"><span>1</span>Datos básicos</button>
+      <button class="tpl-step" data-tpl-step="2" type="button"><span>2</span>Estructura</button>
+      <button class="tpl-step" data-tpl-step="3" type="button"><span>3</span>Vincular datos</button>
+      <button class="tpl-step" data-tpl-step="4" type="button"><span>4</span>Estilo visual</button>
+      <button class="tpl-step" data-tpl-step="5" type="button"><span>5</span>Revisar y publicar</button>
+    </div>
+
+    <div id="tplStepOne" class="tpl-wizard-grid">
+      <div class="tpl-panel">
+        <h2>Información de la plantilla</h2>
+        <input id="tplPlantillaId" type="hidden">
+        <input id="tplPlantillaBaseId" type="hidden">
+        <input id="tplEstiloClave" type="hidden">
+
+        <div class="field">
+          <label for="tplNombre">Nombre de la plantilla <em>*</em></label>
+          <input id="tplNombre" class="input" maxlength="120" type="text" placeholder="Ejemplo: Proyecto nuevo SeSuite">
+        </div>
+        <div class="field">
+          <label for="tplDescripcion">Descripción</label>
+          <textarea id="tplDescripcion" class="input tpl-textarea" maxlength="500" placeholder="Describa el propósito y uso de esta plantilla"></textarea>
+          <small id="tplDescripcionContador">0 / 500</small>
+        </div>
+        <div class="tpl-form-row">
+          <div class="field">
+            <label for="tplCodigo">Código de plantilla</label>
+            <input id="tplCodigo" class="input" type="text" placeholder="Generado automáticamente" readonly>
+          </div>
+          <div class="field">
+            <label for="tplEstado">Estado</label>
+            <input id="tplEstado" class="input" type="text" value="Borrador" readonly>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Crear desde <em>*</em></label>
+          <div id="tplBaseOptions" class="tpl-base-options"></div>
+        </div>
+      </div>
+
+      <div class="tpl-panel">
+        <h2>Asociaciones</h2>
+        <div class="field">
+          <label for="tplCotizadores">Cotizadores asociados <em>*</em></label>
+          <select id="tplCotizadores" class="select tpl-multi" multiple></select>
+          <small>Use Ctrl o Cmd para seleccionar más de uno.</small>
+        </div>
+        <div class="field">
+          <label for="tplTiposPropuesta">Tipos de propuesta <em>*</em></label>
+          <select id="tplTiposPropuesta" class="select tpl-multi" multiple></select>
+          <small>Se muestran los tipos disponibles para los cotizadores seleccionados.</small>
+        </div>
+        <div class="field">
+          <label for="tplOrganizacion">Organización <em>*</em></label>
+          <select id="tplOrganizacion" class="select"></select>
+        </div>
+        <label class="tpl-switch-row">
+          <span>Disponible para nuevas propuestas</span>
+          <input id="tplDisponible" type="checkbox" checked>
+          <i></i>
+        </label>
+        <label class="tpl-switch-row">
+          <span>Permitir duplicar esta plantilla</span>
+          <input id="tplPermiteDuplicar" type="checkbox" checked>
+          <i></i>
+        </label>
+        <div class="tpl-info-box">Estas asociaciones determinan dónde podrá utilizarse la plantilla. Puede modificarlas antes de publicarla.</div>
+      </div>
+    </div>
+
+    <div id="tplStepTwo" class="hidden">
+      <div class="tpl-builder-grid">
+        <aside class="tpl-builder-panel tpl-builder-left">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Secciones</h2><span id="tplStructureSummary">0 secciones</span></div>
+            <button id="tplBtnNuevaSeccion" class="tpl-icon-button" type="button" title="Nueva sección">＋</button>
+          </div>
+          <div id="tplSectionList" class="tpl-section-list"></div>
+
+          <div class="tpl-palette-head">
+            <h2>Bloques disponibles</h2>
+            <p>Arrastre un bloque hacia una sección.</p>
+          </div>
+          <div id="tplBlockPalette" class="tpl-block-palette"></div>
+        </aside>
+
+        <div class="tpl-builder-panel tpl-builder-center">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Estructura de la propuesta</h2><span>Ordene secciones y bloques</span></div>
+            <span id="tplStructureState" class="tpl-save-state">Sin cambios</span>
+          </div>
+          <div id="tplStructureCanvas" class="tpl-structure-canvas"></div>
+          <div id="tplStructureEmpty" class="tpl-structure-empty hidden">
+            <strong>La plantilla no tiene secciones</strong>
+            <span>Agregue la primera sección para comenzar.</span>
+          </div>
+        </div>
+
+        <aside class="tpl-builder-panel tpl-builder-right">
+          <div class="tpl-builder-panel-head"><div><h2>Propiedades</h2><span id="tplPropertyType">Seleccione un elemento</span></div></div>
+          <div id="tplPropertyEmpty" class="tpl-property-empty">
+            <div>⚙</div>
+            <p>Seleccione una sección o bloque para configurar sus propiedades.</p>
+          </div>
+
+          <div id="tplPropertySection" class="hidden">
+            <div class="field">
+              <label for="tplPropSectionName">Nombre interno</label>
+              <input id="tplPropSectionName" class="input" maxlength="120" type="text">
+            </div>
+            <div class="field">
+              <label for="tplPropSectionTitle">Título visible</label>
+              <input id="tplPropSectionTitle" class="input" maxlength="160" type="text">
+            </div>
+            <label class="tpl-switch-row"><span>Mostrar título</span><input id="tplPropSectionShowTitle" type="checkbox"><i></i></label>
+            <div class="field">
+              <label for="tplPropSectionVisibility">Visibilidad</label>
+              <select id="tplPropSectionVisibility" class="select"><option value="SIEMPRE">Siempre visible</option><option value="CONDICIONAL">Condicional</option></select>
+            </div>
+            <div class="field">
+              <label for="tplPropSectionLayout">Diseño de bloques</label>
+              <select id="tplPropSectionLayout" class="select">
+                <option value="UNA">1 columna</option>
+                <option value="DOS_50_50">2 columnas iguales</option>
+                <option value="DOS_30_70">2 columnas: 30% / 70%</option>
+                <option value="DOS_70_30">2 columnas: 70% / 30%</option>
+                <option value="TRES_IGUALES">3 columnas iguales</option>
+              </select>
+              <small>En teléfonos los bloques se acomodan automáticamente en una columna.</small>
+            </div>
+            <label class="tpl-switch-row"><span>Mostrar en propuesta web</span><input id="tplPropSectionWeb" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Mostrar en PDF</span><input id="tplPropSectionPdf" type="checkbox"><i></i></label>
+            <button id="tplBtnDeleteSection" class="btn tpl-btn-danger" type="button">Eliminar sección</button>
+          </div>
+
+          <div id="tplPropertyBlock" class="hidden">
+            <div class="field">
+              <label for="tplPropBlockType">Tipo de bloque</label>
+              <input id="tplPropBlockType" class="input" type="text" readonly>
+            </div>
+            <div class="field">
+              <label for="tplPropBlockName">Nombre interno</label>
+              <input id="tplPropBlockName" class="input" maxlength="120" type="text">
+            </div>
+            <div class="field">
+              <label for="tplPropBlockTitle">Título visible</label>
+              <input id="tplPropBlockTitle" class="input" maxlength="160" type="text">
+            </div>
+            <div class="field">
+              <label for="tplPropBlockPlaceholder">Contenido o indicación</label>
+              <textarea id="tplPropBlockPlaceholder" class="input tpl-property-textarea" maxlength="1000"></textarea>
+              <small>La vinculación con datos del cotizador se realizará en el siguiente paso.</small>
+            </div>
+            <div class="field">
+              <label for="tplPropBlockColumn">Ubicación en la sección</label>
+              <select id="tplPropBlockColumn" class="select"><option value="0">Ancho completo</option></select>
+              <small>Seleccione la columna donde se mostrará este bloque.</small>
+            </div>
+            <label class="tpl-switch-row"><span>Mostrar en propuesta web</span><input id="tplPropBlockWeb" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Mostrar en PDF</span><input id="tplPropBlockPdf" type="checkbox"><i></i></label>
+            <button id="tplBtnDeleteBlock" class="btn tpl-btn-danger" type="button">Eliminar bloque</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tplStepThree" class="hidden">
+      <div class="tpl-mapping-toolbar">
+        <div>
+          <h2>Vincular datos del cotizador</h2>
+          <p>Conecte cada campo de la propuesta con una salida pública o componente del cotizador.</p>
+        </div>
+        <div class="field">
+          <label for="tplMappingCotizador">Cotizador que está configurando</label>
+          <select id="tplMappingCotizador" class="select"></select>
+        </div>
+        <span id="tplMappingState" class="tpl-save-state">Sin cambios</span>
+      </div>
+
+      <div class="tpl-mapping-grid">
+        <aside class="tpl-builder-panel tpl-mapping-left">
+          <div class="tpl-builder-panel-head"><div><h2>Bloques de la plantilla</h2><span id="tplMappingSummary">0 vinculaciones</span></div></div>
+          <div id="tplMappingBlockList" class="tpl-mapping-block-list"></div>
+        </aside>
+
+        <div class="tpl-builder-panel tpl-mapping-center">
+          <div class="tpl-builder-panel-head">
+            <div><h2 id="tplMappingBlockTitle">Seleccione un bloque</h2><span id="tplMappingBlockType">Configure sus campos de destino</span></div>
+          </div>
+          <div id="tplMappingEmpty" class="tpl-property-empty">
+            <div>⌁</div>
+            <p>Seleccione a la izquierda un bloque que requiera información del cotizador.</p>
+          </div>
+          <div id="tplMappingFields" class="tpl-mapping-fields hidden"></div>
+        </div>
+
+        <aside class="tpl-builder-panel tpl-mapping-right">
+          <div class="tpl-builder-panel-head"><div><h2>Fuentes disponibles</h2><span>Campos visibles, salidas especiales y componentes</span></div></div>
+          <div class="tpl-source-search"><input id="tplMappingSourceSearch" class="input" type="search" placeholder="Buscar campo, salida o componente"></div>
+          <div id="tplAvailableSources" class="tpl-available-sources"></div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tplStepFour" class="hidden">
+      <div class="tpl-style-toolbar">
+        <div>
+          <h2>Estilo visual de la propuesta</h2>
+          <p>Configure la identidad visual dentro de opciones seguras y consistentes para web y PDF.</p>
+        </div>
+        <span id="tplStyleState" class="tpl-save-state">Sin cambios</span>
+      </div>
+
+      <div class="tpl-style-grid">
+        <aside class="tpl-builder-panel tpl-style-left">
+          <div class="tpl-builder-panel-head"><div><h2>Temas visuales</h2><span>Seleccione un punto de partida</span></div></div>
+          <div id="tplStyleThemes" class="tpl-style-themes"></div>
+
+          <div class="tpl-style-panel-section">
+            <h3>Documento</h3>
+            <div class="field">
+              <label for="tplStylePageFormat">Formato de página</label>
+              <select id="tplStylePageFormat" class="select tpl-style-control">
+                <option value="CARTA">Carta</option><option value="A4">A4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tplStyleMargin">Márgenes</label>
+              <select id="tplStyleMargin" class="select tpl-style-control">
+                <option value="COMPACTO">Compactos</option><option value="NORMAL">Normales</option><option value="AMPLIO">Amplios</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tplStyleCover">Diseño de portada</label>
+              <select id="tplStyleCover" class="select tpl-style-control">
+                <option value="BANDA_SUPERIOR">Banda superior</option><option value="LATERAL">Panel lateral</option><option value="MINIMALISTA">Minimalista</option><option value="BLOQUE">Bloque ejecutivo</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tplStyleTable">Estilo de tablas</label>
+              <select id="tplStyleTable" class="select tpl-style-control">
+                <option value="LINEAS">Líneas</option><option value="SUAVE">Suave</option><option value="TARJETAS">Tarjetas</option>
+              </select>
+            </div>
+          </div>
+        </aside>
+
+        <div class="tpl-builder-panel tpl-style-center">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Vista previa</h2><span>Representación aproximada de la propuesta web y PDF</span></div>
+            <span id="tplStylePreviewFormat" class="tpl-style-format-badge">CARTA</span>
+          </div>
+          <div class="tpl-style-preview-stage">
+            <article id="tplStylePreviewPage" class="tpl-style-preview-page cover-banda_superior table-lineas margin-normal">
+              <header class="tpl-style-preview-cover">
+                <div class="tpl-style-preview-brand">
+                  <img id="tplStylePreviewLogo" class="hidden" alt="Logo de la organización">
+                  <strong id="tplStylePreviewOrg">Organización</strong>
+                </div>
+                <span id="tplStylePreviewHeader">PROPUESTA COMERCIAL</span>
+                <h1 id="tplStylePreviewTitle">Título de la propuesta</h1>
+                <p id="tplStylePreviewClient">Preparado para Cliente Ejemplo S.A.</p>
+              </header>
+              <div class="tpl-style-preview-content">
+                <section>
+                  <h2>Nuestra solución</h2>
+                  <p>Resumen de la solución propuesta, sus beneficios y el valor principal para el cliente.</p>
+                </section>
+                <section>
+                  <h2>Alcance del proyecto</h2>
+                  <ul><li>Entregable principal</li><li>Implementación y acompañamiento</li><li>Soporte especializado</li></ul>
+                </section>
+                <section>
+                  <h2>Inversión</h2>
+                  <div class="tpl-style-preview-table">
+                    <div class="tpl-style-preview-row head"><span>Concepto</span><span>Inversión</span></div>
+                    <div class="tpl-style-preview-row"><span>Servicios profesionales</span><span>USD 18,500</span></div>
+                    <div class="tpl-style-preview-row total"><span>Total</span><span>USD 18,500</span></div>
+                  </div>
+                </section>
+              </div>
+              <footer class="tpl-style-preview-footer">
+                <span id="tplStylePreviewFooter"></span>
+                <span id="tplStylePreviewConfidential" class="hidden">CONFIDENCIAL</span>
+                <span id="tplStylePreviewPageNumber">1</span>
+              </footer>
+            </article>
+          </div>
+        </div>
+
+        <aside class="tpl-builder-panel tpl-style-right">
+          <div class="tpl-builder-panel-head"><div><h2>Identidad y formato</h2><span>Personalice la marca sin alterar la estructura</span></div></div>
+          <div class="tpl-style-settings">
+            <h3>Colores</h3>
+            <div class="tpl-color-grid">
+              <label>Primario<input id="tplStylePrimary" class="tpl-style-control" type="color" value="#0B2F63"></label>
+              <label>Secundario<input id="tplStyleSecondary" class="tpl-style-control" type="color" value="#1F6FFF"></label>
+              <label>Acento<input id="tplStyleAccent" class="tpl-style-control" type="color" value="#20B8CD"></label>
+              <label>Texto<input id="tplStyleText" class="tpl-style-control" type="color" value="#172B4D"></label>
+              <label>Fondo<input id="tplStyleBackground" class="tpl-style-control" type="color" value="#FFFFFF"></label>
+            </div>
+
+            <h3>Tipografía</h3>
+            <div class="tpl-form-row">
+              <div class="field"><label for="tplStyleTitleFont">Títulos</label><select id="tplStyleTitleFont" class="select tpl-style-control"></select></div>
+              <div class="field"><label for="tplStyleBodyFont">Texto</label><select id="tplStyleBodyFont" class="select tpl-style-control"></select></div>
+            </div>
+
+            <h3>Marca</h3>
+            <div class="field"><label for="tplStyleLogoUrl">URL HTTPS del logotipo</label><input id="tplStyleLogoUrl" class="input tpl-style-control" type="url" placeholder="https://..."></div>
+            <div class="field"><label for="tplStyleLogoSize">Tamaño del logotipo</label><select id="tplStyleLogoSize" class="select tpl-style-control"><option value="PEQUENO">Pequeño</option><option value="MEDIANO">Mediano</option><option value="GRANDE">Grande</option></select></div>
+            <label class="tpl-switch-row"><span>Mostrar logotipo</span><input id="tplStyleShowLogo" class="tpl-style-control" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Mostrar nombre de organización</span><input id="tplStyleShowOrg" class="tpl-style-control" type="checkbox"><i></i></label>
+            <div class="field"><label for="tplStyleOrgName">Nombre visible</label><input id="tplStyleOrgName" class="input tpl-style-control" maxlength="160" type="text"></div>
+
+            <h3>Encabezado y pie</h3>
+            <div class="field"><label for="tplStyleHeaderText">Texto superior</label><input id="tplStyleHeaderText" class="input tpl-style-control" maxlength="160" type="text"></div>
+            <div class="field"><label for="tplStyleFooterText">Texto del pie</label><input id="tplStyleFooterText" class="input tpl-style-control" maxlength="240" type="text" placeholder="Ejemplo: www.empresa.com"></div>
+            <label class="tpl-switch-row"><span>Numerar páginas</span><input id="tplStylePagination" class="tpl-style-control" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Marcar como confidencial</span><input id="tplStyleConfidential" class="tpl-style-control" type="checkbox"><i></i></label>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tplStepFive" class="hidden">
+      <div class="tpl-review-toolbar">
+        <div>
+          <h2>Revisar y publicar</h2>
+          <p>Compruebe la propuesta completa con datos de ejemplo antes de bloquear y publicar esta versión.</p>
+        </div>
+        <div class="tpl-preview-channel" role="group" aria-label="Canal de vista previa">
+          <button class="active" data-preview-channel="WEB" type="button">Propuesta web</button>
+          <button data-preview-channel="PDF" type="button">PDF</button>
+        </div>
+        <span id="tplReviewState" class="tpl-save-state">Pendiente de revisión</span>
+      </div>
+
+      <div class="tpl-review-grid">
+        <div class="tpl-builder-panel tpl-review-preview-panel">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Vista previa de la propuesta</h2><span id="tplReviewPreviewHint">Datos de ejemplo · Propuesta web</span></div>
+            <button id="tplBtnRefreshReview" class="tpl-icon-button tpl-review-refresh" type="button" title="Actualizar vista previa">↻</button>
+          </div>
+          <div id="tplReviewPreviewStage" class="tpl-review-preview-stage channel-web">
+            <article id="tplReviewPreviewPage" class="tpl-review-page"></article>
+          </div>
+          <div class="tpl-review-sample-note">Los nombres, montos y textos mostrados son datos de ejemplo. Al generar una propuesta serán sustituidos por los valores de la cotización.</div>
+        </div>
+
+        <aside class="tpl-review-side">
+          <div class="tpl-builder-panel tpl-review-summary-card">
+            <div class="tpl-builder-panel-head"><div><h2>Resumen</h2><span id="tplReviewVersion">Versión 1</span></div></div>
+            <div id="tplReviewSummary" class="tpl-review-summary"></div>
+          </div>
+          <div class="tpl-builder-panel tpl-review-validation-card">
+            <div class="tpl-builder-panel-head">
+              <div><h2>Validaciones</h2><span id="tplReviewValidationSummary">Sin revisar</span></div>
+            </div>
+            <div id="tplReviewValidationList" class="tpl-review-validation-list"></div>
+          </div>
+          <div id="tplReviewPublishInfo" class="tpl-review-publish-info">
+            <strong>Publicación controlada</strong>
+            <p>Al publicar, esta versión quedará bloqueada y disponible para generar propuestas nuevas.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="tpl-action-bar">
+      <button id="tplBtnCancelar" class="btn btn-ghost" type="button">Cancelar</button>
+      <button id="tplBtnGuardar" class="btn btn-ghost" type="button">▣ Guardar borrador</button>
+      <button id="tplBtnGuardarContinuar" class="btn btn-primary" type="button">Guardar y continuar a Estructura →</button>
+    </div>
+  </div>
+
+  <div id="tplPreviewModal" class="tpl-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tplPreviewTitle">
+    <div class="tpl-modal-card">
+      <div class="tpl-modal-head">
+        <div><span>VISTA PREVIA</span><h2 id="tplPreviewTitle">Plantilla</h2></div>
+        <button id="tplBtnCerrarPreview" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <div class="tpl-preview-body">
+        <div id="tplPreviewPage" class="tpl-page-preview"></div>
+        <div class="tpl-preview-info">
+          <p id="tplPreviewDescripcion"></p>
+          <dl>
+            <div><dt>Estado</dt><dd id="tplPreviewEstado"></dd></div>
+            <div><dt>Versión</dt><dd id="tplPreviewVersion"></dd></div>
+            <div><dt>Cotizadores</dt><dd id="tplPreviewCotizadores"></dd></div>
+            <div><dt>Tipos de propuesta</dt><dd id="tplPreviewTipos"></dd></div>
+          </dl>
+          <button id="tplBtnUsarPreview" class="btn btn-primary" type="button">Usar como base</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

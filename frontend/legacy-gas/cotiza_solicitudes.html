@@ -1,0 +1,56 @@
+
+<!-- Cotiza_Solicitudes.html - Cotiza 1.0.0.7 -->
+<section id="section-solicitudes" class="section">
+  <div id="solicitudesListaPanel">
+    <div class="topbar sol-topbar">
+      <div><span class="sol-eyebrow">OPERACIÓN COMERCIAL</span><h1>Solicitudes de Propuesta</h1><p>Administre solicitudes internas y las recibidas desde integraciones.</p></div>
+      <button id="btnNuevaSolicitud" class="btn btn-primary" type="button">+ Nueva solicitud</button>
+    </div>
+    <div class="sol-kpis">
+      <div><span>Total visible</span><strong id="solKpiTotal">0</strong></div>
+      <div><span>Backlog</span><strong id="solKpiBacklog">0</strong></div>
+      <div><span>En proceso</span><strong id="solKpiProceso">0</strong></div>
+      <div><span>En espera</span><strong id="solKpiEspera">0</strong></div>
+      <div><span>Entregadas</span><strong id="solKpiEntregadas">0</strong></div>
+    </div>
+    <div class="card sol-card">
+      <div class="sol-filters">
+        <div class="field sol-search"><label>Búsqueda</label><input id="solFiltroBusqueda" class="input" placeholder="ID, título, cliente o CRM"></div>
+        <div class="field"><label>Etapa</label><select id="solFiltroEtapa" class="select"><option value="">Todas</option></select></div>
+        <div class="field"><label>Prioridad</label><select id="solFiltroPrioridad" class="select"><option value="">Todas</option></select></div>
+        <div class="field"><label>Responsable</label><select id="solFiltroResponsable" class="select"><option value="">Todos</option></select></div>
+        <button id="btnBuscarSolicitudes" class="btn btn-secondary" type="button">Aplicar filtros</button>
+      </div>
+      <div class="table-wrap"><table class="sol-table"><thead><tr><th>Solicitud</th><th>Cliente</th><th>Servicio</th><th>Etapa</th><th>Prioridad</th><th>Responsables</th><th>Cotizaciones</th><th>Actualización</th><th></th></tr></thead><tbody id="solicitudesBody"><tr><td colspan="9">Cargando solicitudes...</td></tr></tbody></table></div>
+    </div>
+  </div>
+
+  <div id="solicitudFormularioPanel" class="hidden">
+    <div class="sol-detail-bar"><button id="btnCancelarSolicitud" class="btn btn-light" type="button">← Volver</button><div><strong id="solFormTitulo">Nueva solicitud</strong><span id="solFormSubtitulo">Registre la necesidad comercial y sus responsables.</span></div></div>
+    <form id="formSolicitud" class="card sol-form">
+      <input id="solSolicitudId" type="hidden">
+      <div class="sol-form-head"><div><span class="sol-eyebrow">CREACIÓN MANUAL</span><h2>Información de la solicitud</h2></div><span>Los campos marcados con * son obligatorios.</span></div>
+      <div class="sol-form-grid">
+        <div class="field sol-span-2"><label>Título *</label><input id="solTitulo" class="input" maxlength="180" required placeholder="Ejemplo: Renovación de soporte SoftExpert 2027"></div>
+        <div class="field"><label>ID oportunidad CRM *</label><input id="solCrmId" class="input" maxlength="100" required placeholder="Ejemplo: 45871"></div>
+        <div class="field"><label>Empresa / cliente *</label><input id="solEmpresa" class="input" maxlength="160" required></div>
+        <div class="field"><label>Contacto</label><input id="solContactoNombre" class="input" maxlength="140"></div>
+        <div class="field"><label>Correo del contacto</label><input id="solContactoCorreo" class="input" type="email"></div>
+        <div class="field"><label>Teléfono</label><input id="solContactoTelefono" class="input" maxlength="40"></div>
+        <div class="field"><label>Cotizador *</label><select id="solCotizador" class="select" required><option value="">Seleccione</option></select></div>
+        <div class="field"><label>Prioridad</label><select id="solPrioridad" class="select"></select></div>
+        <div class="field"><label>Fecha requerida</label><input id="solFechaRequerida" class="input" type="date"></div>
+        <div class="field"><label>Vendedor *</label><select id="solVendedor" class="select" required><option value="">Seleccione</option></select></div>
+        <div class="field"><label>Analista</label><select id="solAnalista" class="select"><option value="">Sin asignar</option></select></div>
+        <div class="field"><label>Líder de producto</label><select id="solLider" class="select"><option value="">Sin asignar</option></select></div>
+        <div class="field sol-span-2"><label>Descripción / alcance solicitado *</label><textarea id="solDescripcion" class="input sol-textarea" required placeholder="Describa qué necesita el cliente y cualquier condición relevante."></textarea></div>
+      </div>
+      <div class="sol-form-actions"><button id="btnGuardarSolicitud" class="btn btn-primary" type="submit">Crear solicitud</button></div>
+    </form>
+  </div>
+
+  <div id="solicitudDetallePanel" class="hidden">
+    <div class="sol-detail-bar"><button id="btnVolverSolicitudes" class="btn btn-light" type="button">← Volver al listado</button><div><strong id="solDetalleCodigo">Solicitud</strong><span id="solDetalleSubtitulo"></span></div></div>
+    <div id="solicitudDetalleContenido"><div class="card">Cargando solicitud...</div></div>
+  </div>
+</section>

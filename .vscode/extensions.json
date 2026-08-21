@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "golang.go",
+    "ms-azuretools.vscode-docker",
+    "humao.rest-client",
+    "ms-ossdata.vscode-pgsql",
+    "mikestead.dotenv"
+  ]
+}

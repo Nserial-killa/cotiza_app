@@ -1,0 +1,20 @@
+<section id="loginView" class="login">
+    <div class="login-card">
+      <img alt="Exceltec" src="https://cdn.bitrix24.es/b18435201/disk/0de/0dea60a62464d9925da69b693100cfa1/7bd9be5a778f96d04c89972d770f5f1f">
+      <h1>Cotiza</h1>
+      <p>Sistema de Gestión de Cotizaciones Exceltec. Ingrese con su correo y PIN de acceso.</p>
+
+      <div class="field">
+        <label for="loginCorreo">Correo</label>
+        <input id="loginCorreo" class="input" type="email" placeholder="usuario@exceltecgroup.com" autocomplete="email">
+      </div>
+
+      <div class="field">
+        <label for="loginPin">PIN</label>
+        <input id="loginPin" class="input" type="password" placeholder="PIN de acceso" autocomplete="current-password">
+      </div>
+
+      <button id="btnLogin" class="btn btn-primary btn-login" type="button" onclick="CotizaApp.login()">Ingresar</button>
+      <div id="loginMessage" class="message"></div>
+    </div>
+  </section>

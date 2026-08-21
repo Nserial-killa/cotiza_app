@@ -1,0 +1,198 @@
+<section id="section-dashboard" class="section active">
+        <div class="dashboard-head">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Resumen general de cotizaciones, aceptación y actividad comercial.</p>
+          </div>
+          <button id="btnDashboardRefresh" class="btn btn-primary" type="button">Actualizar</button>
+        </div>
+
+        <div class="card dashboard-filter-card dashboard-filter-card-v2">
+          <div class="field">
+            <label for="filtroDashboardCalculadora">Cotizador</label>
+            <select id="filtroDashboardCalculadora" class="select">
+              <option value="">Todas</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="dashboardVendedor">Vendedor</label>
+            <select id="dashboardVendedor" class="select">
+              <option value="">Todos</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="dashboardTipoCliente">Tipo de cliente</label>
+            <select id="dashboardTipoCliente" class="select">
+              <option value="">Todos</option>
+              <option value="Prospecto">Prospecto</option>
+              <option value="Cliente existente">Cliente existente</option>
+            </select>
+          </div>
+
+          <p class="dashboard-filter-note">El filtro respeta los permisos del usuario y actualiza los indicadores del dashboard.</p>
+        </div>
+
+        <div class="dash-kpis">
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-blue">▤</div>
+            <div>
+              <div class="dash-kpi-label">Cotizaciones vigentes</div>
+              <div id="kpiCotizacionesVigentes" class="dash-kpi-value">0</div>
+              <div class="dash-kpi-note">En proceso comercial</div>
+            </div>
+            <div id="sparkVigentes" class="dash-spark"></div>
+          </div>
+
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-green">$</div>
+            <div>
+              <div class="dash-kpi-label">Monto cotizado</div>
+              <div id="kpiMontoCotizadoDash" class="dash-kpi-value">USD 0,00</div>
+              <div class="dash-kpi-note">Total de cotizaciones</div>
+            </div>
+            <div id="sparkCotizado" class="dash-spark"></div>
+          </div>
+
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-purple">✓</div>
+            <div>
+              <div class="dash-kpi-label">Aceptadas</div>
+              <div id="kpiAceptadas" class="dash-kpi-value">0</div>
+              <div class="dash-kpi-note">Ofertas aceptadas</div>
+            </div>
+            <div id="sparkAceptadas" class="dash-spark"></div>
+          </div>
+
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-amber">$</div>
+            <div>
+              <div class="dash-kpi-label">Monto aceptado</div>
+              <div id="kpiMontoAceptado" class="dash-kpi-value">USD 0,00</div>
+              <div class="dash-kpi-note">De ofertas aceptadas</div>
+            </div>
+            <div id="sparkAceptadoMonto" class="dash-spark"></div>
+          </div>
+
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-green">🏆</div>
+            <div>
+              <div class="dash-kpi-label">Ganadas</div>
+              <div id="kpiGanadasDash" class="dash-kpi-value">0</div>
+              <div class="dash-kpi-note">Ofertas ganadas</div>
+            </div>
+            <div id="sparkGanadas" class="dash-spark"></div>
+          </div>
+
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-green">$</div>
+            <div>
+              <div class="dash-kpi-label">Monto ganado</div>
+              <div id="kpiMontoGanado" class="dash-kpi-value">USD 0,00</div>
+              <div class="dash-kpi-note">De ofertas ganadas</div>
+            </div>
+            <div id="sparkGanadoMonto" class="dash-spark"></div>
+          </div>
+
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-red">×</div>
+            <div>
+              <div class="dash-kpi-label">Perdidas</div>
+              <div id="kpiPerdidas" class="dash-kpi-value">0</div>
+              <div class="dash-kpi-note">Ofertas perdidas</div>
+            </div>
+            <div id="sparkPerdidas" class="dash-spark"></div>
+          </div>
+
+          <div class="dash-kpi-card">
+            <div class="dash-kpi-icon dash-slate">⌛</div>
+            <div>
+              <div class="dash-kpi-label">Vencidas / Canceladas</div>
+              <div id="kpiVencidasCanceladas" class="dash-kpi-value">0</div>
+              <div class="dash-kpi-note">Sin posibilidad de cierre</div>
+            </div>
+            <div id="sparkCerradas" class="dash-spark"></div>
+          </div>
+        </div>
+
+        <div class="card segment-card">
+          <h2 class="card-title">Segmentación de clientes</h2>
+          <div id="segmentacionClientes" class="segment-grid"></div>
+        </div>
+
+        <div class="dash-visual-grid">
+          <div class="card trend-card">
+            <div class="dash-card-head">
+              <div>
+                <h2 class="card-title">Tendencia de cotizaciones por mes</h2>
+                <p class="card-sub">Cantidad de cotizaciones y monto cotizado.</p>
+              </div>
+              <span class="dash-pill">Últimos meses</span>
+            </div>
+            <div id="trendChart" class="trend-chart"></div>
+          </div>
+
+          <div class="card">
+            <div class="dash-card-head">
+              <div>
+                <h2 class="card-title">Embudo comercial por estado</h2>
+                <p class="card-sub">Cantidad de ofertas por estado.</p>
+              </div>
+            </div>
+            <div id="funnelCantidad" class="funnel"></div>
+          </div>
+
+          <div class="card">
+            <div class="dash-card-head">
+              <div>
+                <h2 class="card-title">Embudo comercial por monto</h2>
+                <p class="card-sub">Monto cotizado agrupado por estado.</p>
+              </div>
+            </div>
+            <div id="funnelMonto" class="funnel"></div>
+          </div>
+        </div>
+
+        <div class="card bottom-metrics">
+          <div class="bottom-metric">
+            <span class="bottom-icon dash-blue">▤</span>
+            <div>
+              <strong id="kpiTicketPromedio">USD 0,00</strong>
+              <small>Ticket promedio</small>
+            </div>
+          </div>
+
+          <div class="bottom-metric">
+            <span class="bottom-icon dash-green">↗</span>
+            <div>
+              <strong id="kpiMargenPromedio">0%</strong>
+              <small>Margen promedio</small>
+            </div>
+          </div>
+
+          <div class="bottom-metric">
+            <span class="bottom-icon dash-purple">◷</span>
+            <div>
+              <strong id="kpiTiempoCiclo">—</strong>
+              <small>Tiempo promedio de ciclo</small>
+            </div>
+          </div>
+
+          <div class="bottom-metric">
+            <span class="bottom-icon dash-red">◎</span>
+            <div>
+              <strong id="kpiTasaAceptacion">0%</strong>
+              <small>Tasa de aceptación</small>
+            </div>
+          </div>
+
+          <div class="bottom-metric">
+            <span class="bottom-icon dash-amber">🏆</span>
+            <div>
+              <strong id="kpiTasaGanancia">0%</strong>
+              <small>Tasa de ganancia</small>
+            </div>
+          </div>
+        </div>
+      </section>

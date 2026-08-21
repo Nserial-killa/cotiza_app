@@ -1,0 +1,60 @@
+<!-- Cotiza_Cotizaciones.html - Gestor V2 1.0.0.7 -->
+<section id="section-cotizaciones" class="section">
+  <div id="gestorCotizacionesLista">
+    <div class="topbar gestor-topbar">
+      <div>
+        <span class="gestor-eyebrow">GESTIÓN COMERCIAL</span>
+        <h1>Cotizaciones</h1>
+        <p>Consulte, gestione y dé seguimiento a las propuestas comerciales.</p>
+      </div>
+      <button id="btnNuevaCotizacion" class="btn btn-primary" type="button">+ Nueva solicitud</button>
+    </div>
+
+    <div class="gestor-kpis">
+      <div><span>Total visible</span><strong id="gestorKpiTotal">0</strong></div>
+      <div><span>Borradores</span><strong id="gestorKpiBorradores">0</strong></div>
+      <div><span>En gestión</span><strong id="gestorKpiGestion">0</strong></div>
+      <div><span>Aceptadas / Ganadas</span><strong id="gestorKpiCerradas">0</strong></div>
+    </div>
+
+    <div class="card gestor-card">
+      <div class="filters gestor-filters">
+        <div class="field gestor-search">
+          <label for="filtroBusqueda">Búsqueda general</label>
+          <input id="filtroBusqueda" class="input" type="text" placeholder="Código, cliente, empresa, vendedor...">
+        </div>
+        <div class="field"><label for="filtroEstado">Estado</label><select id="filtroEstado" class="select"><option value="">Todos</option></select></div>
+        <div class="field"><label for="filtroCalculadora">Cotizador</label><select id="filtroCalculadora" class="select"><option value="">Todos</option></select></div>
+        <div class="field"><label for="filtroUsuario">Responsable</label><select id="filtroUsuario" class="select"><option value="">Todos</option></select></div>
+        <div class="field"><label for="filtroFechaDesde">Desde</label><input id="filtroFechaDesde" class="input" type="date"></div>
+        <button id="btnBuscarCotizaciones" class="btn btn-secondary" type="button">Aplicar filtros</button>
+      </div>
+      <div class="table-wrap gestor-table-wrap">
+        <table class="gestor-table">
+          <thead><tr><th>Cotización</th><th>Cliente</th><th>Cotizador / Tipo</th><th>Estado</th><th>Total</th><th>Responsables</th><th>Actualización</th><th></th></tr></thead>
+          <tbody id="cotizacionesBody"><tr><td colspan="8">Cargando cotizaciones...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="gestorCotizacionDetalle" class="hidden">
+    <div class="gestor-detail-bar">
+      <button id="btnVolverListadoCotizaciones" class="btn btn-light" type="button">← Volver al listado</button>
+      <div class="gestor-detail-actions">
+        <button id="btnEditarCotizacionGestor" class="btn btn-primary" type="button">Editar cotización</button>
+        <button id="btnNuevaVersionGestor" class="btn btn-secondary" type="button">Nueva versión</button>
+        <button id="btnGenerarLinkGestor" class="btn btn-secondary" type="button">Link del cliente</button>
+      </div>
+    </div>
+    <div id="gestorDetalleContenido"><div class="card">Cargando detalle...</div></div>
+  </div>
+
+  <div id="gestorCotizadorEditor" class="hidden">
+    <div class="gestor-detail-bar">
+      <button id="btnCerrarCotizadorIntegrado" class="btn btn-light" type="button">← Volver al Gestor</button>
+      <div><strong id="gestorEditorTitulo">Cotizador</strong><span id="gestorEditorSubtitulo">Complete y guarde la propuesta.</span></div>
+    </div>
+    <div class="gestor-runtime-shell"><iframe id="gestorCotizadorFrame" title="Cotizador Dinámico" allow="clipboard-write"></iframe></div>
+  </div>
+</section>

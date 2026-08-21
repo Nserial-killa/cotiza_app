@@ -1,0 +1,127 @@
+<script>
+  // Polyfill defensivo — todos los navegadores modernos (Chrome, Firefox,
+  // Safari, Edge desde ~2016) ya soportan NodeList.forEach nativamente.
+  // Esto solo cubre motores muy viejos, no debería activarse en la práctica.
+  if (window.NodeList && !NodeList.prototype.forEach) {
+    NodeList.prototype.forEach = Array.prototype.forEach;
+  }
+</script>
+<script>
+/* ============================================================
+   COTIZA — Shim de google.script.run (Sprint 0, vista previa)
+   Este archivo NO existe en producción. Simula el backend de
+   Google Apps Script para poder navegar el shell completo antes
+   de que exista el API real en Go (Sprint 1).
+
+   Sprint 1: webValidarUsuario YA NO se simula — el login usa
+   POST /api/auth/login contra el API en Go. Quedan las 24
+   funciones restantes, que responden con una forma vacía
+   "ok:true" genérica para que la UI no truene, aunque no muestre
+   datos reales todavía.
+
+   Cada una se va migrando a un fetch() real y se borra de
+   RPC_METHODS — no extender este archivo con más lógica de negocio.
+   ============================================================ */
+(function () {
+  // Funciones detectadas vía google.script.run en todo el frontend
+  // ensamblado que TODAVÍA no tienen endpoint en Go (24 de las 25
+  // originales). Todas comparten la misma respuesta vacía genérica;
+  // cada una se borra de esta lista al migrarse a fetch().
+  var RPC_METHODS = [
+    "webListarUsuariosActivos",
+    "webListarCalculadorasPorUsuario",
+    "webObtenerDashboardPorUsuario",
+    "webBuscarCotizacionesV2",
+    "webObtenerGestionCotizacionV2",
+    "webCrearNuevaVersion",
+    "webEjecutarAccionCotizacion",
+    "webActualizarEstadoCotizacion",
+    "webGenerarLinkCliente",
+    "webCompilarCotizador",
+    "webValidarCotizadorParaCompilar",
+    "webListarCatalogosDesigner",
+    "webCotizadorListarTabs",
+    "webCotizadorGuardarTab",
+    "webListarModuloParametros",
+    "webGuardarModuloParametro",
+    "webCambiarEstadoModuloParametro",
+    "webEliminarModuloParametro",
+    "webListarServiciosProductosParametros",
+    "webGuardarServicioProductoParametro",
+    "webCambiarEstadoServicioProductoParametro",
+    "webListarFormasPagoParametros",
+    "webGuardarFormaPagoParametro",
+    "webCambiarEstadoFormaPagoParametro"
+  ];
+
+  function defaultResponse() {
+    return {
+      ok: true,
+      usuario: null,
+      usuarios: [],
+      calculadoras: [],
+      cotizaciones: [],
+      items: [],
+      catalogos: [],
+      catalogoValores: [],
+      tabs: [],
+      formasPago: [],
+      serviciosProductos: [],
+      modulos: [],
+      dashboard: {
+        cotizaciones_vigentes: 0, monto_cotizado: 0,
+        aceptadas: 0, monto_aceptado: 0,
+        ganadas: 0, monto_ganado: 0,
+        perdidas: 0, vencidas: 0
+      },
+      total: 0,
+      data: []
+    };
+  }
+
+  function createRunner() {
+    var successHandler = null;
+    var failureHandler = null;
+
+    var runner = {
+      withSuccessHandler: function (fn) { successHandler = fn; return runner; },
+      withFailureHandler: function (fn) { failureHandler = fn; return runner; },
+      withUserObject: function () { return runner; }
+    };
+
+    // Todas las funciones que quedan responden igual: la forma vacía
+    // genérica. Los argumentos se ignoran a propósito — este shim no
+    // tiene (ni debe tener) lógica de negocio.
+    function respond() {
+      var onSuccess = successHandler;
+      successHandler = null;
+      failureHandler = null;
+
+      setTimeout(function () {
+        if (typeof onSuccess !== "function") return;
+        onSuccess(defaultResponse());
+      }, 150);
+
+      return runner;
+    }
+
+    RPC_METHODS.forEach(function (methodName) {
+      runner[methodName] = respond;
+    });
+
+    return runner;
+  }
+
+  window.google = window.google || {};
+  window.google.script = window.google.script || {};
+  if (!window.google.script.run) {
+    window.google.script.run = createRunner();
+  }
+
+  console.info(
+    "[Cotiza] Sprint 1: el login usa el API real (POST /api/auth/login). " +
+    "Las 24 funciones RPC restantes siguen simuladas por este shim, " +
+    "así que esos datos son de ejemplo, no vienen de una base real."
+  );
+})();
+</script>

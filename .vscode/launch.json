@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Cotiza API (debug local, contra Postgres en Docker)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/api-go/cmd/server",
+      "cwd": "${workspaceFolder}/api-go",
+      "env": {
+        "DATABASE_URL": "postgres://cotiza_admin:changeme@localhost:5432/cotiza?sslmode=disable",
+        "PORT": "8080",
+        "ENV": "development",
+        "STATIC_DIR": "${workspaceFolder}/frontend"
+      }
+    }
+  ]
+}
