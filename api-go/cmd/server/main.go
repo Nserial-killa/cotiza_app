@@ -50,6 +50,7 @@ func main() {
 	health := &handlers.HealthHandler{DB: pool}
 	auth := &handlers.AuthHandler{DB: pool}
 	catalogos := &handlers.CatalogosHandler{DB: pool}
+	usuarios := &handlers.UsuariosHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		r.Get("/health", health.Check)
@@ -66,6 +67,12 @@ func main() {
 		//     reportes.
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", auth.Login)
+		})
+		r.Get("/roles", usuarios.ListarRoles)
+		r.Route("/usuarios", func(r chi.Router) {
+			r.Get("/", usuarios.Listar)
+			r.Post("/", usuarios.Crear)
+			r.Patch("/{id}", usuarios.Editar)
 		})
 	})
 

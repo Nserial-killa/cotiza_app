@@ -250,4 +250,54 @@
     </div>
   </div>
 
+  <div id="modalUsuario" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalUsuarioTitulo">Nuevo usuario</h2>
+          <p>Complete los datos de acceso del usuario.</p>
+        </div>
+        <button id="btnCerrarModalUsuario" class="modal-close" type="button">×</button>
+      </div>
+
+      <input id="usuarioIdOriginal" type="hidden">
+
+      <div class="field">
+        <label for="usuarioNombre">Nombre</label>
+        <input id="usuarioNombre" class="input" type="text" placeholder="Nombre completo">
+      </div>
+
+      <div class="field">
+        <label for="usuarioCorreo">Correo</label>
+        <input id="usuarioCorreo" class="input" type="email" placeholder="usuario@exceltecgroup.com">
+      </div>
+
+      <div class="field">
+        <label for="usuarioPin" id="usuarioPinLabel">PIN inicial</label>
+        <input id="usuarioPin" class="input" type="password" placeholder="PIN de acceso" autocomplete="new-password">
+        <p id="usuarioPinAyuda" class="card-sub" style="margin:4px 0 0;"></p>
+      </div>
+
+      <div class="field">
+        <label for="usuarioRol">Rol</label>
+        <select id="usuarioRol" class="select"></select>
+      </div>
+
+      <div class="field">
+        <label for="usuarioEstado">Estado</label>
+        <select id="usuarioEstado" class="select">
+          <option value="Activo">Activo</option>
+          <option value="Inactivo">Inactivo</option>
+        </select>
+      </div>
+
+      <div id="usuarioMensaje" class="message"></div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarUsuario" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnGuardarUsuario" class="btn btn-primary" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>

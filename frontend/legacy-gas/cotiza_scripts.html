@@ -39,7 +39,9 @@ window.CotizaApp = (function(){
         filasPorPaginaParametros:10,
         compilacionResultadoTexto:"",
         compilacionResultadoNombre:"validacion_cotizador.txt",
-        compilacionCotizadorPendiente:""
+        compilacionCotizadorPendiente:"",
+        usuariosAdmin:[],
+        rolesAdmin:[]
       };
 
       function init(){
@@ -48,6 +50,18 @@ window.CotizaApp = (function(){
 
         bind("btnLogin","click",login);
         bind("loginPin","keydown",function(e){ if(e.key === "Enter") login(); });
+        bind("btnNuevoUsuario","click",function(){ abrirModalUsuario(); });
+        bind("btnCerrarModalUsuario","click",cerrarModalUsuario);
+        bind("btnCancelarUsuario","click",cerrarModalUsuario);
+        bind("btnGuardarUsuario","click",guardarUsuarioModal);
+        (function(){
+          const modalUsuarioEl = byId("modalUsuario");
+          if(modalUsuarioEl){
+            modalUsuarioEl.addEventListener("click",function(e){
+              if(e.target && e.target.id === "modalUsuario") cerrarModalUsuario();
+            });
+          }
+        })();
         bind("loginCorreo","keydown",function(e){ if(e.key === "Enter") login(); });
         bind("btnLogout","click",logout);
         bind("btnToggleSidebarPrincipal","click",function(){ alternarSidebarPrincipal(); });
@@ -1259,8 +1273,224 @@ window.CotizaApp = (function(){
         if(section === "parametros"){
           inicializarParametrosV9();
         }
+        if(section === "usuarios") cargarUsuariosAdmin();
       }
 
+
+      // ==================================================
+      // USUARIOS Y PERMISOS (Sprint 1) — CRUD real contra el API en Go:
+      // GET/POST /api/usuarios, PATCH /api/usuarios/{id}, GET /api/roles.
+      // No hay guardia de sesión todavía (login persistente/tokens es
+      // un tema aparte a planear); estos endpoints quedan abiertos por
+      // ahora, igual que el resto del Carril B en este sprint.
+      // ==================================================
+
+      async function solicitarJSON(url, opciones){
+        const resp = await fetch(url, opciones || {});
+        let data = null;
+        try { data = await resp.json(); } catch(e) { data = null; }
+        if(!resp.ok || !data || !data.ok){
+          throw new Error((data && data.error) || "No fue posible completar la solicitud.");
+        }
+        return data;
+      }
+
+      function cargarUsuariosAdmin(force){
+        cargarRolesAdmin();
+
+        if(!force && state.usuariosAdmin && state.usuariosAdmin.length){
+          renderUsuariosAdmin();
+          return;
+        }
+
+        const tbody = byId("usuariosBody");
+        if(tbody) tbody.innerHTML = '<tr><td colspan="6">Cargando usuarios...</td></tr>';
+
+        solicitarJSON("/api/usuarios")
+          .then(function(res){
+            state.usuariosAdmin = res.usuarios || [];
+            renderUsuariosAdmin();
+          })
+          .catch(function(error){
+            const mensaje = error && error.message ? error.message : "No fue posible cargar los usuarios.";
+            if(tbody) tbody.innerHTML = '<tr><td colspan="6">' + escapeHtml(mensaje) + '</td></tr>';
+            mostrarToast(mensaje);
+          });
+      }
+
+      function cargarRolesAdmin(){
+        solicitarJSON("/api/roles")
+          .then(function(res){
+            state.rolesAdmin = res.roles || [];
+            llenarSelectRolesAdmin();
+          })
+          .catch(function(error){
+            mostrarToast((error && error.message) || "No fue posible cargar los roles.");
+          });
+      }
+
+      // No se usa llenarSelect() acá a propósito: esa función pasa el
+      // valor seleccionado a mayúsculas, pensado para códigos de
+      // catálogo (CTZ-CAT-001), y rompería la preselección de roles
+      // con nombre mixto ("Gerente Comercial").
+      function llenarSelectRolesAdmin(){
+        const select = byId("usuarioRol");
+        if(!select) return;
+        const actual = select.value;
+        select.innerHTML = (state.rolesAdmin || []).map(function(r){
+          return '<option value="' + escapeHtml(r.rol) + '">' + escapeHtml(r.rol) + '</option>';
+        }).join("");
+        if(actual) select.value = actual;
+      }
+
+      function formatearUltimoAcceso(valor){
+        if(!valor) return "Nunca";
+        const fecha = new Date(valor);
+        if(isNaN(fecha.getTime())) return "Nunca";
+        return fecha.toLocaleString("es-CR", {dateStyle:"short", timeStyle:"short"});
+      }
+
+      function renderUsuariosAdmin(){
+        const tbody = byId("usuariosBody");
+        if(!tbody) return;
+
+        const items = state.usuariosAdmin || [];
+        if(!items.length){
+          tbody.innerHTML = '<tr><td colspan="6">No hay usuarios registrados todavía.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = items.map(function(u){
+          const activo = String(u.estado || "").toLowerCase() === "activo";
+          const idSeguro = encodeURIComponent(u.usuario_id || "");
+          return '<tr>' +
+            '<td><strong>' + escapeHtml(u.nombre || "") + '</strong></td>' +
+            '<td>' + escapeHtml(u.correo || "") + '</td>' +
+            '<td><span class="badge">' + escapeHtml(u.rol || "") + '</span></td>' +
+            '<td>' + (activo ? '<span class="badge badge-aceptada">Activo</span>' : '<span class="badge badge-vencida">Inactivo</span>') + '</td>' +
+            '<td>' + escapeHtml(formatearUltimoAcceso(u.ultimo_acceso)) + '</td>' +
+            '<td><div class="actions">' +
+              '<button class="mini mini-primary" type="button" onclick="CotizaApp.editarUsuarioAdmin(decodeURIComponent(\'' + idSeguro + '\'))">Editar</button>' +
+              (activo
+                ? '<button class="mini" type="button" onclick="CotizaApp.cambiarEstadoUsuarioAdmin(decodeURIComponent(\'' + idSeguro + '\'),false)">Desactivar</button>'
+                : '<button class="mini" type="button" onclick="CotizaApp.cambiarEstadoUsuarioAdmin(decodeURIComponent(\'' + idSeguro + '\'),true)">Activar</button>') +
+            '</div></td>' +
+          '</tr>';
+        }).join("");
+      }
+
+      function limpiarFormularioUsuario(){
+        if(byId("usuarioIdOriginal")) byId("usuarioIdOriginal").value = "";
+        if(byId("usuarioNombre")) byId("usuarioNombre").value = "";
+        if(byId("usuarioCorreo")){ byId("usuarioCorreo").value = ""; byId("usuarioCorreo").disabled = false; }
+        if(byId("usuarioPin")) byId("usuarioPin").value = "";
+        if(byId("usuarioEstado")) byId("usuarioEstado").value = "Activo";
+        mostrarMensajeUsuario("", "");
+      }
+
+      function mostrarMensajeUsuario(texto, tipo){
+        const mensaje = byId("usuarioMensaje");
+        if(!mensaje) return;
+        mensaje.className = "message " + (tipo === "error" ? "message-error" : tipo === "ok" ? "message-ok" : "");
+        mensaje.textContent = texto || "";
+      }
+
+      function abrirModalUsuario(usuarioId){
+        limpiarFormularioUsuario();
+        llenarSelectRolesAdmin();
+
+        const titulo = byId("modalUsuarioTitulo");
+        const labelPin = byId("usuarioPinLabel");
+        const ayudaPin = byId("usuarioPinAyuda");
+        const item = usuarioId
+          ? (state.usuariosAdmin || []).find(function(u){ return String(u.usuario_id) === String(usuarioId); })
+          : null;
+
+        if(usuarioId && !item) return;
+
+        if(item){
+          if(titulo) titulo.textContent = "Editar usuario";
+          byId("usuarioIdOriginal").value = item.usuario_id || "";
+          byId("usuarioNombre").value = item.nombre || "";
+          byId("usuarioCorreo").value = item.correo || "";
+          byId("usuarioCorreo").disabled = true;
+          if(byId("usuarioRol")) byId("usuarioRol").value = item.rol || "";
+          byId("usuarioEstado").value = item.estado || "Activo";
+          if(labelPin) labelPin.textContent = "Nuevo PIN (opcional)";
+          if(ayudaPin) ayudaPin.textContent = "Deje este campo vacío para conservar el PIN actual.";
+        }else{
+          if(titulo) titulo.textContent = "Nuevo usuario";
+          if(labelPin) labelPin.textContent = "PIN inicial";
+          if(ayudaPin) ayudaPin.textContent = "";
+        }
+
+        if(byId("modalUsuario")) byId("modalUsuario").classList.add("open");
+      }
+
+      function cerrarModalUsuario(){
+        if(byId("modalUsuario")) byId("modalUsuario").classList.remove("open");
+      }
+
+      async function guardarUsuarioModal(){
+        const usuarioId = byId("usuarioIdOriginal") ? byId("usuarioIdOriginal").value : "";
+        const nombre = byId("usuarioNombre") ? byId("usuarioNombre").value.trim() : "";
+        const correo = byId("usuarioCorreo") ? byId("usuarioCorreo").value.trim() : "";
+        const pin = byId("usuarioPin") ? byId("usuarioPin").value.trim() : "";
+        const rol = byId("usuarioRol") ? byId("usuarioRol").value : "";
+        const estado = byId("usuarioEstado") ? byId("usuarioEstado").value : "Activo";
+
+        if(!nombre || !rol){
+          mostrarMensajeUsuario("Debe indicar nombre y rol.", "error");
+          return;
+        }
+        if(!usuarioId && (!correo || !pin)){
+          mostrarMensajeUsuario("Para un usuario nuevo debe indicar correo y PIN inicial.", "error");
+          return;
+        }
+
+        mostrarMensajeUsuario("Guardando...", "");
+
+        try{
+          if(usuarioId){
+            const cuerpo = { nombre:nombre, rol:rol, estado:estado };
+            if(pin) cuerpo.pin = pin;
+            await solicitarJSON("/api/usuarios/" + encodeURIComponent(usuarioId), {
+              method:"PATCH",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify(cuerpo)
+            });
+          }else{
+            await solicitarJSON("/api/usuarios", {
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({ nombre:nombre, correo:correo, pin:pin, rol:rol, estado:estado })
+            });
+          }
+
+          cerrarModalUsuario();
+          mostrarToast(usuarioId ? "Usuario actualizado." : "Usuario creado.");
+          cargarUsuariosAdmin(true);
+        }catch(error){
+          mostrarMensajeUsuario((error && error.message) || "No fue posible guardar el usuario.", "error");
+        }
+      }
+
+      async function cambiarEstadoUsuarioAdmin(usuarioId, activar){
+        const item = (state.usuariosAdmin || []).find(function(u){ return String(u.usuario_id) === String(usuarioId); });
+        if(!item) return;
+
+        try{
+          await solicitarJSON("/api/usuarios/" + encodeURIComponent(usuarioId), {
+            method:"PATCH",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({ nombre:item.nombre, rol:item.rol, estado: activar ? "Activo" : "Inactivo" })
+          });
+          mostrarToast(activar ? "Usuario activado." : "Usuario desactivado.");
+          cargarUsuariosAdmin(true);
+        }catch(error){
+          mostrarToast((error && error.message) || "No fue posible cambiar el estado del usuario.");
+        }
+      }
 
 
       const PARAMETROS_V9_MODULOS = {
@@ -5637,7 +5867,9 @@ window.CotizaApp = (function(){
         eliminarParametroRegistro:eliminarParametroRegistro,
         cambiarPaginaParametro:cambiarPaginaModuloParametros,
         validarCotizador:validarCotizador,
-        compilarCotizador:compilarCotizador
+        compilarCotizador:compilarCotizador,
+        editarUsuarioAdmin:abrirModalUsuario,
+        cambiarEstadoUsuarioAdmin:cambiarEstadoUsuarioAdmin
       };
     })();
 </script>

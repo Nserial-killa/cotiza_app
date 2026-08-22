@@ -88,3 +88,57 @@ Content-Type: application/json
   "correo": "",
   "pin": ""
 }
+
+
+### ---------------------------------------------------------
+### Sprint 1 — Usuarios y Permisos (implementado)
+### ---------------------------------------------------------
+
+### Roles disponibles (para el <select> del formulario)
+GET {{baseUrl}}/api/roles
+
+### Listado de usuarios — nunca incluye pin_hash
+GET {{baseUrl}}/api/usuarios
+
+### Crear usuario — 201 con el usuario creado (sin el PIN)
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+
+{
+  "nombre": "Usuario de prueba",
+  "correo": "usuario.prueba@exceltecgroup.com",
+  "pin": "1234",
+  "rol": "Vendedor",
+  "estado": "Activo"
+}
+
+### Crear con un rol que no existe — 400 {"ok":false,"error":"El rol indicado no existe."}
+POST {{baseUrl}}/api/usuarios
+Content-Type: application/json
+
+{
+  "nombre": "Usuario de prueba",
+  "correo": "usuario.rol.malo@exceltecgroup.com",
+  "pin": "1234",
+  "rol": "Rol Que No Existe"
+}
+
+### Editar nombre/rol/estado sin tocar el PIN — usar un usuario_id real
+PATCH {{baseUrl}}/api/usuarios/usr-demo-vendedor
+Content-Type: application/json
+
+{
+  "nombre": "Vendedor Demo",
+  "rol": "Vendedor",
+  "estado": "Activo"
+}
+
+### Desactivar (mismo PATCH, solo cambia estado) — usar un usuario_id real
+PATCH {{baseUrl}}/api/usuarios/usr-demo-vendedor
+Content-Type: application/json
+
+{
+  "nombre": "Vendedor Demo",
+  "rol": "Vendedor",
+  "estado": "Inactivo"
+}

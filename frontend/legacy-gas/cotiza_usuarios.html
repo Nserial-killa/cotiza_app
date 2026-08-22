@@ -4,9 +4,24 @@
             <h1>Usuarios y Permisos</h1>
             <p>Gestión de usuarios, roles y permisos por cotizador.</p>
           </div>
+          <button id="btnNuevoUsuario" class="btn btn-primary" type="button">+ Nuevo usuario</button>
         </div>
-        <div class="placeholder">
-          <h2>Usuarios y Permisos</h2>
-          <p>Sección preparada para una siguiente versión.</p>
+
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Correo</th>
+                  <th>Rol</th>
+                  <th>Estado</th>
+                  <th>Último acceso</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="usuariosBody"><tr><td colspan="6">Cargando usuarios...</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </section>
