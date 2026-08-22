@@ -90,14 +90,10 @@ def main():
         flags=re.DOTALL,
     )
 
-    # 4) Insertar el shim de google.script.run ANTES de "Cotiza_Scripts",
-    #    y el banner de vista previa justo después de <body>.
+    # 4) Insertar el shim de google.script.run ANTES de "Cotiza_Scripts".
     shim = (BUILD_DIR / "shim.html").read_text(encoding="utf-8")
     marker = "<!-- === Cotiza_Scripts (cotiza_scripts.html) === -->"
     assembled = assembled.replace(marker, shim + "\n" + marker, 1)
-
-    banner = '<div class="preview-banner">Sprint 1 — el login ya usa el API real en Go. Las 24 funciones RPC restantes siguen simuladas: esos datos son de ejemplo.</div>\n'
-    assembled = assembled.replace("<body>", "<body>\n" + banner, 1)
 
     # 5) Extender CotizaApp con el módulo del Diseñador (catálogos/tabs),
     #    que existe como archivo pero no estaba referenciado por include().

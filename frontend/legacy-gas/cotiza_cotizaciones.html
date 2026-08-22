@@ -1,5 +1,5 @@
 <!-- Cotiza_Cotizaciones.html - Gestor V2 1.0.0.7 -->
-<section id="section-cotizaciones" class="section">
+<section id="section-cotizaciones" class="section cotizaciones-page">
   <div id="gestorCotizacionesLista">
     <div class="topbar gestor-topbar">
       <div>
@@ -7,7 +7,7 @@
         <h1>Cotizaciones</h1>
         <p>Consulte, gestione y dé seguimiento a las propuestas comerciales.</p>
       </div>
-      <button id="btnNuevaCotizacion" class="btn btn-primary" type="button">+ Nueva solicitud</button>
+      <button id="btnNuevaCotizacion" class="btn btn-primary gestor-new-button" type="button" aria-label="Crear una nueva solicitud de cotización">+ Nueva solicitud</button>
     </div>
 
     <div class="gestor-kpis">
@@ -27,7 +27,7 @@
         <div class="field"><label for="filtroCalculadora">Cotizador</label><select id="filtroCalculadora" class="select"><option value="">Todos</option></select></div>
         <div class="field"><label for="filtroUsuario">Responsable</label><select id="filtroUsuario" class="select"><option value="">Todos</option></select></div>
         <div class="field"><label for="filtroFechaDesde">Desde</label><input id="filtroFechaDesde" class="input" type="date"></div>
-        <button id="btnBuscarCotizaciones" class="btn btn-secondary" type="button">Aplicar filtros</button>
+        <button id="btnBuscarCotizaciones" class="btn btn-primary gestor-filter-button" type="button">Aplicar filtros</button>
       </div>
       <div class="table-wrap gestor-table-wrap">
         <table class="gestor-table">
