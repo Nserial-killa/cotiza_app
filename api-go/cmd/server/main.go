@@ -58,6 +58,9 @@ func main() {
 		//     compilador, plantillas — se registran acá en sprints
 		//     siguientes, ej: r.Mount("/catalogos", catalogos.Routes(pool))
 		r.Get("/catalogos/designer", catalogos.ListarDesigner)
+		r.Post("/catalogos", catalogos.GuardarCatalogo)
+		r.Post("/catalogos/valores", catalogos.GuardarValor)
+		r.Post("/catalogos/relaciones", catalogos.GuardarRelaciones)
 
 		// --- Carril B (Operación): auth, cotizaciones, dashboard,
 		//     reportes.

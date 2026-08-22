@@ -14,6 +14,35 @@ GET {{baseUrl}}/api/catalogos/designer?modo=solo_catalogos
 ### Valores activos de un catálogo
 GET {{baseUrl}}/api/catalogos/designer?modo=valores_catalogo&catalogo_id=CTZ-CAT-001
 
+### Crear o editar un catálogo
+POST {{baseUrl}}/api/catalogos
+Content-Type: application/json
+
+{
+  "catalogo_id": "CAT-DEMO",
+  "nombre_catalogo": "Catálogo demo",
+  "alcance": "COTIZADOR",
+  "descripcion": "Creado desde requests.http",
+  "activo": true,
+  "catalogo_padre_id": "",
+  "orden": 1
+}
+
+### Crear o editar un valor
+POST {{baseUrl}}/api/catalogos/valores
+Content-Type: application/json
+
+{
+  "valor_id": "CATV-DEMO-UNO",
+  "catalogo_id": "CAT-DEMO",
+  "clave": "UNO",
+  "texto_visible": "Opción uno",
+  "valor_sistema": "UNO",
+  "descripcion": "",
+  "orden": 1,
+  "activo": true
+}
+
 
 ### ---------------------------------------------------------
 ### Sprint 1 — POST /api/auth/login (implementado)

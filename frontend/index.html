@@ -9528,8 +9528,23 @@ window.CotizaApp = (function(){
         return data;
       }
 
+      async function guardarCatalogosDesigner(endpoint, registro){
+        const resp = await fetch(endpoint, {
+          method:"POST",
+          headers:{"Accept":"application/json","Content-Type":"application/json"},
+          body:JSON.stringify(registro || {})
+        });
+        let data = null;
+        try { data = await resp.json(); } catch(e) { data = null; }
+        if(!resp.ok || !data || !data.ok){
+          throw new Error((data && data.error) || "No fue posible guardar la información del catálogo.");
+        }
+        return data;
+      }
+
       function cargarDesignerCatalogos(force){
         const d = state.disenadorCotiza || {};
+        const catalogoPendiente = String(d.catalogoSeleccionado || "").trim().toUpperCase();
         state.disenadorCotiza = d;
 
         // V49: carga progresiva. Al entrar a Catálogos solo se lee la definición
@@ -9587,9 +9602,20 @@ window.CotizaApp = (function(){
             d.catalogos = normalizarDataModuloParametros(Array.isArray(catalogos) ? catalogos : []);
             d.valores = force ? [] : (d.valores || []);
             d.relaciones = force ? [] : (d.relaciones || []);
-            d.catalogoSeleccionado = "";
+            const catalogoRecargado = catalogoPendiente
+              ? d.catalogos.find(function(cat){
+                  return String(cat.catalogo_id || "").trim().toUpperCase() === catalogoPendiente;
+                })
+              : null;
+            d.catalogoSeleccionado = catalogoRecargado ? catalogoPendiente : "";
+            if(catalogoRecargado && clasificarTipoCatalogoDesigner(catalogoRecargado) === "SISTEMA"){
+              d.mostrarCatalogosSistema = true;
+            }
             d.valorSeleccionado = "";
             state.disenadorCotiza = d;
+
+            const mostrarSistema = byId("designerMostrarCatalogosSistema");
+            if(mostrarSistema) mostrarSistema.checked = !!d.mostrarCatalogosSistema;
 
             if(!d.catalogos.length){
               mostrarDesignerEstadoInline("El API respondió correctamente, pero no devolvió catálogos para mostrar. Revise alcance COTIZADOR/GLOBAL o registros activos.", true);
@@ -10146,34 +10172,19 @@ window.CotizaApp = (function(){
           mostrarToast("El valor no tiene clave o texto visible. Revise el registro antes de relacionarlo.");
           return;
         }
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          mostrarToast("Guardado local no disponible en modo diseño.");
-          return;
-        }
         setLoading("section-parametros", true);
-        google.script.run
-          .withSuccessHandler(function(res){
+        guardarCatalogosDesigner("/api/catalogos/relaciones", registro)
+          .then(function(res){
             setLoading("section-parametros", false);
-            if(!res || !res.ok){
-              mostrarToast((res && res.error) ? res.error : "No fue posible guardar las relaciones.");
-              return;
-            }
             cerrarModalRelacionValorDesigner();
             mostrarToast(res.mensaje || "Relaciones guardadas.");
             cargarValoresCatalogoDesigner(catalogoHijoId, true, function(){
               renderDesignerValoresCatalogo();
             });
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             setLoading("section-parametros", false);
             mostrarToast(error && error.message ? error.message : "No fue posible guardar las relaciones.");
-          })
-          .webGuardarModuloParametro({
-            modulo:"catalogos_valores",
-            id_original:valorId,
-            registro:registro,
-            usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion:state.usuario ? state.usuario.correo || "" : ""
           });
       }
 
@@ -10261,19 +10272,10 @@ window.CotizaApp = (function(){
 
         registro.catalogo_padre_id = byId("designerCatalogoPadre") ? byId("designerCatalogoPadre").value || "" : "";
 
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          mostrarToast("Guardado local no disponible en modo diseño.");
-          return;
-        }
-
         setLoading("section-parametros", true);
-        google.script.run
-          .withSuccessHandler(function(res){
+        guardarCatalogosDesigner("/api/catalogos", registro)
+          .then(function(res){
             setLoading("section-parametros", false);
-            if(!res || !res.ok){
-              mostrarToast((res && res.error) ? res.error : "No fue posible guardar el catálogo.");
-              return;
-            }
             mostrarToast(res.mensaje || "Catálogo guardado.");
             const d = state.disenadorCotiza || {};
             d.catalogoSeleccionado = id;
@@ -10283,16 +10285,9 @@ window.CotizaApp = (function(){
             state.disenadorCotiza = d;
             cargarDesignerCatalogos(true);
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             setLoading("section-parametros", false);
             mostrarToast(error && error.message ? error.message : "No fue posible guardar el catálogo.");
-          })
-          .webGuardarModuloParametro({
-            modulo:"catalogos_definicion",
-            id_original:idOriginal,
-            registro:registro,
-            usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion:state.usuario ? state.usuario.correo || "" : ""
           });
       }
 
@@ -10421,35 +10416,19 @@ window.CotizaApp = (function(){
         // Las relaciones con valores padre se administran desde el botón Relacionar de cada línea.
         registro.valor_padre_id = "";
 
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          mostrarToast("Guardado local no disponible en modo diseño.");
-          return;
-        }
-
         setLoading("section-parametros", true);
-        google.script.run
-          .withSuccessHandler(function(res){
+        guardarCatalogosDesigner("/api/catalogos/valores", registro)
+          .then(function(res){
             setLoading("section-parametros", false);
-            if(!res || !res.ok){
-              mostrarToast((res && res.error) ? res.error : "No fue posible guardar el valor.");
-              return;
-            }
             cerrarModalDesignerValorCatalogo();
             mostrarToast(res.mensaje || "Valor guardado.");
             cargarValoresCatalogoDesigner(catId, true, function(){
               renderDesignerValoresCatalogo();
             });
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             setLoading("section-parametros", false);
             mostrarToast(error && error.message ? error.message : "No fue posible guardar el valor.");
-          })
-          .webGuardarModuloParametro({
-            modulo:"catalogos_valores",
-            id_original:idOriginal,
-            registro:registro,
-            usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion:state.usuario ? state.usuario.correo || "" : ""
           });
       }
 
