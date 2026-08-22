@@ -49,6 +49,7 @@ func main() {
 
 	health := &handlers.HealthHandler{DB: pool}
 	auth := &handlers.AuthHandler{DB: pool}
+	catalogos := &handlers.CatalogosHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		r.Get("/health", health.Check)
@@ -56,6 +57,7 @@ func main() {
 		// --- Carril A (Configuración): catálogos, diseñador, reglas,
 		//     compilador, plantillas — se registran acá en sprints
 		//     siguientes, ej: r.Mount("/catalogos", catalogos.Routes(pool))
+		r.Get("/catalogos/designer", catalogos.ListarDesigner)
 
 		// --- Carril B (Operación): auth, cotizaciones, dashboard,
 		//     reportes.

@@ -14,7 +14,8 @@
    de que exista el API real en Go (Sprint 1).
 
    Sprint 1: webValidarUsuario YA NO se simula — el login usa
-   POST /api/auth/login contra el API en Go. Quedan las 24
+   POST /api/auth/login y el diseñador de catálogos ya usan el API
+   real en Go. Quedan 23
    funciones restantes, que responden con una forma vacía
    "ok:true" genérica para que la UI no truene, aunque no muestre
    datos reales todavía.
@@ -24,7 +25,7 @@
    ============================================================ */
 (function () {
   // Funciones detectadas vía google.script.run en todo el frontend
-  // ensamblado que TODAVÍA no tienen endpoint en Go (24 de las 25
+  // ensamblado que TODAVÍA no tienen endpoint en Go (23 de las 25
   // originales). Todas comparten la misma respuesta vacía genérica;
   // cada una se borra de esta lista al migrarse a fetch().
   var RPC_METHODS = [
@@ -39,7 +40,6 @@
     "webGenerarLinkCliente",
     "webCompilarCotizador",
     "webValidarCotizadorParaCompilar",
-    "webListarCatalogosDesigner",
     "webCotizadorListarTabs",
     "webCotizadorGuardarTab",
     "webListarModuloParametros",
@@ -120,7 +120,7 @@
 
   console.info(
     "[Cotiza] Sprint 1: el login usa el API real (POST /api/auth/login). " +
-    "Las 24 funciones RPC restantes siguen simuladas por este shim, " +
+    "Las 23 funciones RPC restantes siguen simuladas por este shim, " +
     "así que esos datos son de ejemplo, no vienen de una base real."
   );
 })();

@@ -1,10 +1,10 @@
 
 <!-- Cotiza_Solicitudes.html - Cotiza 1.0.0.7 -->
-<section id="section-solicitudes" class="section">
+<section id="section-solicitudes" class="section solicitudes-page">
   <div id="solicitudesListaPanel">
     <div class="topbar sol-topbar">
       <div><span class="sol-eyebrow">OPERACIÓN COMERCIAL</span><h1>Solicitudes de Propuesta</h1><p>Administre solicitudes internas y las recibidas desde integraciones.</p></div>
-      <button id="btnNuevaSolicitud" class="btn btn-primary" type="button">+ Nueva solicitud</button>
+      <button id="btnNuevaSolicitud" class="btn btn-primary sol-new-button" type="button" aria-label="Crear una nueva solicitud de propuesta">+ Nueva solicitud</button>
     </div>
     <div class="sol-kpis">
       <div><span>Total visible</span><strong id="solKpiTotal">0</strong></div>
@@ -15,11 +15,11 @@
     </div>
     <div class="card sol-card">
       <div class="sol-filters">
-        <div class="field sol-search"><label>Búsqueda</label><input id="solFiltroBusqueda" class="input" placeholder="ID, título, cliente o CRM"></div>
-        <div class="field"><label>Etapa</label><select id="solFiltroEtapa" class="select"><option value="">Todas</option></select></div>
-        <div class="field"><label>Prioridad</label><select id="solFiltroPrioridad" class="select"><option value="">Todas</option></select></div>
-        <div class="field"><label>Responsable</label><select id="solFiltroResponsable" class="select"><option value="">Todos</option></select></div>
-        <button id="btnBuscarSolicitudes" class="btn btn-secondary" type="button">Aplicar filtros</button>
+        <div class="field sol-search"><label for="solFiltroBusqueda">Búsqueda</label><input id="solFiltroBusqueda" class="input" placeholder="ID, título, cliente o CRM"></div>
+        <div class="field"><label for="solFiltroEtapa">Etapa</label><select id="solFiltroEtapa" class="select"><option value="">Todas</option></select></div>
+        <div class="field"><label for="solFiltroPrioridad">Prioridad</label><select id="solFiltroPrioridad" class="select"><option value="">Todas</option></select></div>
+        <div class="field"><label for="solFiltroResponsable">Responsable</label><select id="solFiltroResponsable" class="select"><option value="">Todos</option></select></div>
+        <button id="btnBuscarSolicitudes" class="btn btn-primary sol-filter-button" type="button">Aplicar filtros</button>
       </div>
       <div class="table-wrap"><table class="sol-table"><thead><tr><th>Solicitud</th><th>Cliente</th><th>Servicio</th><th>Etapa</th><th>Prioridad</th><th>Responsables</th><th>Cotizaciones</th><th>Actualización</th><th></th></tr></thead><tbody id="solicitudesBody"><tr><td colspan="9">Cargando solicitudes...</td></tr></tbody></table></div>
     </div>

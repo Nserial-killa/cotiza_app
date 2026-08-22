@@ -7,7 +7,7 @@
         <h1>Plantillas de Propuesta</h1>
         <p>Seleccione, personalice y publique la estructura de sus propuestas comerciales.</p>
       </div>
-      <button id="tplBtnNueva" class="btn btn-primary" type="button"><span>＋</span> Nueva plantilla</button>
+      <button id="tplBtnNueva" class="btn btn-primary tpl-new-button" type="button" aria-label="Crear una nueva plantilla de propuesta"><span>＋</span> Nueva plantilla</button>
     </div>
 
     <div class="tpl-filter-card">
@@ -32,21 +32,53 @@
           <option value="Archivada">Archivada</option>
         </select>
       </div>
-      <button id="tplBtnAplicarFiltros" class="btn btn-secondary" type="button">⌁ Aplicar filtros</button>
+      <button id="tplBtnAplicarFiltros" class="btn btn-primary tpl-filter-button" type="button">⌁ Aplicar filtros</button>
     </div>
 
     <div class="tpl-kpi-row">
-      <div class="tpl-kpi"><span class="tpl-kpi-icon">▤</span><strong id="tplKpiTotal">0</strong><span>plantillas</span></div>
-      <div class="tpl-kpi"><span class="tpl-kpi-icon">✓</span><strong id="tplKpiPublicadas">0</strong><span>publicadas</span></div>
-      <div class="tpl-kpi"><span class="tpl-kpi-icon">✎</span><strong id="tplKpiBorradores">0</strong><span>borradores</span></div>
-      <div class="tpl-kpi"><span class="tpl-kpi-icon">▦</span><strong id="tplKpiEstilos">0</strong><span>estilos visuales</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">▤</span><strong id="tplKpiTotal">6</strong><span>plantillas</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">✓</span><strong id="tplKpiPublicadas">4</strong><span>publicadas</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">✎</span><strong id="tplKpiBorradores">2</strong><span>borradores</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">▦</span><strong id="tplKpiEstilos">4</strong><span>estilos visuales</span></div>
     </div>
 
     <div class="tpl-list-head">
       <h2>Plantillas disponibles</h2>
-      <span id="tplResultadoTexto">0 resultados</span>
+      <span id="tplResultadoTexto">6 resultados</span>
     </div>
-    <div id="tplCards" class="tpl-card-grid"></div>
+    <!-- Galería inicial de demostración. El módulo API sustituirá este contenido al cargar plantillas reales. -->
+    <div id="tplCards" class="tpl-card-grid">
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-navy"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Básica</h3><p>Estructura simple y directa para propuestas claras y concisas.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card recommended">
+        <span class="tpl-recommended-label">RECOMENDADA</span><div class="tpl-card-preview theme-blue"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Profesional</h3><p>Estructura profesional con solución, alcance, inversión y condiciones.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-green"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Empresarial</h3><p>Estructura avanzada con contexto, beneficios, implementación e inversión detallada.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-slate"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Completa</h3><p>Estructura integral para propuestas complejas con todos los elementos comerciales.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-blue"><span>PROPUESTA COMERCIAL</span><h4>Cotización Proyectos de Automatización</h4><div class="tpl-preview-lines"><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-draft">Borrador</span></div><h3>Plantilla de Cotización Proyectos de Automatización</h3><p>Estructura integral para propuestas complejas con todos los elementos comerciales.</p><ul><li>Automatización</li><li>Proyecto nuevo SeSuite, Consultoría por Proyecto, Consultoría por Outsourcing</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Editar borrador</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-blue"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-draft">Borrador</span></div><h3>Plantilla de Prueba</h3><p>Plantilla de trabajo para validar la estructura y presentación comercial.</p><ul><li>Automatización</li><li>Consultoría por Horas</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Editar borrador</button></div>
+      </article>
+    </div>
     <div id="tplEmpty" class="tpl-empty hidden">
       <div>▤</div>
       <h3>No se encontraron plantillas</h3>

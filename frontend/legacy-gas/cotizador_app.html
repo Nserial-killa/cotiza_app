@@ -3,7 +3,7 @@
 <!-- Cotizador_App.html - Cotiza 2.0.0.18 - Funciones de campo y moneda comercial -->
 
 
-<section id="section-parametros" class="section">
+<section id="section-parametros" class="section designer-page">
         <div class="designer-shell">
           <div class="designer-page-head">
             <div>
@@ -51,7 +51,7 @@
               <div class="designer-panel">
                 <div class="designer-panel-head">
                   <h2>Lista de catálogos <span class="param-help-tip" title="Seleccione un catálogo para ver sus valores y propiedades.">?</span></h2>
-                  <button class="designer-kebab" type="button" title="Opciones">⋮</button>
+                  <button class="designer-kebab" type="button" title="Opciones" aria-label="Opciones de la lista de catálogos">⋮</button>
                 </div>
                 <div class="designer-tools">
                   <input id="designerBuscarCatalogo" class="input" type="text" placeholder="Buscar catálogo...">
@@ -60,7 +60,7 @@
                 <div id="designerCatalogosLista" class="designer-catalog-list">
                   <div class="designer-empty">Cargando catálogos...</div>
                 </div>
-                <button id="btnDesignerNuevoCatalogo" class="btn btn-light-blue" type="button" style="width:100%;margin-top:14px;">+ Nuevo catálogo</button>
+                <button id="btnDesignerNuevoCatalogo" class="btn btn-light-blue designer-new-catalog" type="button">+ Nuevo catálogo</button>
               </div>
 
               <div class="designer-panel">
@@ -68,7 +68,7 @@
                   <h2 id="designerValoresTitulo">Valores del catálogo</h2>
                   <div style="display:flex;gap:8px;align-items:center;">
                     <span id="designerValoresCount" class="designer-chip chip-gray">0 valores</span>
-                    <button class="designer-kebab" type="button" title="Opciones">⋮</button>
+                    <button class="designer-kebab" type="button" title="Opciones" aria-label="Opciones de los valores del catálogo">⋮</button>
                   </div>
                 </div>
                 <div id="designerCatalogoInfo" class="designer-info hidden">

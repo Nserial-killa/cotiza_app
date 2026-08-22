@@ -22,7 +22,7 @@ Probado con clicks reales simulados: login → dashboard → navegación
 entre las 9 secciones del sidebar, incluida la vista más compleja
 (Diseñador de Catálogos). Sin errores de JavaScript.
 
-## ✅ Sprint 1 — `login()` migrada (1 de 25)
+## ✅ API migrada — `login()` y lectura del diseñador (2 de 25)
 
 `webValidarUsuario` ya **no** pasa por el shim: `login()` hace
 `POST /api/auth/login` contra el API en Go (`api-go/internal/handlers/auth.go`,
@@ -35,11 +35,11 @@ El cambio se hizo en `legacy-gas/cotiza_scripts.html` (la fuente) y
 `index.html` se regeneró con `assemble.py` — editar `index.html` a mano
 no sirve, el siguiente ensamblado lo sobrescribe.
 
-Quedan 24 funciones simuladas.
+Quedan 23 funciones simuladas.
 
 ## 🔜 Lo que sigue
 
-1. **Reemplazar el shim por el API real en Go.** Cada una de las 24
+1. **Reemplazar el shim por el API real en Go.** Cada una de las 23
    funciones que quedan en el shim se cambia por un `fetch('/api/...')`
    real. Ver el ejemplo completo (antes/después de `login()`) más abajo.
 2. **Pulir el CSS** contra las capturas de referencia reales (colores
@@ -178,5 +178,4 @@ Sin las hojas de estilo, el HTML se ve con el CSS de reemplazo que ya
 está en `frontend/index.html`, respetando las mismas clases usadas en
 el HTML (`.dash-kpi-card`, `.btn-primary`, `.sidebar`, etc.) — así, si
 el CSS original aparece después, encaja sin tocar el HTML de nuevo.
-
 

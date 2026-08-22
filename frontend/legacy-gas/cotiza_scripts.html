@@ -4441,6 +4441,24 @@ window.CotizaApp = (function(){
 
       // Cotizador separado en Cotiza_Script_Cotizador.html.
 
+      async function solicitarCatalogosDesigner(payload){
+        const params = new URLSearchParams();
+        Object.keys(payload || {}).forEach(function(key){
+          const value = payload[key];
+          if(value !== undefined && value !== null && value !== "") params.set(key, String(value));
+        });
+        const resp = await fetch("/api/catalogos/designer?" + params.toString(), {
+          method:"GET",
+          headers:{"Accept":"application/json"}
+        });
+        let data = null;
+        try { data = await resp.json(); } catch(e) { data = null; }
+        if(!resp.ok || !data || !data.ok){
+          throw new Error((data && data.error) || "No fue posible consultar los catálogos.");
+        }
+        return data;
+      }
+
       function cargarDesignerCatalogos(force){
         const d = state.disenadorCotiza || {};
         state.disenadorCotiza = d;
@@ -4477,15 +4495,9 @@ window.CotizaApp = (function(){
           return res;
         }
 
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          terminarCarga();
-          mostrarDesignerEstadoInline("No fue posible llamar Apps Script desde esta pantalla. Abra Cotiza desde la URL /exec publicada.", true);
-          return;
-        }
-
         setLoading("section-parametros", true);
-        google.script.run
-          .withSuccessHandler(function(res){
+        solicitarCatalogosDesigner({modo:"solo_catalogos", mostrarSistema:true})
+          .then(function(res){
             terminarCarga();
             res = normalizarRespuestaCatalogosDesigner(res);
 
@@ -4518,17 +4530,11 @@ window.CotizaApp = (function(){
 
             renderDesignerCatalogos();
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             terminarCarga();
             const msg = error && error.message ? error.message : "No fue posible cargar la lista de catálogos.";
             mostrarDesignerEstadoInline(msg, true);
             mostrarToast(msg);
-          })
-          .webListarCatalogosDesigner({
-            modo:"solo_catalogos",
-            mostrarSistema:true,
-            usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion:state.usuario ? state.usuario.correo || "" : ""
           });
       }
 
@@ -4697,14 +4703,8 @@ window.CotizaApp = (function(){
         if(body) body.innerHTML = '<tr><td colspan="7">Cargando valores del catálogo...</td></tr>';
         mostrarDesignerEstadoInline("Cargando valores del catálogo seleccionado...");
 
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          mostrarDesignerEstadoInline("No fue posible llamar Apps Script para cargar valores.", true);
-          callback();
-          return;
-        }
-
-        google.script.run
-          .withSuccessHandler(function(res){
+        solicitarCatalogosDesigner({modo:"valores_catalogo", catalogo_id:cid})
+          .then(function(res){
             if(!res || !(res.ok || res.success)){
               const msg = (res && (res.error || res.mensaje)) ? (res.error || res.mensaje) : "No fue posible cargar valores.";
               mostrarDesignerEstadoInline(msg, true);
@@ -4718,24 +4718,18 @@ window.CotizaApp = (function(){
             // Si el catálogo tiene padre, cargamos solo sus relaciones para mostrar badges.
             const cat = obtenerDesignerCatalogoSeleccionado();
             if(cat && getCatalogoPadreIdDesigner(cat)){
-              google.script.run
-                .withSuccessHandler(function(resRel){
+              solicitarCatalogosDesigner({modo:"relaciones_valor", catalogo_hijo_id:cid})
+                .then(function(resRel){
                   const relaciones = resRel && (resRel.relaciones || resRel.catalogo_relaciones || resRel.data || resRel.filas || resRel.rows) ? (resRel.relaciones || resRel.catalogo_relaciones || resRel.data || resRel.filas || resRel.rows) : [];
                   reemplazarRelacionesCatalogoDesigner_(cid, Array.isArray(relaciones) ? relaciones : []);
                   ocultarDesignerEstadoInline();
                   renderDesignerValoresCatalogo();
                   callback();
                 })
-                .withFailureHandler(function(){
+                .catch(function(){
                   ocultarDesignerEstadoInline();
                   renderDesignerValoresCatalogo();
                   callback();
-                })
-                .webListarCatalogosDesigner({
-                  modo:"relaciones_valor",
-                  catalogo_hijo_id:cid,
-                  usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-                  correo_sesion:state.usuario ? state.usuario.correo || "" : ""
                 });
             }else{
               ocultarDesignerEstadoInline();
@@ -4743,17 +4737,11 @@ window.CotizaApp = (function(){
               callback();
             }
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             const msg = error && error.message ? error.message : "No fue posible cargar valores del catálogo.";
             mostrarDesignerEstadoInline(msg, true);
             if(body) body.innerHTML = '<tr><td colspan="7">' + escapeHtml(msg) + '</td></tr>';
             callback();
-          })
-          .webListarCatalogosDesigner({
-            modo:"valores_catalogo",
-            catalogo_id:cid,
-            usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion:state.usuario ? state.usuario.correo || "" : ""
           });
       }
 
@@ -4985,15 +4973,13 @@ window.CotizaApp = (function(){
         const box = byId("designerRelacionPadreLista");
         if(box) box.innerHTML = '<div class="designer-empty">Cargando relaciones...</div>';
 
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          d.relacionesModalSeleccionadas = getValorPadreIdsDesigner(valor);
-          state.disenadorCotiza = d;
-          renderListaRelacionValorDesigner();
-          return;
-        }
-
-        google.script.run
-          .withSuccessHandler(function(res){
+        solicitarCatalogosDesigner({
+          modo:"relaciones_valor",
+          catalogo_hijo_id:String(cat.catalogo_id || "").toUpperCase(),
+          valor_hijo_id:vid,
+          catalogo_padre_id:padreId
+        })
+          .then(function(res){
             const d2 = state.disenadorCotiza || {};
             if(res && (res.ok || res.success)){
               const valoresPadre = res.valores_padre || [];
@@ -5008,19 +4994,11 @@ window.CotizaApp = (function(){
             state.disenadorCotiza = d2;
             renderListaRelacionValorDesigner();
           })
-          .withFailureHandler(function(){
+          .catch(function(){
             const d2 = state.disenadorCotiza || {};
             d2.relacionesModalSeleccionadas = getValorPadreIdsDesigner(valor);
             state.disenadorCotiza = d2;
             renderListaRelacionValorDesigner();
-          })
-          .webListarCatalogosDesigner({
-            modo:"relaciones_valor",
-            catalogo_hijo_id:String(cat.catalogo_id || "").toUpperCase(),
-            valor_hijo_id:vid,
-            catalogo_padre_id:padreId,
-            usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion:state.usuario ? state.usuario.correo || "" : ""
           });
       }
 

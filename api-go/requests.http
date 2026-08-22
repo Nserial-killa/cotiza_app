@@ -8,6 +8,12 @@
 ### Health check — debe responder {"status":"ok","database":"ok"}
 GET {{baseUrl}}/api/health
 
+### Catálogos activos del diseñador
+GET {{baseUrl}}/api/catalogos/designer?modo=solo_catalogos
+
+### Valores activos de un catálogo
+GET {{baseUrl}}/api/catalogos/designer?modo=valores_catalogo&catalogo_id=CTZ-CAT-001
+
 
 ### ---------------------------------------------------------
 ### Sprint 1 — POST /api/auth/login (implementado)
