@@ -170,13 +170,28 @@ tablas ni endpoints que nadie usa todavía.
 - **Sprint 0 (hecho):** esqueleto Docker, `/api/health`, esquema 0001
   (organizaciones, roles, usuarios, calculadoras, CRM/clientes, catálogos),
   frontend ensamblado navegable con el shim.
-- **Sprint 1 (hecho):** `POST /api/auth/login` real (`internal/handlers/auth.go`)
-  + `login()` migrada a `fetch()` + `webValidarUsuario` fuera del shim. La tarea
-  original y su lista de "no hacer" están en `docs/PROMPT_CLAUDE_CODE_SPRINT1.md`.
-- **Después:** diseñador/reglas/plantillas/cotizaciones (esquema 0003+) y las 24
-  funciones RPC restantes. Los 6 scripts JS que nunca llegaron (Reglas,
-  Mantenimiento de Reglas, Compilador, Cotizador runtime, Solicitudes,
-  Plantillas) siguen documentados como `<!-- FALTA: ... -->` en el ensamblado.
+- **Sprint 1 (hecho):**
+  - `POST /api/auth/login` real (`internal/handlers/auth.go`) + `login()`
+    migrada a `fetch()` + `webValidarUsuario` fuera del shim.
+  - Catálogos, lectura y escritura (`internal/handlers/catalogos.go`):
+    `GET /api/catalogos/designer` (3 modos) + `POST /api/catalogos`,
+    `POST /api/catalogos/valores`, `POST /api/catalogos/relaciones`
+    (esta última transaccional). Frontend conectado con `fetch()` en
+    `cotiza_scripts.html`.
+  - Usuarios y Roles, construido de cero (`internal/handlers/usuarios.go`):
+    `GET /api/usuarios`, `GET /api/roles`, `POST /api/usuarios`,
+    `PATCH /api/usuarios/{id}`. PIN hasheado con bcrypt costo 12 (igual
+    que `migration-python`). Pantalla nueva en `cotiza_usuarios.html` +
+    modal en `cotiza_modals.html` (no existía nada antes).
+  - Pendiente explícito, NO resuelto en Sprint 1: no hay sesión/token
+    persistente ni verificación de autorización en el servidor — todos
+    los endpoints son accesibles sin login real todavía. Hay que
+    planearlo antes de exponer esto fuera de desarrollo local.
+- **Después:** diseñador/reglas/plantillas/cotizaciones (esquema 0003+),
+  sesión/autenticación por token, y las funciones RPC restantes. Los 6
+  scripts JS que nunca llegaron (Reglas, Mantenimiento de Reglas,
+  Compilador, Cotizador runtime, Solicitudes, Plantillas) siguen
+  documentados como `<!-- FALTA: ... -->` en el ensamblado.
 
 `docs/ENTORNO_LOCAL_FEDORA.md` cubre instalación en Fedora, el flujo de debug con
 breakpoints y los problemas comunes (puertos ocupados, migraciones que no se
