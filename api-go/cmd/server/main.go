@@ -50,6 +50,7 @@ func main() {
 	health := &handlers.HealthHandler{DB: pool}
 	auth := &handlers.AuthHandler{DB: pool}
 	catalogos := &handlers.CatalogosHandler{DB: pool}
+	cotizadorTabs := &handlers.CotizadorTabsHandler{DB: pool}
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
@@ -62,6 +63,10 @@ func main() {
 		r.Post("/catalogos", catalogos.GuardarCatalogo)
 		r.Post("/catalogos/valores", catalogos.GuardarValor)
 		r.Post("/catalogos/relaciones", catalogos.GuardarRelaciones)
+		r.Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
+		r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
+		r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
+		r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
 
 		// --- Carril B (Operación): auth, cotizaciones, dashboard,
 		//     reportes.

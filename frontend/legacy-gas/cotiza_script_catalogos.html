@@ -124,64 +124,35 @@
 
       function listarTabsCotizadorApiFase1_(payload, onOk, onFail){
         payload = payload || {};
-
-        function fallbackGenerico(motivo){
-          console.warn("Cotizador: fallback a webListarModuloParametros para tabs_cotizador", motivo || "");
-          runModuloParametrosFase1_("tabs_cotizador", payload, onOk, function(err){
-            if(onFail) onFail(new Error((err && err.message) || "No se pudieron cargar las secciones del Cotizador."));
-          });
-        }
-
-        if(!window.google || !google.script || !google.script.run){
-          fallbackGenerico("google.script.run no disponible");
-          return;
-        }
-
-        // V50L: usa el API propio del Cotizador. Si ese API falla por instalacion,
-        // permisos o despliegue pendiente, cae al API generico que ya funcionaba.
-        google.script.run
-          .withSuccessHandler(function(res){
-            if(!isOkRespuestaFase1_(res)){
-              fallbackGenerico((res && (res.message || res.mensaje || res.error || res.codigo)) || "respuesta no OK");
-              return;
-            }
-            if(onOk) onOk(res);
-          })
-          .withFailureHandler(function(err){
-            fallbackGenerico((err && err.message) || err || "failure handler");
-          })
-          .webCotizadorListarTabs(payload);
+        const calculadoraId = String(payload.calculadora_id || payload.cotizador_id || "").trim();
+        fetch("/api/cotizador/tabs?calculadora_id=" + encodeURIComponent(calculadoraId), {headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudieron cargar las secciones."); return data; }); })
+          .then(function(res){ if(onOk) onOk(res); })
+          .catch(function(err){ if(onFail) onFail(err); });
       }
-
       function guardarTabCotizadorApiFase1_(payload, onOk, onFail){
         payload = payload || {};
+        fetch("/api/cotizador/tabs", {
+          method:"POST", headers:{"Accept":"application/json","Content-Type":"application/json"},
+          body:JSON.stringify(payload.registro || payload)
+        }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo guardar la sección."); return data; }); })
+          .then(function(res){ if(onOk) onOk(res); })
+          .catch(function(err){ if(onFail) onFail(err); });
+      }
 
-        function fallbackGenerico(motivo){
-          console.warn("Cotizador: fallback a webGuardarModuloParametro para tabs_cotizador", motivo || "");
-          guardarModuloParametrosFase1_("tabs_cotizador", payload, onOk, function(err){
-            if(onFail) onFail(new Error((err && err.message) || "No se pudo guardar la sección."));
-          });
-        }
+      function listarElementosCotizadorApiFase1_(tabId, onOk, onFail){
+        fetch("/api/cotizador/elementos?tab_id=" + encodeURIComponent(String(tabId || "")), {headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudieron cargar los elementos."); return data; }); })
+          .then(function(res){ if(onOk) onOk(res); })
+          .catch(function(err){ if(onFail) onFail(err); });
+      }
 
-        if(!window.google || !google.script || !google.script.run){
-          fallbackGenerico("google.script.run no disponible");
-          return;
-        }
-
-        // V50L: guarda desde el API propio del Cotizador y conserva fallback al
-        // API generico para no bloquear al usuario si el .gs nuevo no quedo cargado.
-        google.script.run
-          .withSuccessHandler(function(res){
-            if(!isOkRespuestaFase1_(res)){
-              fallbackGenerico((res && (res.message || res.mensaje || res.error || res.codigo)) || "respuesta no OK");
-              return;
-            }
-            if(onOk) onOk(res);
-          })
-          .withFailureHandler(function(err){
-            fallbackGenerico((err && err.message) || err || "failure handler");
-          })
-          .webCotizadorGuardarTab(payload);
+      function guardarElementoCotizadorApiFase1_(registro, onOk, onFail){
+        fetch("/api/cotizador/elementos", {
+          method:"POST", headers:{"Accept":"application/json","Content-Type":"application/json"}, body:JSON.stringify(registro || {})
+        }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo guardar el elemento."); return data; }); })
+          .then(function(res){ if(onOk) onOk(res); })
+          .catch(function(err){ if(onFail) onFail(err); });
       }
 
       function normalizarAlcanceSeccionCotizadorFase1_(value){
@@ -335,11 +306,19 @@
         let pendientes = 7;
         function done(){ pendientes--; if(pendientes<=0){ st.cargado=true; renderCotizadorFase1_(); } }
         function fail(err){ mostrarToast("No se pudo cargar una parte del cotizador: " + ((err && err.message) || err || "Error")); done(); }
-        listarTabsCotizadorApiFase1_({cotizador_id:st.cotizadorId}, function(res){
+        listarTabsCotizadorApiFase1_({calculadora_id:st.cotizadorId}, function(res){
           st.tabs = rowsFromRespuestaFase1_(res);
+          const tabs = tabsActivosCotizadorFase1_();
+          if(!st.tabId || !tabs.some(function(tab){ return String(tab.tab_id || "").trim().toUpperCase() === st.tabId; })){
+            st.tabId = tabs.length ? String(tabs[0].tab_id || "").trim().toUpperCase() : "";
+          }
           done();
+          if(!st.tabId){ st.elementos = []; done(); return; }
+          listarElementosCotizadorApiFase1_(st.tabId, function(elementosRes){
+            st.elementos = rowsFromRespuestaFase1_(elementosRes).map(normalizarElementoCotizadorFase1_);
+            done();
+          }, function(err){ st.elementos = []; fail(err); });
         }, fail);
-        runModuloParametrosFase1_("elementos_tab", {}, function(res){ st.elementos = rowsFromRespuestaFase1_(res); done(); }, fail);
         runModuloParametrosFase1_("tabs_cotizador_relaciones", {}, function(res){ st.relaciones = rowsFromRespuestaFase1_(res); done(); }, fail);
         runModuloParametrosFase1_("catalogos_valores", {}, function(res){ st.catalogoValores = rowsFromRespuestaFase1_(res); done(); }, fail);
         runModuloParametrosFase1_("catalogos_definicion", {}, function(res){ st.catalogosDefinicion = rowsFromRespuestaFase1_(res); done(); }, function(){ st.catalogosDefinicion = []; done(); });
@@ -423,9 +402,25 @@
         const st = getCotizadorFase1State_();
         st.tabId = String(tabId || "").trim().toUpperCase();
         st.elementoId = "";
+        st.elementos = [];
         renderTabsCotizadorFase1_();
         renderComponentesCotizadorFase1_();
+        listarElementosCotizadorApiFase1_(st.tabId, function(res){
+          st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
+          renderComponentesCotizadorFase1_();
+        }, function(err){ mostrarToast("No se pudieron cargar los elementos: " + ((err && err.message) || err)); });
         mostrarPropsSeccionCotizadorFase1_();
+      }
+
+      function normalizarElementoCotizadorFase1_(elemento){
+        elemento = elemento || {};
+        const cfg = parseConfigElementoCotizadorFase1_(elemento.configuracion || elemento.config_json);
+        elemento.tipo_elemento = elemento.tipo_elemento || elemento.tipo;
+        elemento.config_json = cfg;
+        elemento.nombre_elemento = elemento.nombre_elemento || cfg.nombre_elemento || "";
+        elemento.descripcion = elemento.descripcion || cfg.descripcion || "";
+        if(!elemento.catalogo_id && cfg.catalogo_id) elemento.catalogo_id = cfg.catalogo_id;
+        return elemento;
       }
 
       function elementosDeTabCotizadorFase1_(){
@@ -566,7 +561,7 @@
         const etiqueta = String(e.etiqueta || e.label_visible || e.nombre_elemento || id || tipo).trim();
         const desc = String(e.descripcion || "").trim();
         const cfg = parseConfigElementoCotizadorFase1_(e.config_json);
-        if(tipo === "TITULO") return renderTituloPreviewCotizadorFase1_(etiqueta, cfg);
+        if(tipo === "TEXTO_INFORMATIVO") return '<div class="cotizador-preview-legend"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc ? '<div>'+escapeHtml(desc)+'</div>' : '')+'</div>';
         if(tipo === "LEYENDA") return renderLeyendaPreviewCotizadorFase1_(etiqueta, desc, cfg);
         if(tipo === "CONTENEDOR") return renderContenedorPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc);
         if(tipo === "TABLA") return renderTablaPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
@@ -640,7 +635,7 @@
 
       function iconoComponenteCotizadorFase1_(tipo){
         tipo = String(tipo || "").toUpperCase();
-        if(tipo === "TITULO") return "T";
+        if(tipo === "TEXTO_INFORMATIVO") return "T";
         if(tipo === "LEYENDA") return "i";
         if(tipo === "CONTENEDOR") return "▣";
         if(tipo === "TABLA") return "▦";
@@ -1167,7 +1162,8 @@
         if(byId("designerCotizadorElementoDescripcion")) byId("designerCotizadorElementoDescripcion").value = String(el.descripcion || "").trim();
         if(byId("designerCotizadorElementoPadre")) byId("designerCotizadorElementoPadre").value = String(el.componente_padre_id || "").trim();
         if(byId("designerCotizadorElementoOrden")) byId("designerCotizadorElementoOrden").value = el.orden || "";
-        const cfg = parseConfigElementoCotizadorFase1_(el.config_json);
+        const cfg = parseConfigElementoCotizadorFase1_(el.configuracion || el.config_json);
+        if(el.catalogo_id && !cfg.catalogo_id) cfg.catalogo_id = el.catalogo_id;
         if(byId("designerCotizadorElementoConfig")) byId("designerCotizadorElementoConfig").value = JSON.stringify(cfg);
         if(byId("designerCotizadorElementoActivo")) byId("designerCotizadorElementoActivo").checked = normalizarActivoCotizadorFase1_(el.activo);
         cargarConfigVisualComponenteCotizadorFase1_(cfg);
@@ -1199,25 +1195,32 @@
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
-        const cfg = JSON.stringify(cfgObj);
+        cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
+        cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
+        const catalogoId = tipo === "CAMPO_CATALOGO" ? String(cfgObj.catalogo_id || "").trim() : "";
+        if(tipo === "CAMPO_CATALOGO" && !catalogoId){ mostrarToast("Seleccione el catálogo del componente."); return; }
         const registro = {
           elemento_id: elementoId,
           tab_id: st.tabId,
-          tipo_elemento: tipo,
-          nombre_elemento: byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "",
+          tipo: tipo,
           etiqueta: etiqueta,
-          descripcion: byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "",
-          componente_padre_id: byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "",
+          catalogo_id: catalogoId || null,
+          columnas_ancho: 1,
           orden: byId("designerCotizadorElementoOrden") ? byId("designerCotizadorElementoOrden").value : "",
-          config_json: cfg,
+          requerido: !!cfgObj.obligatorio,
+          configuracion: cfgObj,
           activo: byId("designerCotizadorElementoActivo") ? byId("designerCotizadorElementoActivo").checked : true
         };
-        guardarModuloParametrosFase1_("elementos_tab", {id_original:idOriginal, registro:registro}, function(){
+        guardarElementoCotizadorApiFase1_(registro, function(){
           mostrarToast("Componente guardado.");
           st.elementoId = elementoId;
           cerrarModalComponenteCotizadorFase1_();
-          cargarDatosCotizadorFase1_(true);
+          listarElementosCotizadorApiFase1_(st.tabId, function(res){
+            st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
+            renderComponentesCotizadorFase1_();
+          }, function(err){ mostrarToast("No se pudieron recargar los elementos: " + ((err && err.message) || err)); });
         }, function(err){ mostrarToast("No se pudo guardar el componente: " + ((err && err.message) || err)); });
       }
 
