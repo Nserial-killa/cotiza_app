@@ -187,11 +187,23 @@ tablas ni endpoints que nadie usa todavía.
     persistente ni verificación de autorización en el servidor — todos
     los endpoints son accesibles sin login real todavía. Hay que
     planearlo antes de exponer esto fuera de desarrollo local.
-- **Después:** diseñador/reglas/plantillas/cotizaciones (esquema 0003+),
-  sesión/autenticación por token, y las funciones RPC restantes. Los 6
-  scripts JS que nunca llegaron (Reglas, Mantenimiento de Reglas,
-  Compilador, Cotizador runtime, Solicitudes, Plantillas) siguen
-  documentados como `<!-- FALTA: ... -->` en el ensamblado.
+- **Sprint 2 (hecho):**
+  - Tabs y Elementos simples (`internal/handlers/cotizador_tabs.go`):
+    `GET /api/cotizador/tabs`, `POST /api/cotizador/tabs`,
+    `GET /api/cotizador/elementos`, `POST /api/cotizador/elementos`.
+    4 tipos de elemento: `CAMPO`, `CAMPO_CATALOGO`, `LEYENDA`,
+    `TEXTO_INFORMATIVO`.
+  - Motor de Reglas, catálogo global (`internal/handlers/reglas.go`):
+    `GET /api/reglas`, `POST /api/reglas`, `DELETE /api/reglas/{id}`.
+    Esto es solo el catálogo/administración de reglas disponibles —
+    cómo se aplican a un elemento del cotizador (`reglas_cotizador`)
+    sigue pendiente, ver "Después".
+- **Después:** diseñador/plantillas/cotizaciones (esquema 0005+),
+  sesión/autenticación por token, y las funciones RPC restantes. Los 5
+  scripts JS que todavía no llegaron (Compilador_Cotizador, Cotizador
+  runtime, Plantillas, Reglas — aplicación a un elemento, distinto del
+  catálogo global, Solicitudes) siguen documentados como
+  `<!-- FALTA: ... -->` en el ensamblado.
 
 `docs/ENTORNO_LOCAL_FEDORA.md` cubre instalación en Fedora, el flujo de debug con
 breakpoints y los problemas comunes (puertos ocupados, migraciones que no se
