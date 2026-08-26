@@ -35,6 +35,7 @@ FILE_MAP = {
     "Cotiza_Configuracion": "cotiza_configuracion.html",
     "Cotiza_Modals": "cotiza_modals.html",
     "Cotiza_Scripts": "cotiza_scripts.html",
+    "Cotiza_Script_Mantenimiento_Reglas": "cotiza_script_mantenimiento_reglas.html",
 }
 
 # Includes que NO llegaron en la entrega original — se documentan
@@ -43,7 +44,7 @@ MISSING = [
     "Cotiza_Styles", "Cotiza_Style_Catalogos", "Cotiza_Style_Cotizador",
     "Cotiza_Style_Solicitudes", "Cotiza_Style_Plantillas",
     "Cotiza_Script_Solicitudes", "Cotiza_Script_Plantillas",
-    "Cotiza_Script_Reglas", "Cotiza_Script_Mantenimiento_Reglas",
+    "Cotiza_Script_Reglas",
     "Cotiza_Script_Compilador_Cotizador", "Cotiza_Script_Cotizador",
 ]
 

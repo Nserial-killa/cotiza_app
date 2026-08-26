@@ -11029,7 +11029,513 @@ window.CotizaApp = (function(){
 <!-- FALTA: Cotiza_Script_Reglas.html (no incluido en la entrega original de Jimmy) -->
 
   
-<!-- FALTA: Cotiza_Script_Mantenimiento_Reglas.html (no incluido en la entrega original de Jimmy) -->
+<!-- === Cotiza_Script_Mantenimiento_Reglas (cotiza_script_mantenimiento_reglas.html) === -->
+<script>
+/* ============================================================
+   COTIZA — Mantenimiento de reglas globales (Sprint 2)
+   El HTML de esta pantalla (designerReglasView, en cotizador_app.html)
+   ya venía completo en la entrega; este es el archivo
+   Cotiza_Script_Mantenimiento_Reglas que nunca llegó — toda la lógica
+   de acá es nueva. Contra GET/POST/DELETE /api/reglas.
+
+   Esto es solo el catálogo/administración de reglas disponibles; cómo
+   se aplican a un elemento del cotizador (reglas_cotizador) es un
+   sprint aparte.
+   ============================================================ */
+(function(core){
+  core = core || {};
+  const state = core.state || (window.state || {});
+  const byId = core.byId || function(id){ return document.getElementById(id); };
+  const bind = core.bind || function(id, ev, fn){ const el = byId(id); if(el) el.addEventListener(ev, fn); };
+  const mostrarToast = core.mostrarToast || function(texto){ console.log(texto || ""); };
+  const escapeHtml = core.escapeHtml || function(value){
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  };
+
+  const SEVERIDADES_REGLA = [
+    {valor:"INFORMATIVA", etiqueta:"Informativa", pill:""},
+    {valor:"ADVERTENCIA", etiqueta:"Advertencia", pill:"warn"},
+    {valor:"BLOQUEANTE", etiqueta:"Bloqueante", pill:"block"},
+    {valor:"APROBACION", etiqueta:"Aprobación", pill:"approval"}
+  ];
+
+  const TIPOS_PARAMETRO_REGLA = [
+    {valor:"texto", etiqueta:"Texto"},
+    {valor:"numero", etiqueta:"Número"},
+    {valor:"booleano", etiqueta:"Sí/No"},
+    {valor:"catalogo", etiqueta:"Catálogo"}
+  ];
+
+  function getReglasMaintState_(){
+    state.reglasMaint = state.reglasMaint || {
+      cargado:false,
+      reglas:[],
+      reglaSeleccionadaId:"",
+      esNueva:false,
+      parametros:[]
+    };
+    return state.reglasMaint;
+  }
+
+  async function solicitarJSONReglas_(url, opciones){
+    const resp = await fetch(url, opciones || {});
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+    if(!resp.ok || !data || !data.ok){
+      throw new Error((data && data.error) || "No fue posible completar la solicitud.");
+    }
+    return data;
+  }
+
+  function severidadInfo_(valor){
+    let i = 0;
+    for(; i < SEVERIDADES_REGLA.length; i++){
+      if(SEVERIDADES_REGLA[i].valor === valor) return SEVERIDADES_REGLA[i];
+    }
+    return SEVERIDADES_REGLA[0];
+  }
+
+  function normalizarTextoFiltroReglas_(valor){
+    return String(valor || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+  }
+
+  // ---------------------------------------------------------
+  // Carga e inicialización
+  // ---------------------------------------------------------
+
+  function inicializarReglasMaint(){
+    bindReglasMaintEventos();
+    const st = getReglasMaintState_();
+    if(!st.cargado) cargarReglasGlobales();
+  }
+
+  function cargarReglasGlobales(mostrarConfirmacion){
+    const tbody = byId("reglasGlobalesBody");
+    if(tbody) tbody.innerHTML = '<tr><td colspan="8" class="reglas-maint-empty">Cargando reglas...</td></tr>';
+
+    return solicitarJSONReglas_("/api/reglas")
+      .then(function(res){
+        const st = getReglasMaintState_();
+        st.cargado = true;
+        st.reglas = res.reglas || [];
+        poblarFiltrosReglas();
+        renderReglasGlobales();
+        if(mostrarConfirmacion) mostrarToast("Reglas actualizadas.");
+      })
+      .catch(function(error){
+        const mensaje = (error && error.message) || "No fue posible cargar las reglas.";
+        if(tbody) tbody.innerHTML = '<tr><td colspan="8" class="reglas-maint-empty">' + escapeHtml(mensaje) + '</td></tr>';
+        mostrarToast(mensaje);
+      });
+  }
+
+  function poblarFiltrosReglas(){
+    const st = getReglasMaintState_();
+    const categorias = Array.from(new Set(st.reglas.map(function(r){ return String(r.categoria || "").trim(); }).filter(Boolean))).sort();
+    const tipos = Array.from(new Set(st.reglas.map(function(r){ return String(r.tipo || "").trim(); }).filter(Boolean))).sort();
+
+    llenarSelectSimpleReglas_(byId("reglasFiltroCategoria"), categorias, "Todas");
+    llenarSelectSimpleReglas_(byId("reglasFiltroTipo"), tipos, "Todos");
+
+    const listaCategorias = byId("reglaGlobalCategoriasLista");
+    if(listaCategorias) listaCategorias.innerHTML = categorias.map(function(c){ return '<option value="' + escapeHtml(c) + '">'; }).join("");
+    const listaTipos = byId("reglaGlobalTiposLista");
+    if(listaTipos) listaTipos.innerHTML = tipos.map(function(t){ return '<option value="' + escapeHtml(t) + '">'; }).join("");
+  }
+
+  function llenarSelectSimpleReglas_(select, valores, etiquetaTodos){
+    if(!select) return;
+    const actual = select.value;
+    select.innerHTML = '<option value="">' + escapeHtml(etiquetaTodos) + '</option>' +
+      valores.map(function(v){ return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join("");
+    if(actual && valores.indexOf(actual) >= 0) select.value = actual;
+  }
+
+  // ---------------------------------------------------------
+  // Filtro y render de la tabla (siempre sobre el array ya cargado,
+  // sin volver a pedirle nada al servidor)
+  // ---------------------------------------------------------
+
+  function reglasFiltradas_(){
+    const st = getReglasMaintState_();
+    const buscar = normalizarTextoFiltroReglas_(byId("reglasBuscar") ? byId("reglasBuscar").value : "");
+    const categoria = byId("reglasFiltroCategoria") ? byId("reglasFiltroCategoria").value : "";
+    const tipo = byId("reglasFiltroTipo") ? byId("reglasFiltroTipo").value : "";
+    const severidad = byId("reglasFiltroSeveridad") ? byId("reglasFiltroSeveridad").value : "";
+    const estado = byId("reglasFiltroEstado") ? byId("reglasFiltroEstado").value : "ACTIVO";
+
+    return st.reglas.filter(function(r){
+      if(categoria && String(r.categoria || "") !== categoria) return false;
+      if(tipo && String(r.tipo || "") !== tipo) return false;
+      if(severidad && String(r.severidad || "") !== severidad) return false;
+      if(estado === "ACTIVO" && !r.activo) return false;
+      if(estado === "INACTIVO" && r.activo) return false;
+      if(buscar){
+        const texto = normalizarTextoFiltroReglas_([r.regla_id, r.nombre, r.descripcion, r.mensaje].join(" "));
+        if(texto.indexOf(buscar) < 0) return false;
+      }
+      return true;
+    }).sort(function(a, b){
+      return (a.orden || 0) - (b.orden || 0) || String(a.nombre || "").localeCompare(String(b.nombre || ""));
+    });
+  }
+
+  function renderReglasGlobales(){
+    const st = getReglasMaintState_();
+    const tbody = byId("reglasGlobalesBody");
+    const filtradas = reglasFiltradas_();
+
+    if(byId("reglasStatTotal")) byId("reglasStatTotal").textContent = String(st.reglas.length);
+    if(byId("reglasStatActivas")) byId("reglasStatActivas").textContent = String(st.reglas.filter(function(r){ return r.activo; }).length);
+    // "Aplicaciones existentes" depende de reglas_cotizador, que todavía
+    // no existe (queda para el sprint que conecte reglas a elementos).
+    if(byId("reglasStatUso")) byId("reglasStatUso").textContent = "0";
+    if(byId("reglasGlobalesCount")) byId("reglasGlobalesCount").textContent = filtradas.length + (filtradas.length === 1 ? " regla" : " reglas");
+
+    if(!tbody) return;
+    if(!filtradas.length){
+      tbody.innerHTML = '<tr><td colspan="8" class="reglas-maint-empty">' +
+        (st.reglas.length ? "Ninguna regla coincide con los filtros." : "No hay reglas registradas todavía.") +
+        '</td></tr>';
+      return;
+    }
+
+    const seleccionadaId = st.reglaSeleccionadaId;
+    tbody.innerHTML = filtradas.map(function(r){
+      const sev = severidadInfo_(r.severidad);
+      const claseFila = String(r.regla_id) === String(seleccionadaId) ? " selected" : "";
+      return '<tr data-regla-id="' + escapeHtml(r.regla_id) + '"' + (claseFila ? ' class="selected"' : '') + '>' +
+        '<td>' + escapeHtml(r.orden != null ? r.orden : "") + '</td>' +
+        '<td class="reglas-maint-rule-name"><strong>' + escapeHtml(r.nombre || "") + '</strong><small>' + escapeHtml(r.regla_id || "") + '</small></td>' +
+        '<td>' + escapeHtml(r.categoria || "—") + '</td>' +
+        '<td>' + escapeHtml(r.tipo || "—") + '</td>' +
+        '<td><span class="reglas-maint-pill' + (sev.pill ? " " + sev.pill : "") + '">' + escapeHtml(sev.etiqueta) + '</span></td>' +
+        '<td>0</td>' +
+        '<td><span class="reglas-maint-pill' + (r.activo ? " success" : " inactive") + '">' + (r.activo ? "Activa" : "Inactiva") + '</span></td>' +
+        '<td class="reglas-maint-row-actions"><button class="btn btn-ghost" type="button" data-regla-id="' + escapeHtml(r.regla_id) + '">Editar</button></td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  // ---------------------------------------------------------
+  // Editor: seleccionar / nueva / cancelar
+  // ---------------------------------------------------------
+
+  function limpiarEditorReglaGlobal_(){
+    ["reglaGlobalIdOriginal","reglaGlobalId","reglaGlobalNombre","reglaGlobalCategoria","reglaGlobalTipo",
+     "reglaGlobalDescripcion","reglaGlobalMensaje"].forEach(function(id){ if(byId(id)) byId(id).value = ""; });
+    if(byId("reglaGlobalActivo")) byId("reglaGlobalActivo").checked = true;
+    if(byId("reglaGlobalSeveridad")) byId("reglaGlobalSeveridad").value = "INFORMATIVA";
+    if(byId("reglaGlobalMomento")) byId("reglaGlobalMomento").value = "AL_CAMBIAR_CAMPO";
+    if(byId("reglaGlobalOrden")) byId("reglaGlobalOrden").value = "10";
+    if(byId("reglaGlobalId")) byId("reglaGlobalId").disabled = false;
+    getReglasMaintState_().parametros = [];
+    renderParametrosReglaGlobal();
+  }
+
+  function mostrarEditorReglaGlobal_(mostrar){
+    if(byId("reglasEditorEmpty")) byId("reglasEditorEmpty").classList.toggle("hidden", mostrar);
+    if(byId("reglasEditorForm")) byId("reglasEditorForm").classList.toggle("hidden", !mostrar);
+  }
+
+  function actualizarChipUsoReglaGlobal_(texto, clase){
+    const chip = byId("reglaGlobalUsoChip");
+    if(!chip) return;
+    chip.textContent = texto;
+    chip.className = "reglas-maint-pill" + (clase ? " " + clase : "");
+  }
+
+  function resetEditorReglaGlobalTitulo_(){
+    if(byId("reglaGlobalEditorTitulo")) byId("reglaGlobalEditorTitulo").textContent = "Propiedades de la regla";
+    if(byId("reglaGlobalEditorSubtitulo")) byId("reglaGlobalEditorSubtitulo").textContent = "Seleccione una regla o cree una nueva.";
+  }
+
+  function nuevaReglaGlobal(){
+    const st = getReglasMaintState_();
+    st.reglaSeleccionadaId = "";
+    st.esNueva = true;
+    limpiarEditorReglaGlobal_();
+    mostrarEditorReglaGlobal_(true);
+    if(byId("reglaGlobalEditorTitulo")) byId("reglaGlobalEditorTitulo").textContent = "Nueva regla";
+    if(byId("reglaGlobalEditorSubtitulo")) byId("reglaGlobalEditorSubtitulo").textContent = "Complete los datos y guarde para agregarla al catálogo.";
+    actualizarChipUsoReglaGlobal_("Nueva regla", "");
+    if(byId("btnEliminarReglaGlobal")) byId("btnEliminarReglaGlobal").classList.add("hidden");
+    renderReglasGlobales();
+    if(byId("reglaGlobalId")) byId("reglaGlobalId").focus();
+  }
+
+  function seleccionarReglaGlobal(reglaId){
+    const st = getReglasMaintState_();
+    const item = st.reglas.find(function(r){ return String(r.regla_id) === String(reglaId); });
+    if(!item) return;
+
+    st.reglaSeleccionadaId = item.regla_id;
+    st.esNueva = false;
+
+    if(byId("reglaGlobalIdOriginal")) byId("reglaGlobalIdOriginal").value = item.regla_id || "";
+    if(byId("reglaGlobalId")){ byId("reglaGlobalId").value = item.regla_id || ""; byId("reglaGlobalId").disabled = true; }
+    if(byId("reglaGlobalActivo")) byId("reglaGlobalActivo").checked = !!item.activo;
+    if(byId("reglaGlobalNombre")) byId("reglaGlobalNombre").value = item.nombre || "";
+    if(byId("reglaGlobalCategoria")) byId("reglaGlobalCategoria").value = item.categoria || "";
+    if(byId("reglaGlobalTipo")) byId("reglaGlobalTipo").value = item.tipo || "";
+    if(byId("reglaGlobalDescripcion")) byId("reglaGlobalDescripcion").value = item.descripcion || "";
+    if(byId("reglaGlobalSeveridad")) byId("reglaGlobalSeveridad").value = item.severidad || "INFORMATIVA";
+    if(byId("reglaGlobalMomento")) byId("reglaGlobalMomento").value = item.momento || "AL_CAMBIAR_CAMPO";
+    if(byId("reglaGlobalMensaje")) byId("reglaGlobalMensaje").value = item.mensaje || "";
+    if(byId("reglaGlobalOrden")) byId("reglaGlobalOrden").value = item.orden != null ? item.orden : 10;
+
+    st.parametros = parametrosDesdeSchema_(item.parametros_schema);
+    renderParametrosReglaGlobal();
+
+    mostrarEditorReglaGlobal_(true);
+    if(byId("reglaGlobalEditorTitulo")) byId("reglaGlobalEditorTitulo").textContent = item.nombre || item.regla_id;
+    if(byId("reglaGlobalEditorSubtitulo")) byId("reglaGlobalEditorSubtitulo").textContent = "Código " + (item.regla_id || "") + " · " + (item.activo ? "Activa" : "Inactiva");
+    actualizarChipUsoReglaGlobal_("0 aplicaciones", "inactive");
+    if(byId("btnEliminarReglaGlobal")) byId("btnEliminarReglaGlobal").classList.remove("hidden");
+
+    renderReglasGlobales();
+  }
+
+  function cancelarEdicionReglaGlobal(){
+    const st = getReglasMaintState_();
+    if(st.reglaSeleccionadaId){
+      seleccionarReglaGlobal(st.reglaSeleccionadaId);
+    }else{
+      st.esNueva = false;
+      mostrarEditorReglaGlobal_(false);
+      resetEditorReglaGlobalTitulo_();
+      actualizarChipUsoReglaGlobal_("Sin selección", "inactive");
+      renderReglasGlobales();
+    }
+  }
+
+  // ---------------------------------------------------------
+  // Parámetros dinámicos (editor visual + JSON técnico)
+  // ---------------------------------------------------------
+
+  function normalizarParametroObjeto_(p){
+    p = p || {};
+    const tipoValido = TIPOS_PARAMETRO_REGLA.some(function(t){ return t.valor === p.tipo; });
+    return {
+      clave: String(p.clave || ""),
+      etiqueta: String(p.etiqueta || ""),
+      tipo: tipoValido ? p.tipo : "texto",
+      requerido: !!p.requerido
+    };
+  }
+
+  function parametrosDesdeSchema_(schema){
+    if(!Array.isArray(schema)) return [];
+    return schema.map(normalizarParametroObjeto_);
+  }
+
+  function agregarParametroReglaGlobal(){
+    getReglasMaintState_().parametros.push({clave:"", etiqueta:"", tipo:"texto", requerido:false});
+    renderParametrosReglaGlobal();
+  }
+
+  function eliminarParametroReglaGlobal(indice){
+    getReglasMaintState_().parametros.splice(indice, 1);
+    renderParametrosReglaGlobal();
+  }
+
+  // Solo actualiza el estado y el JSON técnico (otro elemento) — nunca
+  // vuelve a pintar las tarjetas acá, o se perdería el foco mientras
+  // el usuario está escribiendo.
+  function actualizarParametroReglaGlobal_(indice, campo, valor){
+    const st = getReglasMaintState_();
+    if(!st.parametros[indice]) return;
+    st.parametros[indice][campo] = valor;
+    sincronizarJsonParametrosReglaGlobal_();
+  }
+
+  function renderParametrosReglaGlobal(){
+    const st = getReglasMaintState_();
+    const cont = byId("reglaGlobalParametrosLista");
+    if(cont){
+      if(!st.parametros.length){
+        cont.innerHTML = '<div class="reglas-maint-empty">Esta regla no requiere parámetros.</div>';
+      }else{
+        cont.innerHTML = st.parametros.map(function(p, i){
+          return '<div class="reglas-param-card" data-parametro-indice="' + i + '">' +
+            '<div class="reglas-param-grid">' +
+              '<div class="field"><label>Clave</label><input class="input" type="text" data-parametro-campo="clave" value="' + escapeHtml(p.clave) + '" placeholder="valor_minimo"></div>' +
+              '<div class="field"><label>Etiqueta</label><input class="input" type="text" data-parametro-campo="etiqueta" value="' + escapeHtml(p.etiqueta) + '" placeholder="Valor mínimo permitido"></div>' +
+              '<div class="field"><label>Tipo</label><select class="select" data-parametro-campo="tipo">' +
+                TIPOS_PARAMETRO_REGLA.map(function(t){ return '<option value="' + t.valor + '"' + (t.valor === p.tipo ? " selected" : "") + '>' + t.etiqueta + '</option>'; }).join("") +
+              '</select></div>' +
+              '<label class="reglas-param-required"><input type="checkbox" data-parametro-campo="requerido"' + (p.requerido ? " checked" : "") + '> Requerido</label>' +
+            '</div>' +
+            '<div class="reglas-param-remove"><button class="btn btn-ghost btn-mini" type="button" data-parametro-quitar>Quitar</button></div>' +
+          '</div>';
+        }).join("");
+      }
+    }
+    sincronizarJsonParametrosReglaGlobal_();
+  }
+
+  function sincronizarJsonParametrosReglaGlobal_(){
+    const campo = byId("reglaGlobalSchemaJson");
+    if(campo) campo.value = JSON.stringify(getReglasMaintState_().parametros, null, 2);
+  }
+
+  function aplicarJsonParametrosReglaGlobal(){
+    const campo = byId("reglaGlobalSchemaJson");
+    if(!campo) return;
+    const texto = campo.value.trim();
+    if(!texto){
+      getReglasMaintState_().parametros = [];
+      renderParametrosReglaGlobal();
+      mostrarToast("Parámetros vaciados.");
+      return;
+    }
+    let datos;
+    try{
+      datos = JSON.parse(texto);
+    }catch(error){
+      mostrarToast("El JSON de parámetros no es válido.");
+      return;
+    }
+    if(!Array.isArray(datos)){
+      mostrarToast("El JSON de parámetros debe ser un arreglo.");
+      return;
+    }
+    getReglasMaintState_().parametros = datos.map(normalizarParametroObjeto_);
+    renderParametrosReglaGlobal();
+    mostrarToast("JSON aplicado al editor.");
+  }
+
+  // ---------------------------------------------------------
+  // Guardar / eliminar
+  // ---------------------------------------------------------
+
+  async function guardarReglaGlobal(){
+    const idOriginal = byId("reglaGlobalIdOriginal") ? byId("reglaGlobalIdOriginal").value.trim() : "";
+    const reglaId = byId("reglaGlobalId") ? byId("reglaGlobalId").value.trim() : "";
+    const nombre = byId("reglaGlobalNombre") ? byId("reglaGlobalNombre").value.trim() : "";
+
+    if(!reglaId || !nombre){
+      mostrarToast("Debe indicar código y nombre de la regla.");
+      return;
+    }
+
+    const payload = {
+      regla_id: reglaId,
+      nombre: nombre,
+      categoria: byId("reglaGlobalCategoria") ? byId("reglaGlobalCategoria").value.trim() : "",
+      tipo: byId("reglaGlobalTipo") ? byId("reglaGlobalTipo").value.trim() : "",
+      descripcion: byId("reglaGlobalDescripcion") ? byId("reglaGlobalDescripcion").value.trim() : "",
+      severidad: byId("reglaGlobalSeveridad") ? byId("reglaGlobalSeveridad").value : "INFORMATIVA",
+      momento: byId("reglaGlobalMomento") ? byId("reglaGlobalMomento").value : "AL_CAMBIAR_CAMPO",
+      mensaje: byId("reglaGlobalMensaje") ? byId("reglaGlobalMensaje").value.trim() : "",
+      orden: byId("reglaGlobalOrden") ? (Number(byId("reglaGlobalOrden").value) || 10) : 10,
+      activo: byId("reglaGlobalActivo") ? !!byId("reglaGlobalActivo").checked : true,
+      parametros_schema: getReglasMaintState_().parametros
+    };
+
+    try{
+      await solicitarJSONReglas_("/api/reglas", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
+      });
+      mostrarToast(idOriginal ? "Regla actualizada." : "Regla creada.");
+      const st = getReglasMaintState_();
+      st.reglaSeleccionadaId = reglaId;
+      st.esNueva = false;
+      await cargarReglasGlobales();
+      seleccionarReglaGlobal(reglaId);
+    }catch(error){
+      mostrarToast((error && error.message) || "No fue posible guardar la regla.");
+    }
+  }
+
+  async function eliminarReglaGlobal(){
+    const st = getReglasMaintState_();
+    const reglaId = st.reglaSeleccionadaId;
+    if(!reglaId) return;
+    if(!window.confirm('¿Eliminar la regla "' + reglaId + '"? Esta acción no se puede deshacer.')) return;
+
+    try{
+      await solicitarJSONReglas_("/api/reglas/" + encodeURIComponent(reglaId), {method:"DELETE"});
+      mostrarToast("Regla eliminada.");
+      st.reglaSeleccionadaId = "";
+      st.esNueva = false;
+      mostrarEditorReglaGlobal_(false);
+      resetEditorReglaGlobalTitulo_();
+      actualizarChipUsoReglaGlobal_("Sin selección", "inactive");
+      await cargarReglasGlobales();
+    }catch(error){
+      mostrarToast((error && error.message) || "No fue posible eliminar la regla.");
+    }
+  }
+
+  // ---------------------------------------------------------
+  // Bind de eventos (una sola vez)
+  // ---------------------------------------------------------
+
+  function bindReglasMaintEventos(){
+    if(window.__cotizaReglasMaintBound) return;
+    window.__cotizaReglasMaintBound = true;
+
+    bind("btnRecargarReglasGlobales","click",function(){ cargarReglasGlobales(true); });
+    bind("btnNuevaReglaGlobal","click", nuevaReglaGlobal);
+    bind("btnGuardarReglaGlobal","click", guardarReglaGlobal);
+    bind("btnEliminarReglaGlobal","click", eliminarReglaGlobal);
+    bind("btnCancelarReglaGlobal","click", cancelarEdicionReglaGlobal);
+    bind("btnAgregarParametroReglaGlobal","click", agregarParametroReglaGlobal);
+    bind("btnAplicarJsonReglaGlobal","click", aplicarJsonParametrosReglaGlobal);
+
+    bind("reglasBuscar","input", renderReglasGlobales);
+    bind("reglasFiltroCategoria","change", renderReglasGlobales);
+    bind("reglasFiltroTipo","change", renderReglasGlobales);
+    bind("reglasFiltroSeveridad","change", renderReglasGlobales);
+    bind("reglasFiltroEstado","change", renderReglasGlobales);
+
+    const tbody = byId("reglasGlobalesBody");
+    if(tbody){
+      tbody.addEventListener("click", function(e){
+        const fila = e.target.closest("[data-regla-id]");
+        if(fila) seleccionarReglaGlobal(fila.getAttribute("data-regla-id"));
+      });
+    }
+
+    const listaParametros = byId("reglaGlobalParametrosLista");
+    if(listaParametros){
+      const onCampoParametro = function(e){
+        const campo = e.target.getAttribute("data-parametro-campo");
+        if(!campo) return;
+        const card = e.target.closest("[data-parametro-indice]");
+        if(!card) return;
+        const indice = Number(card.getAttribute("data-parametro-indice"));
+        const valor = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+        actualizarParametroReglaGlobal_(indice, campo, valor);
+      };
+      listaParametros.addEventListener("input", onCampoParametro);
+      listaParametros.addEventListener("change", onCampoParametro);
+      listaParametros.addEventListener("click", function(e){
+        if(e.target.hasAttribute("data-parametro-quitar")){
+          const card = e.target.closest("[data-parametro-indice]");
+          if(card) eliminarParametroReglaGlobal(Number(card.getAttribute("data-parametro-indice")));
+        }
+      });
+    }
+  }
+
+  // El único punto de entrada a esta vista: el paso "Reglas" del
+  // stepper del diseñador (data-designer-step="reglas"). Este listener
+  // es independiente del que alterna la visibilidad de las vistas
+  // (bindDesignerCatalogosEventos, en cotiza_script_catalogos.html) —
+  // ambos escuchan el mismo click sin pisarse.
+  bind("designerStepReglas","click", inicializarReglasMaint);
+})(window.__cotizaCore || {});
+</script>
+
 
   
 <!-- FALTA: Cotiza_Script_Compilador_Cotizador.html (no incluido en la entrega original de Jimmy) -->

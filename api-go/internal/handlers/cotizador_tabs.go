@@ -18,13 +18,14 @@ type CotizadorTabsHandler struct {
 }
 
 type tabCotizador struct {
-	TabID         string `json:"tab_id"`
-	CalculadoraID string `json:"calculadora_id"`
-	Nombre        string `json:"nombre"`
-	NombreTab     string `json:"nombre_tab"`
-	Alcance       string `json:"alcance"`
-	Orden         int    `json:"orden"`
-	Activo        bool   `json:"activo"`
+	TabID         string  `json:"tab_id"`
+	CalculadoraID string  `json:"calculadora_id"`
+	Nombre        string  `json:"nombre"`
+	NombreTab     string  `json:"nombre_tab"`
+	Descripcion   *string `json:"descripcion"`
+	Alcance       string  `json:"alcance"`
+	Orden         int     `json:"orden"`
+	Activo        bool    `json:"activo"`
 }
 
 type elementoTabCotizador struct {
@@ -48,6 +49,7 @@ type guardarTabCotizadorRequest struct {
 	CotizadorID   string         `json:"cotizador_id"`
 	Nombre        string         `json:"nombre"`
 	NombreTab     string         `json:"nombre_tab"`
+	Descripcion   string         `json:"descripcion"`
 	Alcance       string         `json:"alcance"`
 	Orden         enteroFlexible `json:"orden"`
 	Activo        bool           `json:"activo"`
@@ -81,7 +83,7 @@ func (h *CotizadorTabsHandler) ListarTabs(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	rows, err := h.DB.Query(ctx, `
-		SELECT tab_id, calculadora_id, nombre, alcance, orden, activo
+		SELECT tab_id, calculadora_id, nombre, descripcion, alcance, orden, activo
 		FROM tabs_cotizador
 		WHERE calculadora_id = $1
 		ORDER BY orden, nombre, tab_id`, calculadoraID)
@@ -94,7 +96,7 @@ func (h *CotizadorTabsHandler) ListarTabs(w http.ResponseWriter, r *http.Request
 	tabs := make([]tabCotizador, 0)
 	for rows.Next() {
 		var tab tabCotizador
-		if err := rows.Scan(&tab.TabID, &tab.CalculadoraID, &tab.Nombre, &tab.Alcance, &tab.Orden, &tab.Activo); err != nil {
+		if err := rows.Scan(&tab.TabID, &tab.CalculadoraID, &tab.Nombre, &tab.Descripcion, &tab.Alcance, &tab.Orden, &tab.Activo); err != nil {
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer las secciones."})
 			return
 		}
@@ -134,12 +136,13 @@ func (h *CotizadorTabsHandler) GuardarTab(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	_, err := h.DB.Exec(ctx, `
-		INSERT INTO tabs_cotizador (tab_id, calculadora_id, nombre, alcance, orden, activo)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO tabs_cotizador (tab_id, calculadora_id, nombre, descripcion, alcance, orden, activo)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (tab_id) DO UPDATE SET
 			calculadora_id = EXCLUDED.calculadora_id, nombre = EXCLUDED.nombre,
+			descripcion = EXCLUDED.descripcion,
 			alcance = EXCLUDED.alcance, orden = EXCLUDED.orden, activo = EXCLUDED.activo`,
-		req.TabID, req.CalculadoraID, req.Nombre, req.Alcance, int(req.Orden), req.Activo)
+		req.TabID, req.CalculadoraID, req.Nombre, req.Descripcion, req.Alcance, int(req.Orden), req.Activo)
 	if err != nil {
 		log.Printf("cotizador tabs: error guardando %s: %v", req.TabID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar la sección."})
