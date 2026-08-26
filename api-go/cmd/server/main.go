@@ -51,6 +51,7 @@ func main() {
 	auth := &handlers.AuthHandler{DB: pool}
 	catalogos := &handlers.CatalogosHandler{DB: pool}
 	cotizadorTabs := &handlers.CotizadorTabsHandler{DB: pool}
+	compilador := &handlers.CompiladorHandler{DB: pool}
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 	reglas := &handlers.ReglasHandler{DB: pool}
 
@@ -68,6 +69,8 @@ func main() {
 		r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
 		r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
 		r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
+		r.Post("/cotizador/validar", compilador.Validar)
+		r.Post("/cotizador/compilar", compilador.Compilar)
 		r.Route("/reglas", func(r chi.Router) {
 			r.Get("/", reglas.Listar)
 			r.Post("/", reglas.Guardar)
