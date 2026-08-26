@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
@@ -12,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+
+	"cotiza/api/internal/middleware"
 )
 
 // AuthHandler agrupa los endpoints de autenticación (Carril B).
@@ -39,8 +43,14 @@ type usuarioSesion struct {
 type loginResponse struct {
 	OK      bool           `json:"ok"`
 	Usuario *usuarioSesion `json:"usuario,omitempty"`
+	Token   string         `json:"token,omitempty"`
 	Error   string         `json:"error,omitempty"`
 }
+
+// duracionSesion es cuánto dura un token desde que se emite. Sprint 3:
+// sin refresh tokens todavía — al vencer, el usuario tiene que volver
+// a hacer login.
+const duracionSesion = 12 * time.Hour
 
 // mensajeCredencialesInvalidas es intencionalmente genérico: no debe
 // permitir distinguir "el correo no existe" de "el PIN es incorrecto"
@@ -153,7 +163,59 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		log.Printf("auth: no se pudo actualizar ultimo_acceso de %s: %v", usuario.UsuarioID, err)
 	}
 
-	escribirJSON(w, http.StatusOK, loginResponse{OK: true, Usuario: &usuario})
+	token, err := generarToken()
+	if err != nil {
+		log.Printf("auth: error generando token de sesión para %s: %v", usuario.UsuarioID, err)
+		escribirJSON(w, http.StatusInternalServerError, loginResponse{
+			OK:    false,
+			Error: "No fue posible iniciar la sesión.",
+		})
+		return
+	}
+
+	if _, err := h.DB.Exec(ctx,
+		`INSERT INTO sesiones (token, usuario_id, fecha_expiracion) VALUES ($1, $2, $3)`,
+		token, usuario.UsuarioID, time.Now().Add(duracionSesion),
+	); err != nil {
+		log.Printf("auth: error creando sesión para %s: %v", usuario.UsuarioID, err)
+		escribirJSON(w, http.StatusInternalServerError, loginResponse{
+			OK:    false,
+			Error: "No fue posible iniciar la sesión.",
+		})
+		return
+	}
+
+	escribirJSON(w, http.StatusOK, loginResponse{OK: true, Usuario: &usuario, Token: token})
+}
+
+// generarToken produce un identificador de sesión aleatorio de 32
+// bytes con crypto/rand (nunca math/rand, que es predecible y no
+// sirve para nada relacionado a seguridad), codificado en hex.
+func generarToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+// Logout borra la sesión actual de la tabla sesiones. Va detrás del
+// mismo middleware.RequiereSesion que el resto de los endpoints
+// protegidos, así que el token ya está validado y disponible en el
+// contexto — no hace falta volver a leer el header acá.
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	token, _ := r.Context().Value(middleware.TokenKey).(string)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if token != "" {
+		if _, err := h.DB.Exec(ctx, `DELETE FROM sesiones WHERE token = $1`, token); err != nil {
+			log.Printf("auth: error cerrando sesión: %v", err)
+		}
+	}
+
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func escribirJSON(w http.ResponseWriter, status int, cuerpo any) {

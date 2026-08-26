@@ -19,6 +19,7 @@ import (
 	"cotiza/api/internal/config"
 	"cotiza/api/internal/db"
 	"cotiza/api/internal/handlers"
+	"cotiza/api/internal/middleware"
 )
 
 func main() {
@@ -55,35 +56,42 @@ func main() {
 	reglas := &handlers.ReglasHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
+		// Públicas — sin sesión. Todo lo demás bajo /api exige un
+		// token válido (ver el r.Group de acá abajo).
 		r.Get("/health", health.Check)
+		r.Post("/auth/login", auth.Login)
 
-		// --- Carril A (Configuración): catálogos, diseñador, reglas,
-		//     compilador, plantillas — se registran acá en sprints
-		//     siguientes, ej: r.Mount("/catalogos", catalogos.Routes(pool))
-		r.Get("/catalogos/designer", catalogos.ListarDesigner)
-		r.Post("/catalogos", catalogos.GuardarCatalogo)
-		r.Post("/catalogos/valores", catalogos.GuardarValor)
-		r.Post("/catalogos/relaciones", catalogos.GuardarRelaciones)
-		r.Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
-		r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
-		r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
-		r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
-		r.Route("/reglas", func(r chi.Router) {
-			r.Get("/", reglas.Listar)
-			r.Post("/", reglas.Guardar)
-			r.Delete("/{id}", reglas.Eliminar)
-		})
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequiereSesion(pool))
 
-		// --- Carril B (Operación): auth, cotizaciones, dashboard,
-		//     reportes.
-		r.Route("/auth", func(r chi.Router) {
-			r.Post("/login", auth.Login)
-		})
-		r.Get("/roles", usuarios.ListarRoles)
-		r.Route("/usuarios", func(r chi.Router) {
-			r.Get("/", usuarios.Listar)
-			r.Post("/", usuarios.Crear)
-			r.Patch("/{id}", usuarios.Editar)
+			r.Route("/auth", func(r chi.Router) {
+				r.Delete("/logout", auth.Logout)
+			})
+
+			// --- Carril A (Configuración): catálogos, diseñador, reglas,
+			//     compilador, plantillas — se registran acá en sprints
+			//     siguientes, ej: r.Mount("/catalogos", catalogos.Routes(pool))
+			r.Get("/catalogos/designer", catalogos.ListarDesigner)
+			r.Post("/catalogos", catalogos.GuardarCatalogo)
+			r.Post("/catalogos/valores", catalogos.GuardarValor)
+			r.Post("/catalogos/relaciones", catalogos.GuardarRelaciones)
+			r.Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
+			r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
+			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
+			r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
+			r.Route("/reglas", func(r chi.Router) {
+				r.Get("/", reglas.Listar)
+				r.Post("/", reglas.Guardar)
+				r.Delete("/{id}", reglas.Eliminar)
+			})
+
+			// --- Carril B (Operación): cotizaciones, dashboard, reportes.
+			r.Get("/roles", usuarios.ListarRoles)
+			r.Route("/usuarios", func(r chi.Router) {
+				r.Get("/", usuarios.Listar)
+				r.Post("/", usuarios.Crear)
+				r.Patch("/{id}", usuarios.Editar)
+			})
 		})
 	})
 

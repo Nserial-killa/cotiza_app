@@ -24,6 +24,10 @@
       .replace(/"/g,"&quot;")
       .replace(/'/g,"&#039;");
   };
+  // Sprint 3: fetch con el header Authorization puesto solo desde
+  // cotiza_scripts.html (window.__cotizaCore.fetchAutenticado). Si por
+  // lo que sea no está disponible, cae a fetch normal.
+  const fetchAutenticado = core.fetchAutenticado || fetch;
 
   const SEVERIDADES_REGLA = [
     {valor:"INFORMATIVA", etiqueta:"Informativa", pill:""},
@@ -51,7 +55,7 @@
   }
 
   async function solicitarJSONReglas_(url, opciones){
-    const resp = await fetch(url, opciones || {});
+    const resp = await fetchAutenticado(url, opciones || {});
     let data = null;
     try{ data = await resp.json(); }catch(e){ data = null; }
     if(!resp.ok || !data || !data.ok){

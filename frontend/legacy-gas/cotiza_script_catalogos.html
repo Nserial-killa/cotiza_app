@@ -17,6 +17,11 @@
   const normalizarTextoBusquedaParam_ = core.normalizarTextoBusquedaParam_ || function(value){
     return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
   };
+  // Sprint 3: fetch con el header Authorization puesto solo desde
+  // cotiza_scripts.html (window.__cotizaCore.fetchAutenticado). Si por
+  // lo que sea no est\u00e1 disponible, cae a fetch normal \u2014 mejor una
+  // petici\u00f3n sin token que una pantalla rota.
+  const fetchAutenticado = core.fetchAutenticado || fetch;
   const actualizarEstadoCotizadorDesigner = core.actualizarEstadoCotizadorDesigner || function(estado, version, validacion){
     const set = function(id, val){ const el = byId(id); if(el) el.textContent = val || ""; };
     set("designerCotizadorEstado", estado);
@@ -125,14 +130,14 @@
       function listarTabsCotizadorApiFase1_(payload, onOk, onFail){
         payload = payload || {};
         const calculadoraId = String(payload.calculadora_id || payload.cotizador_id || "").trim();
-        fetch("/api/cotizador/tabs?calculadora_id=" + encodeURIComponent(calculadoraId), {headers:{"Accept":"application/json"}})
+        fetchAutenticado("/api/cotizador/tabs?calculadora_id=" + encodeURIComponent(calculadoraId), {headers:{"Accept":"application/json"}})
           .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudieron cargar las secciones."); return data; }); })
           .then(function(res){ if(onOk) onOk(res); })
           .catch(function(err){ if(onFail) onFail(err); });
       }
       function guardarTabCotizadorApiFase1_(payload, onOk, onFail){
         payload = payload || {};
-        fetch("/api/cotizador/tabs", {
+        fetchAutenticado("/api/cotizador/tabs", {
           method:"POST", headers:{"Accept":"application/json","Content-Type":"application/json"},
           body:JSON.stringify(payload.registro || payload)
         }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo guardar la sección."); return data; }); })
@@ -141,14 +146,14 @@
       }
 
       function listarElementosCotizadorApiFase1_(tabId, onOk, onFail){
-        fetch("/api/cotizador/elementos?tab_id=" + encodeURIComponent(String(tabId || "")), {headers:{"Accept":"application/json"}})
+        fetchAutenticado("/api/cotizador/elementos?tab_id=" + encodeURIComponent(String(tabId || "")), {headers:{"Accept":"application/json"}})
           .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudieron cargar los elementos."); return data; }); })
           .then(function(res){ if(onOk) onOk(res); })
           .catch(function(err){ if(onFail) onFail(err); });
       }
 
       function guardarElementoCotizadorApiFase1_(registro, onOk, onFail){
-        fetch("/api/cotizador/elementos", {
+        fetchAutenticado("/api/cotizador/elementos", {
           method:"POST", headers:{"Accept":"application/json","Content-Type":"application/json"}, body:JSON.stringify(registro || {})
         }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo guardar el elemento."); return data; }); })
           .then(function(res){ if(onOk) onOk(res); })

@@ -6,11 +6,17 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+
+	"cotiza/api/internal/middleware"
 )
 
 func postLogin(t *testing.T, handler *AuthHandler, body map[string]string) (*httptest.ResponseRecorder, loginResponse) {
@@ -186,5 +192,101 @@ func TestLogin_RespuestaNuncaExponeElPin(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(rec.Body.String()), "pin_hash") || strings.Contains(rec.Body.String(), "$2") {
 		t.Fatal("la respuesta del login parece incluir el hash del PIN — no debería exponerse")
+	}
+}
+
+// El login exitoso debe devolver un token, y ese token debe existir
+// de verdad en la tabla sesiones, apuntando al usuario correcto y con
+// vencimiento futuro (Sprint 3: sesión + autorización).
+func TestLogin_DevuelveTokenValido(t *testing.T) {
+	pool := setupTestDB(t)
+	correo := "prueba.login.token@exceltecgroup.com"
+	usuarioID := crearUsuarioPrueba(t, pool, correo, "9999", "Vendedor", "Activo")
+
+	handler := &AuthHandler{DB: pool}
+	rec, res := postLogin(t, handler, map[string]string{"correo": correo, "pin": "9999"})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200, dio %d", rec.Code)
+	}
+	if res.Token == "" {
+		t.Fatal("el login no devolvió token")
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM sesiones WHERE token = $1`, res.Token)
+	})
+
+	var usuarioSesionID string
+	var fechaExpiracion time.Time
+	err := pool.QueryRow(context.Background(),
+		`SELECT usuario_id, fecha_expiracion FROM sesiones WHERE token = $1`, res.Token,
+	).Scan(&usuarioSesionID, &fechaExpiracion)
+	if err != nil {
+		t.Fatalf("el token del login no existe en la tabla sesiones: %v", err)
+	}
+	if usuarioSesionID != usuarioID {
+		t.Errorf("usuario_id de la sesión = %q, esperaba %q", usuarioSesionID, usuarioID)
+	}
+	if !fechaExpiracion.After(time.Now()) {
+		t.Errorf("fecha_expiracion = %v, esperaba un vencimiento futuro", fechaExpiracion)
+	}
+}
+
+// Logout debe borrar la sesión de la base; un pedido posterior con
+// ese mismo token, contra un endpoint protegido de verdad (con
+// middleware.RequiereSesion de por medio, no solo el handler a pelo),
+// debe volver a dar 401.
+func TestLogout_InvalidaElToken(t *testing.T) {
+	pool := setupTestDB(t)
+	correo := "prueba.logout@exceltecgroup.com"
+	crearUsuarioPrueba(t, pool, correo, "9999", "Vendedor", "Activo")
+
+	handler := &AuthHandler{DB: pool}
+	_, res := postLogin(t, handler, map[string]string{"correo": correo, "pin": "9999"})
+	if res.Token == "" {
+		t.Fatal("el login no devolvió token")
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM sesiones WHERE token = $1`, res.Token)
+	})
+
+	router := chi.NewRouter()
+	router.Group(func(r chi.Router) {
+		r.Use(middleware.RequiereSesion(pool))
+		r.Delete("/api/auth/logout", handler.Logout)
+		r.Get("/api/protegido", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	})
+
+	// Antes de logout, el token todavía funciona.
+	req := httptest.NewRequest(http.MethodGet, "/api/protegido", nil)
+	req.Header.Set("Authorization", "Bearer "+res.Token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("antes de logout esperaba 200, dio %d", rec.Code)
+	}
+
+	// Logout.
+	req = httptest.NewRequest(http.MethodDelete, "/api/auth/logout", nil)
+	req.Header.Set("Authorization", "Bearer "+res.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("logout: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var existe bool
+	pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM sesiones WHERE token = $1)`, res.Token).Scan(&existe)
+	if existe {
+		t.Error("la sesión debería haberse borrado de la base tras el logout")
+	}
+
+	// El mismo token, después de logout, ya no debe servir.
+	req = httptest.NewRequest(http.MethodGet, "/api/protegido", nil)
+	req.Header.Set("Authorization", "Bearer "+res.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("después de logout esperaba 401, dio %d", rec.Code)
 	}
 }

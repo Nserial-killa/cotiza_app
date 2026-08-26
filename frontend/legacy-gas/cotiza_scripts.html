@@ -222,6 +222,7 @@ window.CotizaApp = (function(){
           }
 
           localStorage.setItem("cotiza_usuario", JSON.stringify(usuario));
+          localStorage.setItem("cotiza_token", res.token || "");
           setLoginMessage("Acceso correcto. Cargando Cotiza...", "ok");
           iniciarApp(usuario);
 
@@ -233,18 +234,30 @@ window.CotizaApp = (function(){
         }
       }
 
+      // Sprint 3: sin token guardado no hay sesión, aunque todavía
+      // quede cotiza_usuario en localStorage (por ejemplo, si alguien
+      // borró solo el token a mano desde las herramientas de
+      // desarrollador). En ese caso, tratarlo igual que si nunca
+      // hubiera iniciado sesión.
       function cargarSesionGuardada(){
         try{
           const raw = localStorage.getItem("cotiza_usuario");
-          if(!raw) return;
+          const token = localStorage.getItem("cotiza_token");
+
+          if(!raw || !token){
+            limpiarSesionCotiza();
+            return;
+          }
 
           const usuario = JSON.parse(raw);
 
           if(usuario && usuario.usuario_id){
             iniciarApp(usuario);
+          }else{
+            limpiarSesionCotiza();
           }
         }catch(error){
-          localStorage.removeItem("cotiza_usuario");
+          limpiarSesionCotiza();
         }
       }
 
@@ -267,8 +280,35 @@ window.CotizaApp = (function(){
         });
       }
 
-      function logout(){
-        localStorage.removeItem("cotiza_usuario");
+      // Cierra la sesión también del lado del servidor (borra la fila
+      // de "sesiones") antes de olvidar el token localmente — así el
+      // token no sigue siendo válido si alguien lo capturó. Si la
+      // llamada falla (sin red, sesión ya vencida, etc.) igual se
+      // cierra sesión localmente: no tiene sentido dejar a alguien
+      // atrapado en la app porque el logout no pudo avisarle al
+      // servidor.
+      async function logout(){
+        try{
+          await fetchAutenticado("/api/auth/logout", { method:"DELETE" });
+        }catch(error){
+          // Silencioso a propósito: el logout local sigue de largo.
+        }
+        cerrarSesionLocal_();
+      }
+
+      // Limpia únicamente el almacenamiento — usar cuando el servidor
+      // ya invalidó la sesión (o nunca la tuvo) y solo falta reflejarlo
+      // en el navegador. logout() es la versión completa (también le
+      // avisa al servidor).
+      function limpiarSesionCotiza(){
+        try{
+          localStorage.removeItem("cotiza_usuario");
+          localStorage.removeItem("cotiza_token");
+        }catch(error){}
+      }
+
+      function cerrarSesionLocal_(){
+        limpiarSesionCotiza();
 
         state.usuario = null;
         state.calculadoras = [];
@@ -280,6 +320,37 @@ window.CotizaApp = (function(){
         if(byId("loginPin")) byId("loginPin").value = "";
 
         setLoginMessage("", "");
+      }
+
+      // Punto único para reaccionar a un 401: cualquier fetchAutenticado()
+      // que lo reciba pasa por acá, así ninguna pantalla tiene que
+      // manejar "mi sesión venció" por su cuenta.
+      function manejarSesionExpirada(){
+        cerrarSesionLocal_();
+        setLoginMessage("Su sesión expiró, inicie sesión de nuevo.", "error");
+      }
+
+      // fetch() con el header Authorization puesto automáticamente
+      // desde el token guardado en localStorage. login() es la única
+      // llamada que NO pasa por acá (es pública, todavía no hay token
+      // que mandar). Cualquier 401 dispara manejarSesionExpirada() acá
+      // mismo, antes de que el código que llamó se entere — así el
+      // caso "la sesión venció" queda resuelto en un solo lugar.
+      async function fetchAutenticado(url, opciones){
+        opciones = opciones || {};
+        const headers = Object.assign({}, opciones.headers || {});
+
+        let token = null;
+        try{ token = localStorage.getItem("cotiza_token"); }catch(error){ token = null; }
+        if(token) headers["Authorization"] = "Bearer " + token;
+
+        const resp = await fetch(url, Object.assign({}, opciones, { headers: headers }));
+
+        if(resp.status === 401){
+          manejarSesionExpirada();
+        }
+
+        return resp;
       }
 
       function cargarDatosBase(callback){
@@ -1280,13 +1351,13 @@ window.CotizaApp = (function(){
       // ==================================================
       // USUARIOS Y PERMISOS (Sprint 1) — CRUD real contra el API en Go:
       // GET/POST /api/usuarios, PATCH /api/usuarios/{id}, GET /api/roles.
-      // No hay guardia de sesión todavía (login persistente/tokens es
-      // un tema aparte a planear); estos endpoints quedan abiertos por
-      // ahora, igual que el resto del Carril B en este sprint.
+      // Desde el Sprint 3 estos endpoints exigen sesión (ver
+      // fetchAutenticado más arriba) — todavía sin permisos distintos
+      // por rol, solo "¿hay sesión válida sí o no?".
       // ==================================================
 
       async function solicitarJSON(url, opciones){
-        const resp = await fetch(url, opciones || {});
+        const resp = await fetchAutenticado(url, opciones || {});
         let data = null;
         try { data = await resp.json(); } catch(e) { data = null; }
         if(!resp.ok || !data || !data.ok){
@@ -4677,7 +4748,7 @@ window.CotizaApp = (function(){
           const value = payload[key];
           if(value !== undefined && value !== null && value !== "") params.set(key, String(value));
         });
-        const resp = await fetch("/api/catalogos/designer?" + params.toString(), {
+        const resp = await fetchAutenticado("/api/catalogos/designer?" + params.toString(), {
           method:"GET",
           headers:{"Accept":"application/json"}
         });
@@ -4690,7 +4761,7 @@ window.CotizaApp = (function(){
       }
 
       async function guardarCatalogosDesigner(endpoint, registro){
-        const resp = await fetch(endpoint, {
+        const resp = await fetchAutenticado(endpoint, {
           method:"POST",
           headers:{"Accept":"application/json","Content-Type":"application/json"},
           body:JSON.stringify(registro || {})
@@ -5829,6 +5900,7 @@ window.CotizaApp = (function(){
         bind: bind,
         mostrarToast: mostrarToast,
         escapeHtml: escapeHtml,
+        fetchAutenticado: fetchAutenticado,
         normalizarTextoBusquedaParam_: (typeof normalizarTextoBusquedaParam_ === "function" ? normalizarTextoBusquedaParam_ : function(value){
           return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
         }),
