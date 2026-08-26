@@ -52,6 +52,7 @@ func main() {
 	auth := &handlers.AuthHandler{DB: pool}
 	catalogos := &handlers.CatalogosHandler{DB: pool}
 	cotizadorTabs := &handlers.CotizadorTabsHandler{DB: pool}
+	compilador := &handlers.CompiladorHandler{DB: pool}
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 	reglas := &handlers.ReglasHandler{DB: pool}
 
@@ -69,8 +70,7 @@ func main() {
 			})
 
 			// --- Carril A (Configuración): catálogos, diseñador, reglas,
-			//     compilador, plantillas — se registran acá en sprints
-			//     siguientes, ej: r.Mount("/catalogos", catalogos.Routes(pool))
+			//     compilador, plantillas.
 			r.Get("/catalogos/designer", catalogos.ListarDesigner)
 			r.Post("/catalogos", catalogos.GuardarCatalogo)
 			r.Post("/catalogos/valores", catalogos.GuardarValor)
@@ -79,6 +79,8 @@ func main() {
 			r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
 			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
 			r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
+			r.Post("/cotizador/validar", compilador.Validar)
+			r.Post("/cotizador/compilar", compilador.Compilar)
 			r.Route("/reglas", func(r chi.Router) {
 				r.Get("/", reglas.Listar)
 				r.Post("/", reglas.Guardar)
@@ -95,17 +97,3 @@ func main() {
 		})
 	})
 
-	// El propio Go sirve el frontend estático (HTML/CSS/JS existente).
-	// Evita tener un contenedor nginx aparte para un proyecto de este
-	// tamaño; se puede separar más adelante si hace falta.
-	staticDir := http.Dir(cfg.StaticDir)
-	fileServer := http.FileServer(staticDir)
-	router.Handle("/*", fileServer)
-
-	addr := ":" + cfg.Port
-	log.Printf("Cotiza API escuchando en %s (env=%s)", addr, cfg.Env)
-	if err := http.ListenAndServe(addr, router); err != nil {
-		log.Fatal(err)
-		os.Exit(1)
-	}
-}

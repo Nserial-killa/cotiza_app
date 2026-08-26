@@ -92,6 +92,7 @@ func crearCatalogoPrueba(t *testing.T, pool *pgxpool.Pool, nombre, catalogoPadre
 		t.Fatalf("no se pudo crear el catálogo de prueba: %v", err)
 	}
 	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM elementos_tab_cotizador WHERE catalogo_id = $1`, id)
 		pool.Exec(context.Background(), `DELETE FROM catalogos WHERE catalogo_id = $1`, id)
 	})
 	return id

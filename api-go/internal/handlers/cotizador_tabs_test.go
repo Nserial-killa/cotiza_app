@@ -16,6 +16,7 @@ func crearCalculadoraTabsPrueba(t *testing.T) (*CotizadorTabsHandler, string) {
 		t.Fatalf("no se pudo crear la calculadora: %v", err)
 	}
 	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM cotizadores_compilados WHERE calculadora_id=$1`, id)
 		pool.Exec(context.Background(), `DELETE FROM tabs_cotizador WHERE calculadora_id=$1`, id)
 		pool.Exec(context.Background(), `DELETE FROM calculadoras WHERE calculadora_id=$1`, id)
 	})

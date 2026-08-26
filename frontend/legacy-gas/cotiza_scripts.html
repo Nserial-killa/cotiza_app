@@ -2320,27 +2320,30 @@ window.CotizaApp = (function(){
           return;
         }
 
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          mostrarToast("Esta acción debe ejecutarse desde Google Apps Script.");
-          return;
-        }
-
         setLoading("section-parametros", true);
-        google.script.run
-          .withSuccessHandler(function(res){
+        solicitarCompilacionCotizador("/api/cotizador/validar", cotizadorId)
+          .then(function(res){
             setLoading("section-parametros", false);
             mostrarResultadoCompilacion(res, "Validación del cotizador " + cotizadorId);
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             setLoading("section-parametros", false);
             mostrarToast(error && error.message ? error.message : "No fue posible validar el cotizador.");
-          })
-          .webValidarCotizadorParaCompilar({
-            cotizador_id: cotizadorId,
-            calculadora_id: cotizadorId,
-            usuario_id_sesion: state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion: state.usuario ? state.usuario.correo || "" : ""
           });
+      }
+
+      async function solicitarCompilacionCotizador(endpoint, cotizadorId){
+        const resp = await fetch(endpoint, {
+          method:"POST",
+          headers:{"Accept":"application/json","Content-Type":"application/json"},
+          body:JSON.stringify({calculadora_id:String(cotizadorId || "").trim().toUpperCase()})
+        });
+        let data = null;
+        try{ data = await resp.json(); }catch(e){ data = null; }
+        if(!resp.ok || !data || !data.ok){
+          throw new Error((data && data.error) || "No fue posible procesar el cotizador.");
+        }
+        return data;
       }
 
       function compilarCotizador(cotizadorId){
@@ -2400,11 +2403,6 @@ window.CotizaApp = (function(){
       }
 
       function ejecutarCompilacionCotizador(cotizadorId){
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          mostrarToast("Esta acción debe ejecutarse desde Google Apps Script.");
-          return;
-        }
-
         toggleHidden("btnEjecutarCompilacionConfirmada", true);
         const estado = byId("modalCompilacionEstado");
         if(estado){
@@ -2412,21 +2410,15 @@ window.CotizaApp = (function(){
         }
 
         setLoading("section-parametros", true);
-        google.script.run
-          .withSuccessHandler(function(res){
+        solicitarCompilacionCotizador("/api/cotizador/compilar", cotizadorId)
+          .then(function(res){
             setLoading("section-parametros", false);
             mostrarResultadoCompilacion(res, "Compilación del cotizador " + cotizadorId);
             cargarModuloParametros("calculadoras", true);
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             setLoading("section-parametros", false);
             mostrarToast(error && error.message ? error.message : "No fue posible compilar el cotizador.");
-          })
-          .webCompilarCotizador({
-            cotizador_id: cotizadorId,
-            calculadora_id: cotizadorId,
-            usuario_id_sesion: state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion: state.usuario ? state.usuario.correo || "" : ""
           });
       }
 
