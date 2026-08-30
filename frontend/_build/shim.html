@@ -13,31 +13,27 @@
    Google Apps Script para poder navegar el shell completo antes
    de que exista el API real en Go (Sprint 1).
 
-   Sprint 1: webValidarUsuario YA NO se simula — el login usa
-   POST /api/auth/login y el diseñador de catálogos ya usan el API
-   real en Go. Quedan 23
-   funciones restantes, que responden con una forma vacía
-   "ok:true" genérica para que la UI no truene, aunque no muestre
-   datos reales todavía.
+   Sprints 1-4: login, catálogos, tabs/elementos, reglas, compilador,
+   usuarios, sesión, y el cascarón del Gestor de Cotizaciones
+   (webBuscarCotizacionesV2, webObtenerGestionCotizacionV2,
+   webCrearNuevaVersion, webActualizarEstadoCotizacion,
+   webEjecutarAccionCotizacion, webGenerarLinkCliente) ya NO se
+   simulan — usan el API real en Go. Quedan 17 funciones restantes,
+   que responden con una forma vacía "ok:true" genérica para que la
+   UI no truene, aunque no muestre datos reales todavía.
 
    Cada una se va migrando a un fetch() real y se borra de
    RPC_METHODS — no extender este archivo con más lógica de negocio.
    ============================================================ */
 (function () {
   // Funciones detectadas vía google.script.run en todo el frontend
-  // ensamblado que TODAVÍA no tienen endpoint en Go (23 de las 25
+  // ensamblado que TODAVÍA no tienen endpoint en Go (17 de las 25
   // originales). Todas comparten la misma respuesta vacía genérica;
   // cada una se borra de esta lista al migrarse a fetch().
   var RPC_METHODS = [
     "webListarUsuariosActivos",
     "webListarCalculadorasPorUsuario",
     "webObtenerDashboardPorUsuario",
-    "webBuscarCotizacionesV2",
-    "webObtenerGestionCotizacionV2",
-    "webCrearNuevaVersion",
-    "webEjecutarAccionCotizacion",
-    "webActualizarEstadoCotizacion",
-    "webGenerarLinkCliente",
     "webCompilarCotizador",
     "webValidarCotizadorParaCompilar",
     "webCotizadorListarTabs",
@@ -119,8 +115,9 @@
   }
 
   console.info(
-    "[Cotiza] Sprint 1: el login usa el API real (POST /api/auth/login). " +
-    "Las 23 funciones RPC restantes siguen simuladas por este shim, " +
+    "[Cotiza] Sprint 4: login, catálogos, tabs/elementos, reglas, compilador, " +
+    "usuarios, sesión y el cascarón de Cotizaciones usan el API real en Go. " +
+    "Las 17 funciones RPC restantes siguen simuladas por este shim, " +
     "así que esos datos son de ejemplo, no vienen de una base real."
   );
 })();

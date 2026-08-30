@@ -55,6 +55,7 @@ func main() {
 	compilador := &handlers.CompiladorHandler{DB: pool}
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 	reglas := &handlers.ReglasHandler{DB: pool}
+	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		// Públicas — sin sesión. Todo lo demás bajo /api exige un
@@ -94,6 +95,26 @@ func main() {
 				r.Post("/", usuarios.Crear)
 				r.Patch("/{id}", usuarios.Editar)
 			})
+			r.Route("/cotizaciones", func(r chi.Router) {
+				r.Get("/", cotizaciones.Listar)
+				r.Get("/{id}", cotizaciones.Detalle)
+				r.Post("/{id}/version", cotizaciones.CrearVersion)
+				r.Post("/{id}/estado", cotizaciones.CambiarEstado)
+			})
 		})
 	})
 
+	// El propio Go sirve el frontend estático (HTML/CSS/JS existente).
+	// Evita tener un contenedor nginx aparte para un proyecto de este
+	// tamaño; se puede separar más adelante si hace falta.
+	staticDir := http.Dir(cfg.StaticDir)
+	fileServer := http.FileServer(staticDir)
+	router.Handle("/*", fileServer)
+
+	addr := ":" + cfg.Port
+	log.Printf("Cotiza API escuchando en %s (env=%s)", addr, cfg.Env)
+	if err := http.ListenAndServe(addr, router); err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
+}

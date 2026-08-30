@@ -993,46 +993,41 @@ window.CotizaApp = (function(){
         }).join("");
       }
 
-      function cargarCotizaciones(){
+      // MIGRADA en el Sprint 4 — antes usaba
+      // google.script.run.webBuscarCotizacionesV2(payload).
+      async function cargarCotizaciones(){
         if(!state.usuario) return;
 
         setLoading("section-cotizaciones", true);
 
-        const payload = {
-          usuario_id_sesion:state.usuario.usuario_id || "",
-          correo_sesion:state.usuario.correo || "",
+        const params = new URLSearchParams({
           busqueda:(byId("filtroBusqueda") && byId("filtroBusqueda").value ? byId("filtroBusqueda").value : "").trim(),
           estado:byId("filtroEstado") ? byId("filtroEstado").value : "",
           calculadora_id:byId("filtroCalculadora") ? byId("filtroCalculadora").value : "",
           filtro_usuario_id:byId("filtroUsuario") ? byId("filtroUsuario").value : "",
           fecha_desde:byId("filtroFechaDesde") ? byId("filtroFechaDesde").value : ""
-        };
+        });
 
-        google.script.run
-          .withSuccessHandler(function(res){
-            try{
-              if(!res || !res.ok){
-                throw new Error((res && res.error) ? res.error : "No fue posible cargar cotizaciones.");
-              }
+        try{
+          const resp = await fetchAutenticado("/api/cotizaciones?" + params.toString());
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok){
+            throw new Error((res && res.error) ? res.error : "No fue posible cargar cotizaciones.");
+          }
 
-              state.cotizaciones = res.cotizaciones || [];
-              llenarComboDashboardVendedores();
-              renderCotizaciones(state.cotizaciones);
-              if(state.dashboard){
-                renderDashboard(state.dashboard);
-              }
+          state.cotizaciones = res.cotizaciones || [];
+          llenarComboDashboardVendedores();
+          renderCotizaciones(state.cotizaciones);
+          if(state.dashboard){
+            renderDashboard(state.dashboard);
+          }
 
-            }catch(error){
-              mostrarToast(error.message || "Error cargando cotizaciones.");
-            }finally{
-              setLoading("section-cotizaciones", false);
-            }
-          })
-          .withFailureHandler(function(error){
-            setLoading("section-cotizaciones", false);
-            mostrarToast(error && error.message ? error.message : "Error cargando cotizaciones.");
-          })
-          .webBuscarCotizacionesV2(payload);
+        }catch(error){
+          mostrarToast(error.message || "Error cargando cotizaciones.");
+        }finally{
+          setLoading("section-cotizaciones", false);
+        }
       }
 
       function renderCotizaciones(items){
@@ -1193,14 +1188,28 @@ window.CotizaApp = (function(){
         mostrarPanelGestorV2("gestorCotizacionesLista");state.gestorVistaAnterior="lista";state.gestorDetalle=null;cargarCotizaciones();
       }
 
-      function cargarDetalleCotizacionV2(cot){
+      // MIGRADA en el Sprint 4 — antes usaba
+      // google.script.run.webObtenerGestionCotizacionV2(payload).
+      async function cargarDetalleCotizacionV2(cot){
         if(!cot||!state.usuario)return;
         mostrarPanelGestorV2("gestorCotizacionDetalle");
         const box=byId("gestorDetalleContenido");if(box)box.innerHTML='<div class="card">Cargando detalle de la cotización...</div>';
-        google.script.run.withSuccessHandler(function(res){
-          if(!res||!res.ok){mostrarToast((res&&res.error)||"No se pudo cargar el detalle.");mostrarListadoCotizacionesV2();return;}
+        try{
+          const params=new URLSearchParams();
+          if(cot.version) params.set("version",cot.version);
+          const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(cot.cotizacion_id||"")+(params.toString()?"?"+params.toString():""));
+          let res=null;
+          try{ res=await resp.json(); }catch(e){ res=null; }
+          if(!resp.ok||!res||!res.ok){
+            mostrarToast((res&&res.error)||"No se pudo cargar el detalle.");
+            mostrarListadoCotizacionesV2();
+            return;
+          }
           state.gestorDetalle=res;renderDetalleCotizacionV2(res);
-        }).withFailureHandler(function(e){mostrarToast(e&&e.message?e.message:"No se pudo cargar el detalle.");mostrarListadoCotizacionesV2();}).webObtenerGestionCotizacionV2({usuario_id_sesion:state.usuario.usuario_id||"",correo_sesion:state.usuario.correo||"",cotizacion_id:cot.cotizacion_id||"",version:cot.version||""});
+        }catch(e){
+          mostrarToast(e&&e.message?e.message:"No se pudo cargar el detalle.");
+          mostrarListadoCotizacionesV2();
+        }
       }
 
       function renderDetalleCotizacionV2(data){
@@ -1253,77 +1262,129 @@ window.CotizaApp = (function(){
         if(state.gestorVistaAnterior==="detalle"&&state.gestorDetalle)cargarDetalleCotizacionV2(state.gestorDetalle.cotizacion);else mostrarListadoCotizacionesV2();
       }
 
-      function editarCotizacionDesdeDetalleV2(){const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(c)abrirCotizadorIntegradoV2(construirUrlCotizadorV2(c,"editar"),"Editar "+(c.codigo_oferta||"cotización"),"Versión "+(c.version||"1"));}
+      // Editar el contenido real de una cotización abre el Cotizador
+      // en modo de uso real, que depende de un motor de ejecución que
+      // todavía no existe (Cotiza_Script_Cotizador) — se avisa en vez
+      // de abrir un editor roto.
+      function editarCotizacionDesdeDetalleV2(){mostrarToast("Editar el contenido de la cotización estará disponible próximamente.");}
 
-      function crearNuevaVersionDesdeDetalleV2(){
+      // MIGRADA en el Sprint 4 — antes usaba
+      // google.script.run.webCrearNuevaVersion(payload). La versión
+      // nueva SÍ queda creada de verdad en la base; lo que no existe
+      // todavía es el motor de ejecución del Cotizador, así que en vez
+      // de abrir ese editor (abrirCotizadorIntegradoV2, roto sin ese
+      // motor) se avisa que el llenado real queda pendiente.
+      async function crearNuevaVersionDesdeDetalleV2(){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
         if(c.estado==="Aceptada"&&!window.confirm("Esta versión fue aceptada por el cliente. La aceptación quedará conservada y bloqueada. ¿Desea crear una nueva versión?"))return;
         const nombre=window.prompt("Nombre breve de la nueva versión (ejemplo: 10 licencias Full):","");if(nombre===null)return;if(!String(nombre||"").trim()){mostrarToast("Debe indicar un nombre para la nueva versión.");return;}const resumen=window.prompt("Resumen del cambio (opcional):","");if(resumen===null)return;
-        google.script.run.withSuccessHandler(function(res){if(!res||!res.ok){mostrarToast((res&&res.error)||"No se pudo crear la versión.");return;}const nuevo=Object.assign({},c,{version:res.version||res.nueva_version||String(Number(c.version||1)+1),nombre_version:res.nombre_version||nombre,resumen_cambios:res.resumen_cambios||resumen});abrirCotizadorIntegradoV2(construirUrlCotizadorV2(nuevo,"editar"),"Nueva versión de "+(c.codigo_oferta||"cotización"),"V"+nuevo.version+" — "+(nuevo.nombre_version||""));}).withFailureHandler(function(e){mostrarToast(e&&e.message?e.message:"No se pudo crear la versión.");}).webCrearNuevaVersion({usuario_id_sesion:state.usuario.usuario_id||"",correo_sesion:state.usuario.correo||"",cotizacion_id:c.cotizacion_id||"",version:c.version||"1",nombre_version:String(nombre).trim(),resumen_cambios:String(resumen||"").trim()});
+        try{
+          const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/version",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({nombre_version:String(nombre).trim(),resumen_cambios:String(resumen||"").trim()})
+          });
+          let res=null;
+          try{ res=await resp.json(); }catch(e){ res=null; }
+          if(!resp.ok||!res||!res.ok){
+            mostrarToast((res&&res.error)||"No se pudo crear la versión.");
+            return;
+          }
+          mostrarToast("Versión creada. El llenado del contenido de la cotización estará disponible próximamente.");
+          cargarDetalleCotizacionV2(Object.assign({},c,{version:res.version||c.version}));
+          cargarCotizaciones();
+        }catch(e){
+          mostrarToast(e&&e.message?e.message:"No se pudo crear la versión.");
+        }
       }
 
-      function generarLinkDesdeDetalleV2(){const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(c)generarLinkCliente(c.cotizacion_id,c.version);}
+      // La publicación al cliente (generar/copiar el enlace público)
+      // depende de un sprint futuro — ver CLAUDE.md.
+      function generarLinkDesdeDetalleV2(){mostrarToast("Generar enlace para el cliente estará disponible próximamente.");}
 
       function copiarEnlaceGestorV1008(urlCodificada){const url=decodeURIComponent(String(urlCodificada||""));if(!url){mostrarToast("No existe un enlace para copiar.");return;}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(function(){mostrarToast("Enlace copiado al portapapeles.");}).catch(function(){window.prompt("Copie el enlace:",url);});}else window.prompt("Copie el enlace:",url);}
 
-      function ejecutarAccionCotizacionV1006(accion){
+      // MIGRADA en el Sprint 4 — antes usaba
+      // google.script.run.webEjecutarAccionCotizacion(payload). De las
+      // 5 acciones que dispara esta pantalla, solo REGISTRAR_ACEPTACION
+      // y MARCAR_GANADA se reducen limpiamente a un cambio de estado
+      // (POST /api/cotizaciones/{id}/estado). LIBERAR_COTIZACION,
+      // DEVOLVER_CONSTRUCCION y MARCAR_ENVIADA dependen del estado
+      // "Liberada", que no existe en el CHECK de la tabla — se dejan
+      // en "disponible próximamente" en vez de forzarlas a medias.
+      async function ejecutarAccionCotizacionV1006(accion){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
-        let comentario="";
-        if(accion==="DEVOLVER_CONSTRUCCION"){comentario=window.prompt("Indique el motivo de devolución a construcción:","");if(comentario===null)return;if(!String(comentario).trim()){mostrarToast("Debe indicar el motivo.");return;}}
-        let aceptadaPor="";if(accion==="REGISTRAR_ACEPTACION"){aceptadaPor=window.prompt("Nombre de la persona que aceptó la propuesta:","");if(aceptadaPor===null)return;if(!String(aceptadaPor).trim()){mostrarToast("Debe indicar quién aceptó la propuesta.");return;}if(!window.confirm("La versión quedará registrada como Aceptada y bloqueada. ¿Desea continuar?"))return;}
-        const mensajes={LIBERAR_COTIZACION:"La versión quedará bloqueada y pasará a revisión comercial. ¿Desea liberarla?",MARCAR_ENVIADA:"Confirme que la propuesta fue enviada al cliente.",MARCAR_GANADA:"Esta acción finalizará permanentemente la Solicitud y no podrá reabrirse. ¿Desea continuar?"};
-        if(mensajes[accion]&&!window.confirm(mensajes[accion]))return;
-        google.script.run.withSuccessHandler(function(res){if(!res||!res.ok){mostrarToast((res&&res.error)||"No se pudo ejecutar la acción.");return;}mostrarToast("Acción completada correctamente.");cargarDetalleCotizacionV2(Object.assign({},c,{version:res.version||c.version}));cargarCotizaciones();cargarDashboard();}).withFailureHandler(function(e){mostrarToast(e&&e.message?e.message:"No se pudo ejecutar la acción.");}).webEjecutarAccionCotizacion({usuario_id_sesion:state.usuario.usuario_id||"",correo_sesion:state.usuario.correo||"",cotizacion_id:c.cotizacion_id||"",version:c.version||"1",accion_cotizacion:accion,comentario:String(comentario||"").trim(),aceptada_por:String(aceptadaPor||"").trim(),version_aceptada:c.version_aceptada||""});
+
+        if(["LIBERAR_COTIZACION","DEVOLVER_CONSTRUCCION","MARCAR_ENVIADA"].indexOf(accion)>=0){
+          mostrarToast("Esta acción estará disponible próximamente.");
+          return;
+        }
+
+        let estadoNuevo="";let aceptadaPor="";let versionAceptada="";let comentario="";
+        if(accion==="REGISTRAR_ACEPTACION"){
+          aceptadaPor=window.prompt("Nombre de la persona que aceptó la propuesta:","");if(aceptadaPor===null)return;if(!String(aceptadaPor).trim()){mostrarToast("Debe indicar quién aceptó la propuesta.");return;}
+          if(!window.confirm("La versión quedará registrada como Aceptada y bloqueada. ¿Desea continuar?"))return;
+          estadoNuevo="Aceptada";
+        }else if(accion==="MARCAR_GANADA"){
+          if(!window.confirm("Esta acción finalizará permanentemente la Solicitud y no podrá reabrirse. ¿Desea continuar?"))return;
+          estadoNuevo="Ganada";versionAceptada=c.version_aceptada||c.version||"";
+        }else{
+          mostrarToast("Acción no reconocida.");
+          return;
+        }
+
+        try{
+          const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/estado",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({version:c.version||"1",estado:estadoNuevo,version_aceptada:versionAceptada,comentario:comentario,aceptada_por:aceptadaPor})
+          });
+          let res=null;
+          try{ res=await resp.json(); }catch(e){ res=null; }
+          if(!resp.ok||!res||!res.ok){
+            mostrarToast((res&&res.error)||"No se pudo ejecutar la acción.");
+            return;
+          }
+          mostrarToast("Acción completada correctamente.");
+          cargarDetalleCotizacionV2(Object.assign({},c,{version:res.version||c.version}));
+          cargarCotizaciones();
+          cargarDashboard();
+        }catch(e){
+          mostrarToast(e&&e.message?e.message:"No se pudo ejecutar la acción.");
+        }
       }
 
-      function actualizarEstadoGestorV2(){
+      // MIGRADA en el Sprint 4 — antes usaba
+      // google.script.run.webActualizarEstadoCotizacion(payload).
+      async function actualizarEstadoGestorV2(){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;const estado=byId("gestorEstadoNuevo")?byId("gestorEstadoNuevo").value:"";const versionAceptada=byId("gestorVersionAceptada")?byId("gestorVersionAceptada").value:(c&&c.version_aceptada)||"";if(!c||!estado)return;if(estado==="Ganada"&&!versionAceptada){mostrarToast("Seleccione la versión que aceptó el cliente.");return;}
-        google.script.run.withSuccessHandler(function(res){if(!res||!res.ok){mostrarToast((res&&res.error)||"No se pudo cambiar el estado.");return;}mostrarToast("Estado actualizado.");cargarDetalleCotizacionV2(Object.assign({},c,{version:res.version_aceptada||c.version}));cargarCotizaciones();}).withFailureHandler(function(e){mostrarToast(e&&e.message?e.message:"No se pudo cambiar el estado.");}).webActualizarEstadoCotizacion({usuario_id_sesion:state.usuario.usuario_id||"",correo_sesion:state.usuario.correo||"",cotizacion_id:c.cotizacion_id||"",version:c.version||"1",estado:estado,version_aceptada:versionAceptada});
+        try{
+          const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/estado",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({version:c.version||"1",estado:estado,version_aceptada:versionAceptada})
+          });
+          let res=null;
+          try{ res=await resp.json(); }catch(e){ res=null; }
+          if(!resp.ok||!res||!res.ok){
+            mostrarToast((res&&res.error)||"No se pudo cambiar el estado.");
+            return;
+          }
+          mostrarToast("Estado actualizado.");
+          cargarDetalleCotizacionV2(Object.assign({},c,{version:res.version_aceptada||c.version}));
+          cargarCotizaciones();
+        }catch(e){
+          mostrarToast(e&&e.message?e.message:"No se pudo cambiar el estado.");
+        }
       }
 
       function recibirMensajeCotizadorV2(event){const d=event&&event.data||{};if(d.type==="COTIZA_RUNTIME_SAVED"){mostrarToast("Cotización guardada correctamente.");cerrarCotizadorIntegradoV2();}else if(d.type==="COTIZA_RUNTIME_CLOSE")cerrarCotizadorIntegradoV2();}
 
+      // La publicación al cliente (generar el link público) depende
+      // de un sprint futuro — ver CLAUDE.md. Se deja el mensaje claro
+      // en vez de simular una respuesta que nunca hará nada real.
       function generarLinkCliente(cotizacionId, version){
-        if(!state.usuario) return;
-
-        const payload = {
-          usuario_id_sesion:state.usuario.usuario_id || "",
-          correo_sesion:state.usuario.correo || "",
-          cotizacion_id:cotizacionId,
-          version:version
-        };
-
-        google.script.run
-          .withSuccessHandler(function(res){
-            try{
-              if(!res || !res.ok){
-                throw new Error((res && res.error) ? res.error : "No fue posible generar el link.");
-              }
-
-              const url = res.url_publica || "";
-
-              if(url && navigator.clipboard){
-                navigator.clipboard.writeText(url).then(function(){
-                  mostrarToast("Link cliente generado y copiado al portapapeles: " + url);
-                }).catch(function(){
-                  mostrarToast("Link cliente generado: " + url);
-                });
-              }else{
-                mostrarToast("Link cliente generado: " + url);
-              }
-
-              cargarCotizaciones();
-              cargarDashboard();
-              if(state.gestorDetalle && state.gestorDetalle.cotizacion) cargarDetalleCotizacionV2(state.gestorDetalle.cotizacion);
-
-            }catch(error){
-              mostrarToast(error.message || "Error generando link cliente.");
-            }
-          })
-          .withFailureHandler(function(error){
-            mostrarToast(error && error.message ? error.message : "Error generando link cliente.");
-          })
-          .webGenerarLinkCliente(payload);
+        mostrarToast("Generar enlace para el cliente estará disponible próximamente.");
       }
 
       function cambiarSeccion(section,omitirCarga){
@@ -2333,7 +2394,7 @@ window.CotizaApp = (function(){
       }
 
       async function solicitarCompilacionCotizador(endpoint, cotizadorId){
-        const resp = await fetch(endpoint, {
+        const resp = await fetchAutenticado(endpoint, {
           method:"POST",
           headers:{"Accept":"application/json","Content-Type":"application/json"},
           body:JSON.stringify({calculadora_id:String(cotizadorId || "").trim().toUpperCase()})

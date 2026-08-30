@@ -198,11 +198,22 @@ tablas ni endpoints que nadie usa todavía.
     Esto es solo el catálogo/administración de reglas disponibles —
     cómo se aplican a un elemento del cotizador (`reglas_cotizador`)
     sigue pendiente, ver "Después".
-- **Después:** diseñador/plantillas/cotizaciones (esquema 0005+),
-  sesión/autenticación por token, y las funciones RPC restantes. Los 5
-  scripts JS que todavía no llegaron (Compilador_Cotizador, Cotizador
-  runtime, Plantillas, Reglas — aplicación a un elemento, distinto del
-  catálogo global, Solicitudes) siguen documentados como
+- **Sprint 3 (hecho):**
+  - Compilador (`internal/handlers/compilador.go`): `POST /api/cotizador/validar`,
+    `POST /api/cotizador/compilar`, con versionado en
+    `cotizadores_compilados`.
+  - Sesión y autorización básica (`internal/middleware/auth.go`): todas
+    las rutas bajo `/api` excepto `/health` y `/auth/login` exigen
+    `Authorization: Bearer <token>`.
+  - Pendiente explícito, NO resuelto en Sprint 3: no hay permisos
+    distintos por rol (cualquier usuario con sesión válida puede
+    llamar cualquier endpoint, sin distinguir su rol) ni refresh de
+    tokens — quedan para un sprint futuro.
+- **Después:** diseñador/plantillas/cotizaciones (esquema 0007+),
+  permisos por rol, refresh de tokens, y las funciones RPC restantes.
+  Los 5 scripts JS que todavía no llegaron (Compilador_Cotizador,
+  Cotizador runtime, Plantillas, Reglas — aplicación a un elemento,
+  distinto del catálogo global, Solicitudes) siguen documentados como
   `<!-- FALTA: ... -->` en el ensamblado.
 
 `docs/ENTORNO_LOCAL_FEDORA.md` cubre instalación en Fedora, el flujo de debug con
