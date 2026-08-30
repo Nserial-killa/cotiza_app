@@ -4763,6 +4763,7 @@ window.CotizaApp = (function(){
         bind("btnDesignerCerrarPropsCatalogo","click",function(){ toggleDesignerPropsCatalogo(true); });
         bind("designerCatalogoPropsTab","click",function(){ toggleDesignerPropsCatalogo(false); });
         bind("btnDesignerCancelarCatalogo","click",function(){ cargarPropiedadesCatalogoSeleccionado(); });
+        bind("btnDesignerEliminarCatalogo","click",eliminarDesignerCatalogoActual);
         bind("btnDesignerGuardarCatalogoPanel","click",guardarDesignerCatalogoActual);
         bind("btnDesignerGuardarCatalogo","click",guardarDesignerCatalogoActual);
         if(byId("designerCatalogoPadre")) byId("designerCatalogoPadre").addEventListener("change",function(){ llenarDesignerDependeDeOptions(); renderDesignerValoresCatalogo(); });
@@ -4823,6 +4824,16 @@ window.CotizaApp = (function(){
         try { data = await resp.json(); } catch(e) { data = null; }
         if(!resp.ok || !data || !data.ok){
           throw new Error((data && data.error) || "No fue posible guardar la información del catálogo.");
+        }
+        return data;
+      }
+
+      async function eliminarCatalogosDesigner(endpoint){
+        const resp = await fetchAutenticado(endpoint, {method:"DELETE", headers:{"Accept":"application/json"}});
+        let data = null;
+        try { data = await resp.json(); } catch(e) { data = null; }
+        if(!resp.ok || !data || !data.ok){
+          throw new Error((data && data.error) || "No fue posible eliminar el registro.");
         }
         return data;
       }
@@ -5414,10 +5425,16 @@ window.CotizaApp = (function(){
           const id = String(v.valor_id || "").trim().toUpperCase();
           const label = getValorTextoVisibleDesigner(v) || v.clave || id;
           const checked = actuales[id] ? ' checked' : '';
-          return '<label class="designer-rel-modal-item">' +
+          const relacion = (d.relaciones || []).find(function(r){
+            return String(r.valor_hijo_id || "").trim().toUpperCase() === String(d.valorRelacionSeleccionado || "").trim().toUpperCase() &&
+              String(r.valor_padre_id || "").trim().toUpperCase() === id && isActivoParam_(r.activo);
+          });
+          const relacionId = relacion ? String(relacion.relacion_id || "").trim() : "";
+          return '<div class="designer-rel-modal-item"><label>' +
             '<input type="checkbox" data-valor-padre-id="' + escapeHtml(id) + '" value="' + escapeHtml(id) + '"' + checked + '>' +
-            '<span><strong>' + escapeHtml(label) + '</strong><small>' + escapeHtml(v.clave || id) + '</small></span>' +
-          '</label>';
+            '<span><strong>' + escapeHtml(label) + '</strong><small>' + escapeHtml(v.clave || id) + '</small></span></label>' +
+            (relacionId ? '<button class="mini mini-danger" type="button" data-relacion-delete="' + escapeHtml(relacionId) + '" title="Eliminar relación">🗑</button>' : '') +
+          '</div>';
         }).join("");
         box.querySelectorAll('input[data-valor-padre-id]').forEach(function(chk){
           chk.addEventListener('change', function(){
@@ -5427,6 +5444,30 @@ window.CotizaApp = (function(){
             state.disenadorCotiza = d2;
           });
         });
+        box.querySelectorAll('[data-relacion-delete]').forEach(function(btn){
+          btn.addEventListener('click', function(){ eliminarRelacionValorDesigner(btn.getAttribute('data-relacion-delete') || ''); });
+        });
+      }
+
+      function eliminarRelacionValorDesigner(relacionId){
+        relacionId = String(relacionId || "").trim();
+        if(!relacionId || !window.confirm("¿Desea eliminar esta relación entre valores?")) return;
+        setLoading("section-parametros", true);
+        eliminarCatalogosDesigner("/api/catalogos/relaciones/" + encodeURIComponent(relacionId))
+          .then(function(res){
+            setLoading("section-parametros", false);
+            mostrarToast(res.mensaje || "Relación eliminada.");
+            const d = state.disenadorCotiza || {};
+            const eliminada = (d.relaciones || []).find(function(r){ return String(r.relacion_id || "") === relacionId; });
+            const valorPadreEliminado = eliminada ? String(eliminada.valor_padre_id || "").trim().toUpperCase() : "";
+            d.relaciones = (d.relaciones || []).filter(function(r){ return String(r.relacion_id || "") !== relacionId; });
+            d.relacionesModalSeleccionadas = (d.relacionesModalSeleccionadas || []).filter(function(valorPadreId){
+              return !valorPadreEliminado || String(valorPadreId || "").trim().toUpperCase() !== valorPadreEliminado;
+            });
+            state.disenadorCotiza = d;
+            renderListaRelacionValorDesigner();
+          })
+          .catch(function(error){ setLoading("section-parametros", false); mostrarToast(error && error.message ? error.message : "No fue posible eliminar la relación."); });
       }
 
       function guardarRelacionesValorDesigner(){
@@ -5497,6 +5538,7 @@ window.CotizaApp = (function(){
           if(campo) campo.value = "";
           if(desc) desc.value = "";
           if(activo) activo.checked = true;
+          toggleHidden("btnDesignerEliminarCatalogo", true);
           return;
         }
 
@@ -5511,6 +5553,24 @@ window.CotizaApp = (function(){
         if(campo) campo.value = cat.campo_relacionado || cat.campo_id || "";
         if(desc) desc.value = cat.descripcion || "";
         if(activo) activo.checked = isActivoParam_(cat.activo);
+        toggleHidden("btnDesignerEliminarCatalogo", false);
+      }
+
+      function eliminarDesignerCatalogoActual(){
+        const d = state.disenadorCotiza || {};
+        const id = String(d.catalogoSeleccionado || "").trim().toUpperCase();
+        if(!id){ mostrarToast("Seleccione un catálogo guardado para eliminar."); return; }
+        if(!window.confirm("¿Desea eliminar el catálogo " + id + "? La fila se conservará inactiva para mantener el historial.")) return;
+        setLoading("section-parametros", true);
+        eliminarCatalogosDesigner("/api/catalogos/" + encodeURIComponent(id))
+          .then(function(res){
+            setLoading("section-parametros", false);
+            mostrarToast(res.mensaje || "Catálogo eliminado.");
+            d.catalogoSeleccionado = ""; d.valorSeleccionado = ""; d.catalogos = []; d.valores = []; d.relaciones = [];
+            state.disenadorCotiza = d;
+            cargarDesignerCatalogos(true);
+          })
+          .catch(function(error){ setLoading("section-parametros", false); mostrarToast(error && error.message ? error.message : "No fue posible eliminar el catálogo."); });
       }
 
       function nuevoDesignerCatalogo(){
@@ -5719,35 +5779,20 @@ window.CotizaApp = (function(){
 
       function cambiarEstadoDesignerValorCatalogo(valorId, activo){
         if(!valorId){ return; }
-        if(!confirm("¿Desea desactivar este valor de catálogo?")) return;
-        if(typeof google === "undefined" || !google.script || !google.script.run){
-          mostrarToast("Cambio de estado local no disponible en modo diseño.");
-          return;
-        }
+        if(!confirm("¿Desea eliminar este valor de catálogo? La fila se conservará inactiva.")) return;
         setLoading("section-parametros", true);
-        google.script.run
-          .withSuccessHandler(function(res){
+        eliminarCatalogosDesigner("/api/catalogos/valores/" + encodeURIComponent(valorId))
+          .then(function(res){
             setLoading("section-parametros", false);
-            if(!res || !res.ok){
-              mostrarToast((res && res.error) ? res.error : "No fue posible cambiar el estado.");
-              return;
-            }
-            mostrarToast(res.mensaje || "Estado actualizado.");
+            mostrarToast(res.mensaje || "Valor eliminado.");
             const d = state.disenadorCotiza || {};
             cargarValoresCatalogoDesigner(String(d.catalogoSeleccionado || "").toUpperCase(), true, function(){
               renderDesignerValoresCatalogo();
             });
           })
-          .withFailureHandler(function(error){
+          .catch(function(error){
             setLoading("section-parametros", false);
-            mostrarToast(error && error.message ? error.message : "No fue posible cambiar el estado.");
-          })
-          .webCambiarEstadoModuloParametro({
-            modulo:"catalogos_valores",
-            id:valorId,
-            activo:activo,
-            usuario_id_sesion:state.usuario ? state.usuario.usuario_id || "" : "",
-            correo_sesion:state.usuario ? state.usuario.correo || "" : ""
+            mostrarToast(error && error.message ? error.message : "No fue posible eliminar el valor.");
           });
       }
 

@@ -74,12 +74,17 @@ func main() {
 			//     compilador, plantillas.
 			r.Get("/catalogos/designer", catalogos.ListarDesigner)
 			r.Post("/catalogos", catalogos.GuardarCatalogo)
+			r.Delete("/catalogos/{id}", catalogos.EliminarCatalogo)
 			r.Post("/catalogos/valores", catalogos.GuardarValor)
+			r.Delete("/catalogos/valores/{id}", catalogos.EliminarValor)
 			r.Post("/catalogos/relaciones", catalogos.GuardarRelaciones)
+			r.Delete("/catalogos/relaciones/{id}", catalogos.EliminarRelacion)
 			r.Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
 			r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
+			r.Delete("/cotizador/tabs/{id}", cotizadorTabs.EliminarTab)
 			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
 			r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
+			r.Delete("/cotizador/elementos/{id}", cotizadorTabs.EliminarElemento)
 			r.Post("/cotizador/validar", compilador.Validar)
 			r.Post("/cotizador/compilar", compilador.Compilar)
 			r.Route("/reglas", func(r chi.Router) {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -244,6 +246,62 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		return
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Elemento guardado.", "elemento_id": req.ElementoID})
+}
+
+// EliminarTab inactiva la sección y todos sus elementos en una transacción.
+func (h *CotizadorTabsHandler) EliminarTab(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar la sección a eliminar."})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	defer cancel()
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible iniciar la eliminación."})
+		return
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `UPDATE tabs_cotizador SET activo=false WHERE tab_id=$1`, id)
+	if err == nil && tag.RowsAffected() == 0 {
+		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "La sección indicada no existe."})
+		return
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, `UPDATE elementos_tab_cotizador SET activo=false WHERE tab_id=$1`, id)
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		log.Printf("cotizador tabs: error eliminando sección %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible eliminar la sección."})
+		return
+	}
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Sección y elementos eliminados.", "tab_id": id})
+}
+
+// EliminarElemento conserva la fila y la excluye del diseñador/compilador.
+func (h *CotizadorTabsHandler) EliminarElemento(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar el elemento a eliminar."})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	tag, err := h.DB.Exec(ctx, `UPDATE elementos_tab_cotizador SET activo=false WHERE elemento_id=$1`, id)
+	if err != nil {
+		log.Printf("cotizador elementos: error eliminando %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible eliminar el elemento."})
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "El elemento indicado no existe."})
+		return
+	}
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Elemento eliminado.", "elemento_id": id})
 }
 
 func normalizarConfiguracionElemento(principal, alias json.RawMessage) (map[string]any, error) {

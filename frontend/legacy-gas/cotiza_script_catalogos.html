@@ -183,12 +183,14 @@
         });
         bind("btnDesignerNuevaSeccionCotizador","click",nuevoTabCotizadorFase1_);
         bind("btnDesignerGuardarSeccionCotizador","click",guardarTabCotizadorFase1_);
+        bind("btnDesignerEliminarSeccionCotizador","click",eliminarTabCotizadorFase1_);
         bind("btnDesignerCerrarPropsCotizador","click",function(){ toggleDesignerPropsCotizadorFase1_(true); });
         bind("designerCotizadorPropsTab","click",function(){ toggleDesignerPropsCotizadorFase1_(false); });
         bind("btnDesignerNuevoComponenteCotizador","click",nuevoComponenteCotizadorFase1_);
         bind("btnDesignerModoDisenoCotizador","click",function(){ setModoVistaCotizadorFase1_("diseno"); });
         bind("btnDesignerModoPreviewCotizador","click",function(){ setModoVistaCotizadorFase1_("preview"); });
         bind("btnDesignerGuardarComponenteCotizador","click",guardarComponenteCotizadorFase1_);
+        bind("btnDesignerEliminarComponenteCotizador","click",eliminarComponenteCotizadorFase1_);
         bind("btnDesignerVolverSeccionCotizador","click",cerrarModalComponenteCotizadorFase1_);
         bind("btnCerrarModalDesignerComponente","click",cerrarModalComponenteCotizadorFase1_);
         bind("btnDesignerAplicabilidadSeccion","click",abrirAplicabilidadSeccionCotizadorFase1_);
@@ -660,6 +662,7 @@
         ["designerCotizadorTabIdOriginal","designerCotizadorTabId","designerCotizadorTabNombre","designerCotizadorTabDescripcion","designerCotizadorTabOrden"].forEach(function(id){ if(byId(id)) byId(id).value=""; });
         if(byId("designerCotizadorTabAlcance")) byId("designerCotizadorTabAlcance").value = "PROPIO";
         if(byId("designerCotizadorTabActivo")) byId("designerCotizadorTabActivo").checked = true;
+        if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.add("hidden");
       }
 
       function cargarPropsSeccionCotizadorFase1_(){
@@ -672,6 +675,7 @@
         if(byId("designerCotizadorTabOrden")) byId("designerCotizadorTabOrden").value = tab.orden || "";
         if(byId("designerCotizadorTabAlcance")) byId("designerCotizadorTabAlcance").value = alcanceTabCotizadorFase1_(tab);
         if(byId("designerCotizadorTabActivo")) byId("designerCotizadorTabActivo").checked = normalizarActivoCotizadorFase1_(tab.activo);
+        if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.remove("hidden");
         cargarResumenAplicabilidadSeccionCotizadorFase1_();
       }
 
@@ -710,6 +714,21 @@
           st.tabId = tabId;
           cargarDatosCotizadorFase1_(true);
         }, function(err){ mostrarToast("No se pudo guardar la sección: " + ((err && err.message) || err)); });
+      }
+
+      function eliminarTabCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const tabId = String(st.tabId || "").trim().toUpperCase();
+        if(!tabId){ mostrarToast("Seleccione una sección guardada para eliminar."); return; }
+        if(!window.confirm("¿Desea eliminar la sección " + tabId + "? Sus elementos también quedarán inactivos.")) return;
+        fetchAutenticado("/api/cotizador/tabs/" + encodeURIComponent(tabId), {method:"DELETE", headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo eliminar la sección."); return data; }); })
+          .then(function(res){
+            mostrarToast(res.mensaje || "Sección eliminada.");
+            st.tabId = ""; st.elementoId = ""; st.tabs = []; st.elementos = []; st.cargado = false;
+            cargarDatosCotizadorFase1_(true);
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar la sección."); });
       }
 
       function seleccionarComponenteCotizadorFase1_(elementoId){
@@ -1151,6 +1170,7 @@
         if(byId("designerCotizadorElementoTipo")) byId("designerCotizadorElementoTipo").value = "CAMPO";
         if(byId("designerCotizadorElementoPadre")) byId("designerCotizadorElementoPadre").value = "";
         if(byId("designerCotizadorElementoActivo")) byId("designerCotizadorElementoActivo").checked = true;
+        if(byId("btnDesignerEliminarComponenteCotizador")) byId("btnDesignerEliminarComponenteCotizador").classList.add("hidden");
         st.tablaColumnasTemp = [];
         st.campoReglasTemp = [];
         cargarConfigVisualComponenteCotizadorFase1_({});
@@ -1171,6 +1191,7 @@
         if(el.catalogo_id && !cfg.catalogo_id) cfg.catalogo_id = el.catalogo_id;
         if(byId("designerCotizadorElementoConfig")) byId("designerCotizadorElementoConfig").value = JSON.stringify(cfg);
         if(byId("designerCotizadorElementoActivo")) byId("designerCotizadorElementoActivo").checked = normalizarActivoCotizadorFase1_(el.activo);
+        if(byId("btnDesignerEliminarComponenteCotizador")) byId("btnDesignerEliminarComponenteCotizador").classList.remove("hidden");
         cargarConfigVisualComponenteCotizadorFase1_(cfg);
       }
 
@@ -1227,6 +1248,25 @@
             renderComponentesCotizadorFase1_();
           }, function(err){ mostrarToast("No se pudieron recargar los elementos: " + ((err && err.message) || err)); });
         }, function(err){ mostrarToast("No se pudo guardar el componente: " + ((err && err.message) || err)); });
+      }
+
+      function eliminarComponenteCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const elementoId = String(st.elementoId || "").trim();
+        if(!elementoId){ mostrarToast("Seleccione un componente guardado para eliminar."); return; }
+        if(!window.confirm("¿Desea eliminar el componente " + elementoId + "? La fila se conservará inactiva.")) return;
+        fetchAutenticado("/api/cotizador/elementos/" + encodeURIComponent(elementoId), {method:"DELETE", headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo eliminar el componente."); return data; }); })
+          .then(function(res){
+            mostrarToast(res.mensaje || "Componente eliminado.");
+            st.elementoId = "";
+            cerrarModalComponenteCotizadorFase1_();
+            listarElementosCotizadorApiFase1_(st.tabId, function(datos){
+              st.elementos = rowsFromRespuestaFase1_(datos).map(normalizarElementoCotizadorFase1_);
+              renderComponentesCotizadorFase1_();
+            }, function(err){ mostrarToast((err && err.message) || "No se pudieron recargar los componentes."); });
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar el componente."); });
       }
 
       function llenarComponentePadreOptionsCotizadorFase1_(els){

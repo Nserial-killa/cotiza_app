@@ -115,3 +115,29 @@ func TestCotizadorElementos_ValidaCatalogoSegunTipo(t *testing.T) {
 		}
 	}
 }
+
+func TestCotizadorTabs_EliminarInactivaTabYElementos(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-DELETE-" + sufijoUnico()
+	elementoID := "TEST-EL-DELETE-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Eliminar", "activo": true,
+	})
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Campo", "activo": true,
+	})
+	rec := deleteConRuta(t, "/api/cotizador/tabs/{id}", "/api/cotizador/tabs/"+tabID, handler.EliminarTab)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("eliminar tab: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	var tabActivo, elementoActivo bool
+	if err := handler.DB.QueryRow(context.Background(), `SELECT activo FROM tabs_cotizador WHERE tab_id=$1`, tabID).Scan(&tabActivo); err != nil {
+		t.Fatal(err)
+	}
+	if err := handler.DB.QueryRow(context.Background(), `SELECT activo FROM elementos_tab_cotizador WHERE elemento_id=$1`, elementoID).Scan(&elementoActivo); err != nil {
+		t.Fatal(err)
+	}
+	if tabActivo || elementoActivo {
+		t.Fatalf("tab y elemento debían quedar inactivos: tab=%v elemento=%v", tabActivo, elementoActivo)
+	}
+}

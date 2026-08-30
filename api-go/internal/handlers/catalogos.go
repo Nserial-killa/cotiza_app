@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -272,6 +273,93 @@ func (h *CatalogosHandler) GuardarRelaciones(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Relaciones guardadas.", "valor_id": req.ValorID, "relaciones": len(req.ValorPadreIDs)})
+}
+
+// EliminarCatalogo inactiva el catálogo si ningún elemento activo del
+// diseñador lo utiliza. La fila se conserva para mantener el historial.
+func (h *CatalogosHandler) EliminarCatalogo(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar el catálogo a eliminar."})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	var usos int
+	if err := h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM elementos_tab_cotizador WHERE catalogo_id=$1 AND activo=true`, id).Scan(&usos); err != nil {
+		log.Printf("catalogos: error comprobando usos de %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible comprobar el uso del catálogo."})
+		return
+	}
+	if usos > 0 {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": fmt.Sprintf("No se puede eliminar el catálogo %s porque %d elemento(s) activo(s) del Diseñador todavía lo utilizan.", id, usos)})
+		return
+	}
+	tag, err := h.DB.Exec(ctx, `UPDATE catalogos SET activo=false WHERE catalogo_id=$1`, id)
+	if err != nil {
+		log.Printf("catalogos: error inactivando %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible eliminar el catálogo."})
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "El catálogo indicado no existe."})
+		return
+	}
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Catálogo eliminado.", "catalogo_id": id})
+}
+
+// EliminarValor inactiva un valor cuando ninguna relación activa depende de él.
+func (h *CatalogosHandler) EliminarValor(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar el valor a eliminar."})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	var relaciones int
+	if err := h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM catalogo_relaciones WHERE activo=true AND (valor_padre_id=$1 OR valor_hijo_id=$1)`, id).Scan(&relaciones); err != nil {
+		log.Printf("catalogos: error comprobando relaciones de %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible comprobar las relaciones del valor."})
+		return
+	}
+	if relaciones > 0 {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": fmt.Sprintf("No se puede eliminar el valor %s porque tiene %d relación(es) activa(s). Elimine primero esas relaciones.", id, relaciones)})
+		return
+	}
+	tag, err := h.DB.Exec(ctx, `UPDATE catalogo_valores SET activo=false WHERE valor_id=$1`, id)
+	if err != nil {
+		log.Printf("catalogos: error inactivando valor %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible eliminar el valor."})
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "El valor indicado no existe."})
+		return
+	}
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Valor eliminado.", "valor_id": id})
+}
+
+// EliminarRelacion borra físicamente una relación, que no tiene dependencias.
+func (h *CatalogosHandler) EliminarRelacion(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar la relación a eliminar."})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	tag, err := h.DB.Exec(ctx, `DELETE FROM catalogo_relaciones WHERE relacion_id::text=$1`, id)
+	if err != nil {
+		log.Printf("catalogos: error eliminando relación %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible eliminar la relación."})
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "La relación indicada no existe."})
+		return
+	}
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Relación eliminada.", "relacion_id": id})
 }
 
 type ejecutorSQL interface {

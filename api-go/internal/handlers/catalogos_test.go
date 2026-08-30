@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func postCatalogos(t *testing.T, metodo http.HandlerFunc, ruta string, body any) *httptest.ResponseRecorder {
@@ -35,6 +37,16 @@ func getDesigner(t *testing.T, handler *CatalogosHandler, query string) *httptes
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
 	handler.ListarDesigner(rec, req)
+	return rec
+}
+
+func deleteConRuta(t *testing.T, patron, ruta string, handler http.HandlerFunc) *httptest.ResponseRecorder {
+	t.Helper()
+	router := chi.NewRouter()
+	router.Delete(patron, handler)
+	req := httptest.NewRequest(http.MethodDelete, ruta, nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -305,5 +317,76 @@ func TestCatalogosGuardar_ReemplazaRelacionesEnTransaccion(t *testing.T) {
 	}
 	if len(encontrados) != 1 || encontrados[0] != padreValor2 {
 		t.Fatalf("esperaba solo la relación reemplazada %q, obtuvo %v", padreValor2, encontrados)
+	}
+}
+
+func TestCatalogosEliminar_SinUsoQuedaInactivo(t *testing.T) {
+	pool := setupTestDB(t)
+	id := crearCatalogoPrueba(t, pool, "Catálogo eliminable", "")
+	rec := deleteConRuta(t, "/api/catalogos/{id}", "/api/catalogos/"+id, (&CatalogosHandler{DB: pool}).EliminarCatalogo)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("eliminar catálogo: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	var activo bool
+	if err := pool.QueryRow(context.Background(), `SELECT activo FROM catalogos WHERE catalogo_id=$1`, id).Scan(&activo); err != nil {
+		t.Fatal(err)
+	}
+	if activo {
+		t.Fatal("el catálogo debía conservarse con activo=false")
+	}
+}
+
+func TestCatalogosEliminar_RechazaCatalogoUsadoPorElementoActivo(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	pool := tabsHandler.DB
+	catalogoID := crearCatalogoPrueba(t, pool, "Catálogo en uso", "")
+	tabID := "TEST-TAB-CAT-USO-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Uso catálogo", "activo": true,
+	})
+	postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CAT-USO-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CAMPO_CATALOGO", "etiqueta": "Catálogo", "catalogo_id": catalogoID, "activo": true,
+	})
+	rec := deleteConRuta(t, "/api/catalogos/{id}", "/api/catalogos/"+catalogoID, (&CatalogosHandler{DB: pool}).EliminarCatalogo)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("catálogo en uso: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	var activo bool
+	if err := pool.QueryRow(context.Background(), `SELECT activo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&activo); err != nil || !activo {
+		t.Fatalf("el catálogo rechazado debía seguir activo: activo=%v err=%v", activo, err)
+	}
+}
+
+func TestCatalogosEliminar_RelacionDesapareceFisicamente(t *testing.T) {
+	pool := setupTestDB(t)
+	padreID := crearCatalogoPrueba(t, pool, "Padre eliminación", "")
+	hijoID := crearCatalogoPrueba(t, pool, "Hijo eliminación", padreID)
+	valorPadreID := crearValorCatalogoPrueba(t, pool, padreID, "Padre", "")
+	valorHijoID := crearValorCatalogoPrueba(t, pool, hijoID, "Hijo", "")
+	relacionID := crearRelacionPrueba(t, pool, padreID, valorPadreID, hijoID, valorHijoID)
+	rec := deleteConRuta(t, "/api/catalogos/relaciones/{id}", "/api/catalogos/relaciones/"+relacionID, (&CatalogosHandler{DB: pool}).EliminarRelacion)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("eliminar relación: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	var existe bool
+	if err := pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM catalogo_relaciones WHERE relacion_id::text=$1)`, relacionID).Scan(&existe); err != nil {
+		t.Fatal(err)
+	}
+	if existe {
+		t.Fatal("la relación debía desaparecer físicamente")
+	}
+}
+
+func TestCatalogosEliminar_ValorConRelacionActivaSeRechaza(t *testing.T) {
+	pool := setupTestDB(t)
+	padreID := crearCatalogoPrueba(t, pool, "Padre valor usado", "")
+	hijoID := crearCatalogoPrueba(t, pool, "Hijo valor usado", padreID)
+	valorPadreID := crearValorCatalogoPrueba(t, pool, padreID, "Padre", "")
+	valorHijoID := crearValorCatalogoPrueba(t, pool, hijoID, "Hijo", "")
+	crearRelacionPrueba(t, pool, padreID, valorPadreID, hijoID, valorHijoID)
+	rec := deleteConRuta(t, "/api/catalogos/valores/{id}", "/api/catalogos/valores/"+valorPadreID, (&CatalogosHandler{DB: pool}).EliminarValor)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("valor relacionado: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
 	}
 }
