@@ -1280,6 +1280,21 @@ window.CotizaApp = (function(){
         const u=state.usuario||{};const p=new URLSearchParams({app:"cotizador",cotizador_id:cot.calculadora_id||"",calculadora_id:cot.calculadora_id||"",cotizacion_id:cot.cotizacion_id||"",version:cot.version||"1",modo:modo||"editar",usuario_id:u.usuario_id||"",correo:u.correo||"",usuario_nombre:u.nombre||"",rol:u.rol||"",origen:"Gestor_V2"});return obtenerBaseWebApp()+"?"+p.toString();
       }
 
+      // PENDIENTE DE REESCRIBIR — mecanismo viejo, ya no alcanzable desde
+      // ningún botón real de la UI. Esta función (y sus dos únicos
+      // llamadores: abrirCalculadora(), que arma la URL para "Nueva
+      // cotización" desde el modal de calculadoras, y
+      // abrirCotizadorSolicitudV1004()) abre un <iframe> apuntando a la
+      // URL /exec de un Web App de Google Apps Script que ya no existe en
+      // esta arquitectura (ver obtenerBaseWebApp(), que cae a una URL de
+      // Apps Script fija como último recurso). No es un bug activo hoy
+      // porque nada llama a abrirCalculadora()/abrirCotizadorSolicitudV1004()
+      // desde la UI real. El día que se construya "Crear cotización nueva"
+      // (depende de Solicitudes, sprint futuro) hay que reescribir esos dos
+      // llamadores con el mismo patrón ya real y probado del motor de
+      // ejecución: fetchAutenticado() + renderRuntimeCotizador() (ver
+      // editarCotizacionDesdeDetalleV2(), migrada en el Sprint 5), en vez
+      // de este iframe.
       function abrirCotizadorIntegradoV2(url,titulo,subtitulo){
         state.gestorVistaAnterior=state.gestorDetalle?"detalle":"lista";mostrarPanelGestorV2("gestorCotizadorEditor");
         const frame=byId("gestorCotizadorFrame");if(frame)frame.src=url;

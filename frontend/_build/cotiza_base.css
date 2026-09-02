@@ -641,6 +641,56 @@ table tr:last-child td { border-bottom: none; }
 .modal.open { display: flex; }
 .modal-content, .modal-card { background: #fff; border-radius: 14px; padding: 28px; max-width: 560px; width: 92%; max-height: 88vh; overflow-y: auto; }
 
+.modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.modal-head h2 { color: #0F2A4A; font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
+.modal-head p { margin-top: 4px; color: #7b899d; font-size: 13px; line-height: 1.4; }
+.modal-close {
+  background: none; border: none; flex-shrink: 0;
+  font-size: 22px; line-height: 1; color: #8993A3; cursor: pointer;
+  padding: 2px 6px; border-radius: 6px; transition: background-color .15s ease, color .15s ease;
+}
+.modal-close:hover { color: #0F2A4A; background: #EEF1F6; }
+
+/* ---------- Modal de Validar / Publicar el Cotizador ---------- */
+.compile-modal-card {
+  background: #fff; border-radius: 16px; padding: 32px;
+  max-width: 640px; width: 92%; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 20px 50px rgba(15,42,74,0.2);
+}
+.compile-result-layout { display: flex; flex-direction: column; gap: 18px; }
+
+.compile-status {
+  background: #F0F5FB; border-left: 4px solid #185FA5; border-radius: 8px;
+  padding: 14px 16px; color: #2C3A4E; font-size: 13px; line-height: 1.5;
+}
+.compile-status strong { display: block; color: #0F2A4A; font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+
+.compile-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.compile-summary-item {
+  background: #F6F8FC; border: 1px solid #E3E9F1; border-radius: 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.compile-summary-item small { color: #8993A3; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+.compile-summary-item strong { color: #0F2A4A; font-size: 22px; font-weight: 800; line-height: 1; }
+
+.compile-section h3 { color: #0F2A4A; font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+.compile-list { margin: 0; padding-left: 18px; color: #4B5768; font-size: 12px; line-height: 1.6; }
+.compile-list li { margin-bottom: 2px; }
+
+.compile-textarea {
+  width: 100%; height: 140px; resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 11px; line-height: 1.5; color: #2C3A4E;
+  background: #F6F8FC; border: 1px solid #E3E9F1; border-radius: 8px; padding: 12px;
+}
+
+.compile-modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+
+@media (max-width: 560px) {
+  .compile-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .compile-modal-actions { justify-content: flex-start; }
+}
+
 /* Overlay de proceso / carga */
 .cotiza-process-overlay { position: fixed; inset: 0; background: rgba(238,241,246,0.85); display: none; align-items: center; justify-content: center; z-index: 200; }
 .cotiza-process-overlay.open { display: flex; }
