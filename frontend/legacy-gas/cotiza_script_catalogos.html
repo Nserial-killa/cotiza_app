@@ -212,14 +212,19 @@
         });
         bind("btnDesignerValidarCotizador","click",function(){
           const st = getCotizadorFase1State_();
-          const errores = [];
-          if(!st.cotizadorId) errores.push("Seleccione un cotizador.");
-          if(!st.tabs.filter(function(t){ return normalizarActivoCotizadorFase1_(t.activo); }).length) errores.push("Debe existir al menos una sección activa.");
-          if(errores.length){ mostrarToast(errores.join(" ")); actualizarEstadoCotizadorDesigner("Borrador","Sin publicar","Pendiente"); }
-          else { mostrarToast("Validación básica correcta del cotizador."); actualizarEstadoCotizadorDesigner("En validación","Sin publicar","Validado"); }
+          if(!window.CotizaApp || typeof window.CotizaApp.validarCotizador !== "function"){
+            mostrarToast("No fue posible validar el cotizador.");
+            return;
+          }
+          window.CotizaApp.validarCotizador(st.cotizadorId);
         });
         bind("btnDesignerPublicarCotizador","click",function(){
-          mostrarToast("Publicar preparará el JSON del cotizador cuando terminemos la configuración completa.");
+          const st = getCotizadorFase1State_();
+          if(!window.CotizaApp || typeof window.CotizaApp.compilarCotizador !== "function"){
+            mostrarToast("No fue posible publicar el cotizador.");
+            return;
+          }
+          window.CotizaApp.compilarCotizador(st.cotizadorId);
         });
         const modal = byId("modalDesignerAplicabilidadSeccion");
         if(modal){
