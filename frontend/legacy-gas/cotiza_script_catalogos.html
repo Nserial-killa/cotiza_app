@@ -249,30 +249,30 @@
         cargarCotizadoresFase1_(function(){ cargarDatosCotizadorFase1_(true); });
       }
 
-      function cargarCotizadoresFase1_(done){
-        runModuloParametrosFase1_("calculadoras", {}, function(res){
-          const st = getCotizadorFase1State_();
-          st.cotizadores = rowsFromRespuestaFase1_(res);
-          if(!st.cotizadores.length){
-            st.cotizadores = [
-              {calculadora_id:"SESUITE", nombre:"SoftExpert Suite", nombre_calculadora:"SoftExpert Suite"},
-              {calculadora_id:"ISA", nombre:"ISA Studio", nombre_calculadora:"ISA Studio"},
-              {calculadora_id:"OUTTASKING", nombre:"Outtasking", nombre_calculadora:"Outtasking"}
-            ];
-          }
-          renderCotizadoresSelectFase1_();
-          if(done) done();
-        }, function(){
-          const st = getCotizadorFase1State_();
-          st.cotizadores = [
-            {calculadora_id:"SESUITE", nombre:"SoftExpert Suite", nombre_calculadora:"SoftExpert Suite"},
-            {calculadora_id:"ISA", nombre:"ISA Studio", nombre_calculadora:"ISA Studio"},
-            {calculadora_id:"OUTTASKING", nombre:"Outtasking", nombre_calculadora:"Outtasking"}
-          ];
-          renderCotizadoresSelectFase1_();
-          if(done) done();
+          function cargarCotizadoresFase1_(done){
+          console.log("[DEBUG] cargarCotizadoresFase1_ se está llamando");
+          fetchAutenticado("/api/calculadoras").then(function(resp){
+        console.log("[DEBUG] respuesta HTTP status:", resp.status);
+        if(!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+        }).then(function(res){
+        console.log("[DEBUG] JSON recibido:", res);
+        const st = getCotizadorFase1State_();
+        st.cotizadores = (res && res.calculadoras ? res.calculadoras : []).map(function(c){
+          return { calculadora_id: c.calculadora_id, nombre: c.nombre_calculadora, nombre_calculadora: c.nombre_calculadora };
         });
-      }
+        console.log("[DEBUG] st.cotizadores queda en:", st.cotizadores);
+        renderCotizadoresSelectFase1_();
+        if(done) done();
+        }).catch(function(error){
+        console.log("[DEBUG] ERROR atrapado:", error);
+        const st = getCotizadorFase1State_();
+        st.cotizadores = [];
+        mostrarToast("No fue posible cargar los cotizadores: " + (error && error.message ? error.message : "error desconocido"));
+        renderCotizadoresSelectFase1_();
+        if(done) done();
+        });
+     }
 
       function renderCotizadoresSelectFase1_(){
         const st = getCotizadorFase1State_();
