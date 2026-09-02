@@ -70,7 +70,10 @@ window.CotizaApp = (function(){
         bind("filtroDashboardCalculadora","change",function(){ cargarDashboard(); if(state.dashboard) renderDashboard(state.dashboard); });
         bind("dashboardVendedor","change",function(){ if(state.dashboard) renderDashboard(state.dashboard); });
         bind("dashboardTipoCliente","change",function(){ if(state.dashboard) renderDashboard(state.dashboard); });
-        bind("btnNuevaCotizacion","click",function(){cambiarSeccion("solicitudes");if(window.CotizaSolicitudes)window.CotizaSolicitudes.nueva();});
+        // Solicitudes todavía no está construido (Cotiza_Script_Solicitudes
+        // nunca llegó) — antes este botón navegaba en silencio a una
+        // sección sin datos reales; ahora avisa claramente.
+        bind("btnNuevaCotizacion","click",function(){mostrarToast("Crear una nueva solicitud estará disponible próximamente.");});
         bind("btnCerrarModalCalculadoras","click",cerrarModalCalculadoras);
         bind("btnBuscarCotizaciones","click",cargarCotizaciones);
         bind("filtroBusqueda","keydown",function(e){ if(e.key === "Enter") cargarCotizaciones(); });
@@ -79,6 +82,8 @@ window.CotizaApp = (function(){
         bind("btnEditarCotizacionGestor","click",editarCotizacionDesdeDetalleV2);
         bind("btnNuevaVersionGestor","click",crearNuevaVersionDesdeDetalleV2);
         bind("btnGenerarLinkGestor","click",generarLinkDesdeDetalleV2);
+        bind("gestorEstadoNuevo","change",cambiarEstadoSeleccionadoGestorV2);
+        bind("btnCambiarEstadoGestor","click",actualizarEstadoGestorV2);
         window.addEventListener("message",recibirMensajeCotizadorV2);
         bind("btnActualizarFormasPago","click",refrescarParametrosActivos);
         bind("btnNuevoServicioProducto","click",function(){ abrirModalServicioProducto(); });
@@ -367,52 +372,57 @@ window.CotizaApp = (function(){
         cargarUsuariosActivos(done);
       }
 
-      function cargarCalculadoras(callback){
+      // MIGRADA en el cierre del Sprint 4 — antes usaba
+      // google.script.run.webListarCalculadorasPorUsuario(...), que el
+      // shim siempre respondía con calculadoras:[] (por eso el filtro
+      // de "Cotizador" en Cotizaciones nunca tenía opciones reales).
+      async function cargarCalculadoras(callback){
         if(!state.usuario){
           if(callback) callback();
           return;
         }
 
-        google.script.run
-          .withSuccessHandler(function(res){
-            if(res && res.ok){
-              state.calculadoras = res.calculadoras || [];
-              llenarComboCalculadoras();
-            }else{
-              mostrarToast((res && res.error) ? res.error : "No fue posible cargar cotizadores.");
-            }
-
-            if(callback) callback();
-          })
-          .withFailureHandler(function(error){
-            mostrarToast(error && error.message ? error.message : "No fue posible cargar cotizadores.");
-            if(callback) callback();
-          })
-          .webListarCalculadorasPorUsuario(state.usuario.usuario_id || "", state.usuario.correo || "");
+        try{
+          const resp = await fetchAutenticado("/api/calculadoras");
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok){
+            throw new Error((res && res.error) || "No fue posible cargar cotizadores.");
+          }
+          state.calculadoras = res.calculadoras || [];
+          llenarComboCalculadoras();
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible cargar cotizadores.");
+        }finally{
+          if(callback) callback();
+        }
       }
 
-      function cargarUsuariosActivos(callback){
+      // MIGRADA en el cierre del Sprint 4 — antes usaba
+      // google.script.run.webListarUsuariosActivos(...), mismo
+      // problema que cargarCalculadoras: el shim siempre respondía
+      // usuarios:[], así que el filtro de "Responsable" en
+      // Cotizaciones nunca tenía opciones reales.
+      async function cargarUsuariosActivos(callback){
         if(!state.usuario){
           if(callback) callback();
           return;
         }
 
-        google.script.run
-          .withSuccessHandler(function(res){
-            if(res && res.ok){
-              state.usuarios = res.usuarios || [];
-              llenarComboUsuarios();
-            }else{
-              mostrarToast((res && res.error) ? res.error : "No fue posible cargar usuarios.");
-            }
-
-            if(callback) callback();
-          })
-          .withFailureHandler(function(error){
-            mostrarToast(error && error.message ? error.message : "No fue posible cargar usuarios.");
-            if(callback) callback();
-          })
-          .webListarUsuariosActivos(state.usuario.usuario_id || "", state.usuario.correo || "");
+        try{
+          const resp = await fetchAutenticado("/api/usuarios");
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok){
+            throw new Error((res && res.error) || "No fue posible cargar usuarios.");
+          }
+          state.usuarios = res.usuarios || [];
+          llenarComboUsuarios();
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible cargar usuarios.");
+        }finally{
+          if(callback) callback();
+        }
       }
 
       function llenarComboEstados(){
@@ -1237,6 +1247,25 @@ window.CotizaApp = (function(){
         const edit=byId("btnEditarCotizacionGestor");if(edit)edit.disabled=c.puede_editar===false;
         const nueva=byId("btnNuevaVersionGestor");if(nueva)nueva.disabled=["Enviada al Cliente","Vista por el Cliente","Aceptada"].indexOf(c.estado)<0;
         const link=byId("btnGenerarLinkGestor");if(link)link.disabled=c.estado!=="Liberada";
+
+        // Control genérico de cambio de estado — los estados válidos
+        // son exactamente los del CHECK de la tabla (mismo arreglo
+        // ESTADOS que usa el filtro de la lista).
+        const selectorEstado=byId("gestorEstadoNuevo");
+        if(selectorEstado){
+          selectorEstado.innerHTML=ESTADOS.map(function(e){
+            return '<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>';
+          }).join("");
+          selectorEstado.value=c.estado||"";
+        }
+        const selectorVersionAceptada=byId("gestorVersionAceptada");
+        if(selectorVersionAceptada){
+          selectorVersionAceptada.innerHTML=versiones.map(function(v){
+            return '<option value="'+escapeHtml(v.numero_version||"")+'">V'+escapeHtml(v.numero_version||"")+'</option>';
+          }).join("");
+          selectorVersionAceptada.value=versionAceptada||"";
+        }
+        cambiarEstadoSeleccionadoGestorV2();
       }
 
       function cambiarEstadoSeleccionadoGestorV2(){

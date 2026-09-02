@@ -45,6 +45,15 @@
         <button id="btnEditarCotizacionGestor" class="btn btn-primary" type="button">Editar cotización</button>
         <button id="btnNuevaVersionGestor" class="btn btn-secondary" type="button">Nueva versión</button>
         <button id="btnGenerarLinkGestor" class="btn btn-secondary" type="button">Link del cliente</button>
+        <div class="field gestor-estado-cambio">
+          <label for="gestorEstadoNuevo">Cambiar estado</label>
+          <select id="gestorEstadoNuevo" class="select"></select>
+        </div>
+        <div id="gestorVersionAceptadaWrap" class="field hidden">
+          <label for="gestorVersionAceptada">Versión aceptada</label>
+          <select id="gestorVersionAceptada" class="select"></select>
+        </div>
+        <button id="btnCambiarEstadoGestor" class="btn btn-secondary" type="button">Aplicar estado</button>
       </div>
     </div>
     <div id="gestorDetalleContenido"><div class="card">Cargando detalle...</div></div>

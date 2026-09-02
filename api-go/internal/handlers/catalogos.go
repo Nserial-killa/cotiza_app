@@ -159,6 +159,26 @@ func (h *CatalogosHandler) GuardarCatalogo(w http.ResponseWriter, r *http.Reques
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+
+	// Esta pantalla también puede desactivar un catálogo desde el
+	// checkbox "Activo" del formulario, sin pasar por el botón
+	// "Eliminar" dedicado (EliminarCatalogo) — así que la misma
+	// validación tiene que aplicarse acá, o ese botón deja de ser el
+	// único camino y la protección se puede saltear guardando el
+	// formulario con "Activo" destildado.
+	if !req.Activo {
+		usos, err := catalogoEnUsoActivo(ctx, h.DB, req.CatalogoID)
+		if err != nil {
+			log.Printf("catalogos: error comprobando usos de %s: %v", req.CatalogoID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible comprobar el uso del catálogo."})
+			return
+		}
+		if usos > 0 {
+			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": fmt.Sprintf("No se puede desactivar el catálogo %s porque %d elemento(s) activo(s) del Diseñador todavía lo utilizan.", req.CatalogoID, usos)})
+			return
+		}
+	}
+
 	_, err := h.DB.Exec(ctx, `
 		INSERT INTO catalogos
 			(catalogo_id, nombre_catalogo, alcance, descripcion, activo, catalogo_padre_id, orden)
@@ -195,6 +215,23 @@ func (h *CatalogosHandler) GuardarValor(w http.ResponseWriter, r *http.Request) 
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+
+	// Mismo motivo que en GuardarCatalogo: el checkbox "Activo" de
+	// este formulario también puede desactivar el valor sin pasar por
+	// el botón "Eliminar" dedicado (EliminarValor).
+	if !req.Activo {
+		relaciones, err := valorConRelacionesActivas(ctx, h.DB, req.ValorID)
+		if err != nil {
+			log.Printf("catalogos: error comprobando relaciones de %s: %v", req.ValorID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible comprobar las relaciones del valor."})
+			return
+		}
+		if relaciones > 0 {
+			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": fmt.Sprintf("No se puede desactivar el valor %s porque tiene %d relación(es) activa(s). Elimine primero esas relaciones.", req.ValorID, relaciones)})
+			return
+		}
+	}
+
 	if err := upsertValor(ctx, h.DB, req); err != nil {
 		log.Printf("catalogos: error guardando valor %s: %v", req.ValorID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar el valor del catálogo."})
@@ -285,8 +322,8 @@ func (h *CatalogosHandler) EliminarCatalogo(w http.ResponseWriter, r *http.Reque
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	var usos int
-	if err := h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM elementos_tab_cotizador WHERE catalogo_id=$1 AND activo=true`, id).Scan(&usos); err != nil {
+	usos, err := catalogoEnUsoActivo(ctx, h.DB, id)
+	if err != nil {
 		log.Printf("catalogos: error comprobando usos de %s: %v", id, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible comprobar el uso del catálogo."})
 		return
@@ -317,8 +354,8 @@ func (h *CatalogosHandler) EliminarValor(w http.ResponseWriter, r *http.Request)
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	var relaciones int
-	if err := h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM catalogo_relaciones WHERE activo=true AND (valor_padre_id=$1 OR valor_hijo_id=$1)`, id).Scan(&relaciones); err != nil {
+	relaciones, err := valorConRelacionesActivas(ctx, h.DB, id)
+	if err != nil {
 		log.Printf("catalogos: error comprobando relaciones de %s: %v", id, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible comprobar las relaciones del valor."})
 		return
@@ -338,6 +375,27 @@ func (h *CatalogosHandler) EliminarValor(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Valor eliminado.", "valor_id": id})
+}
+
+// catalogoEnUsoActivo cuenta cuántos elementos activos del Diseñador
+// (elementos_tab_cotizador, tipo CAMPO_CATALOGO) todavía apuntan a
+// este catálogo. Usado tanto por EliminarCatalogo como por
+// GuardarCatalogo — un catálogo en uso no se puede desactivar por
+// ninguna de las dos rutas, no solo por el botón "Eliminar" dedicado.
+func catalogoEnUsoActivo(ctx context.Context, db *pgxpool.Pool, catalogoID string) (int, error) {
+	var usos int
+	err := db.QueryRow(ctx, `SELECT COUNT(*) FROM elementos_tab_cotizador WHERE catalogo_id=$1 AND activo=true`, catalogoID).Scan(&usos)
+	return usos, err
+}
+
+// valorConRelacionesActivas cuenta cuántas relaciones activas de
+// catalogo_relaciones dependen de este valor (como padre o como
+// hijo). Usado tanto por EliminarValor como por GuardarValor — mismo
+// criterio que catalogoEnUsoActivo.
+func valorConRelacionesActivas(ctx context.Context, db *pgxpool.Pool, valorID string) (int, error) {
+	var relaciones int
+	err := db.QueryRow(ctx, `SELECT COUNT(*) FROM catalogo_relaciones WHERE activo=true AND (valor_padre_id=$1 OR valor_hijo_id=$1)`, valorID).Scan(&relaciones)
+	return relaciones, err
 }
 
 // EliminarRelacion borra físicamente una relación, que no tiene dependencias.

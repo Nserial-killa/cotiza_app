@@ -56,6 +56,7 @@ func main() {
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 	reglas := &handlers.ReglasHandler{DB: pool}
 	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
+	calculadoras := &handlers.CalculadorasHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		// Públicas — sin sesión. Todo lo demás bajo /api exige un
@@ -95,6 +96,7 @@ func main() {
 
 			// --- Carril B (Operación): cotizaciones, dashboard, reportes.
 			r.Get("/roles", usuarios.ListarRoles)
+			r.Get("/calculadoras", calculadoras.Listar)
 			r.Route("/usuarios", func(r chi.Router) {
 				r.Get("/", usuarios.Listar)
 				r.Post("/", usuarios.Crear)

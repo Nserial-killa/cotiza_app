@@ -1,27 +1,43 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+
+	"cotiza/api/internal/middleware"
 )
 
 // UsuariosHandler expone alta, edición y listado de usuarios (pantalla
-// "Usuarios y Permisos"). Sin guardia de sesión todavía — la tarea de
-// login persistente/tokens queda pendiente de planear, ver CLAUDE.md.
+// "Usuarios y Permisos"). Crear y Editar exigen sesión (ver
+// internal/middleware/auth.go) y, desde el Sprint 4, permisos por rol:
+// solo un Administrador puede crear usuarios o editar a otra persona;
+// cualquier otro rol únicamente puede editar su propio nombre, correo
+// y PIN — nunca su propio rol ni estado. No hay todavía permisos más
+// finos que ese (ej. "Gerente Comercial puede ver X pero no Y").
 type UsuariosHandler struct {
 	DB *pgxpool.Pool
 }
+
+// patronCorreoValido es deliberadamente simple (texto a ambos lados de
+// una "@", y al menos un "." después) — no hace falta una validación
+// exhaustiva de RFC 5322 para esta pantalla.
+var patronCorreoValido = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
 // costoPin debe coincidir con el que usa migration-python/migrate_sheets_to_postgres.py
 // (bcrypt.gensalt() por defecto = 12), para que todos los pin_hash de la
@@ -54,6 +70,7 @@ type crearUsuarioRequest struct {
 
 type editarUsuarioRequest struct {
 	Nombre string `json:"nombre"`
+	Correo string `json:"correo"`
 	Rol    string `json:"rol"`
 	Estado string `json:"estado"`
 	Pin    string `json:"pin"` // vacío = no resetear el PIN
@@ -133,10 +150,24 @@ func (h *UsuariosHandler) ListarRoles(w http.ResponseWriter, r *http.Request) {
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "roles": roles})
 }
 
-// Crear da de alta un usuario nuevo. El PIN llega en texto plano y se
-// hashea acá mismo, antes de tocar la base — nunca se guarda ni se
-// loguea el valor recibido.
+// Crear da de alta un usuario nuevo. Solo un Administrador puede
+// hacerlo. El PIN llega en texto plano y se hashea acá mismo, antes de
+// tocar la base — nunca se guarda ni se loguea el valor recibido.
 func (h *UsuariosHandler) Crear(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	_, rolSesion, err := h.obtenerSesion(ctx, r)
+	if err != nil {
+		log.Printf("usuarios: error validando la sesión: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return
+	}
+	if rolSesion != "Administrador" {
+		escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo un Administrador puede crear usuarios."})
+		return
+	}
+
 	var req crearUsuarioRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -156,9 +187,10 @@ func (h *UsuariosHandler) Crear(w http.ResponseWriter, r *http.Request) {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar nombre, correo, PIN y rol."})
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+	if !patronCorreoValido.MatchString(correo) {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El correo no tiene un formato válido."})
+		return
+	}
 
 	existeRol, err := rolExiste(ctx, h.DB, rol)
 	if err != nil {
@@ -216,8 +248,14 @@ func (h *UsuariosHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	}})
 }
 
-// Editar actualiza nombre/rol/estado y, si se indica un PIN nuevo, lo
-// hashea y lo reemplaza. No permite cambiar el correo desde acá.
+// Editar actualiza nombre/correo/rol/estado y, si se indica un PIN
+// nuevo, lo hashea y lo reemplaza. Un Administrador puede editar a
+// cualquier usuario y cambiar cualquier campo; cualquier otro rol solo
+// puede editar SU PROPIO usuario (comparado contra el usuario_id de la
+// sesión, nunca el {id} de la URL a ciegas) y solo nombre/correo/pin —
+// si el cuerpo trae "rol" o "estado" sin ser Administrador, se
+// rechaza en vez de aplicarlo o ignorarlo en silencio, para que un
+// intento de escalar privilegios quede visible en la respuesta.
 func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 	usuarioID := strings.TrimSpace(chi.URLParam(r, "id"))
 	if usuarioID == "" {
@@ -225,42 +263,102 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req editarUsuarioRequest
-	if err := decodificarJSON(r, &req); err != nil {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-
-	nombre := strings.TrimSpace(req.Nombre)
-	rol := strings.TrimSpace(req.Rol)
-	estado := strings.TrimSpace(req.Estado)
-	pin := strings.TrimSpace(req.Pin)
-
-	if nombre == "" || rol == "" || estado == "" {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar nombre, rol y estado."})
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	existeRol, err := rolExiste(ctx, h.DB, rol)
+	usuarioIDSesion, rolSesion, err := h.obtenerSesion(ctx, r)
 	if err != nil {
-		log.Printf("usuarios: error validando rol %s: %v", rol, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el rol."})
+		log.Printf("usuarios: error validando la sesión: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
 		return
 	}
-	if !existeRol {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El rol indicado no existe."})
+	esAdmin := rolSesion == "Administrador"
+
+	if !esAdmin && usuarioID != usuarioIDSesion {
+		escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo puede editar su propio usuario."})
 		return
+	}
+
+	cuerpo, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "No fue posible leer el cuerpo de la solicitud."})
+		return
+	}
+
+	var req editarUsuarioRequest
+	decoder := json.NewDecoder(bytes.NewReader(cuerpo))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cuerpo de la solicitud no es JSON válido."})
+		return
+	}
+
+	if !esAdmin {
+		var crudo map[string]json.RawMessage
+		if err := json.Unmarshal(cuerpo, &crudo); err != nil {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cuerpo de la solicitud no es JSON válido."})
+			return
+		}
+		if _, traeRol := crudo["rol"]; traeRol {
+			escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo un Administrador puede cambiar el rol."})
+			return
+		}
+		if _, traeEstado := crudo["estado"]; traeEstado {
+			escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo un Administrador puede cambiar el estado."})
+			return
+		}
+	}
+
+	nombre := strings.TrimSpace(req.Nombre)
+	correo := strings.ToLower(strings.TrimSpace(req.Correo))
+	pin := strings.TrimSpace(req.Pin)
+	rol := strings.TrimSpace(req.Rol)
+	estado := strings.TrimSpace(req.Estado)
+
+	if nombre == "" || correo == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar nombre y correo."})
+		return
+	}
+	if !patronCorreoValido.MatchString(correo) {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El correo no tiene un formato válido."})
+		return
+	}
+
+	if esAdmin {
+		if rol == "" || estado == "" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar rol y estado."})
+			return
+		}
+		existeRol, err := rolExiste(ctx, h.DB, rol)
+		if err != nil {
+			log.Printf("usuarios: error validando rol %s: %v", rol, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el rol."})
+			return
+		}
+		if !existeRol {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El rol indicado no existe."})
+			return
+		}
+	} else {
+		// No vinieron en el cuerpo (ya se rechazó si lo intentó) — se
+		// mantienen los actuales para no pisarlos con la cadena vacía.
+		if err := h.DB.QueryRow(ctx, `SELECT rol, estado FROM usuarios WHERE usuario_id = $1`, usuarioID).Scan(&rol, &estado); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Usuario no encontrado."})
+				return
+			}
+			log.Printf("usuarios: error leyendo rol/estado actuales de %s: %v", usuarioID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar los cambios."})
+			return
+		}
 	}
 
 	var tag pgconn.CommandTag
 	if pin == "" {
 		tag, err = h.DB.Exec(ctx, `
-			UPDATE usuarios SET nombre = $1, rol = $2, estado = $3
-			 WHERE usuario_id = $4`,
-			nombre, rol, estado, usuarioID,
+			UPDATE usuarios SET nombre = $1, correo = $2, rol = $3, estado = $4
+			 WHERE usuario_id = $5`,
+			nombre, correo, rol, estado, usuarioID,
 		)
 	} else {
 		var pinHash []byte
@@ -271,12 +369,16 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		tag, err = h.DB.Exec(ctx, `
-			UPDATE usuarios SET nombre = $1, rol = $2, estado = $3, pin_hash = $4
-			 WHERE usuario_id = $5`,
-			nombre, rol, estado, string(pinHash), usuarioID,
+			UPDATE usuarios SET nombre = $1, correo = $2, rol = $3, estado = $4, pin_hash = $5
+			 WHERE usuario_id = $6`,
+			nombre, correo, rol, estado, string(pinHash), usuarioID,
 		)
 	}
 	if err != nil {
+		if _, esUnica := comoViolacionUnica(err); esUnica {
+			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "Ya existe un usuario con ese correo."})
+			return
+		}
 		log.Printf("usuarios: error editando %s: %v", usuarioID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar los cambios."})
 		return
@@ -304,6 +406,22 @@ func rolExiste(ctx context.Context, db *pgxpool.Pool, rol string) (bool, error) 
 	var existe bool
 	err := db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM roles WHERE rol = $1)`, rol).Scan(&existe)
 	return existe, err
+}
+
+// obtenerSesion resuelve el usuario_id que middleware.RequiereSesion
+// dejó en el contexto de la petición al rol que tiene HOY en la base
+// (nunca se confía en un rol que el cliente pudiera mandar en el
+// cuerpo). Cualquier error acá — sesión sin usuario_id asociado, o el
+// usuario_id ya no existe — se trata como "no se pudo validar los
+// permisos", no como una sesión inválida (eso ya lo filtró el
+// middleware antes de llegar acá).
+func (h *UsuariosHandler) obtenerSesion(ctx context.Context, r *http.Request) (usuarioID, rol string, err error) {
+	usuarioID, _ = r.Context().Value(middleware.UsuarioIDKey).(string)
+	if usuarioID == "" {
+		return "", "", errors.New("la sesión no tiene un usuario_id asociado")
+	}
+	err = h.DB.QueryRow(ctx, `SELECT rol FROM usuarios WHERE usuario_id = $1`, usuarioID).Scan(&rol)
+	return usuarioID, rol, err
 }
 
 // comoViolacionUnica reconoce el código de Postgres para llaves/valores

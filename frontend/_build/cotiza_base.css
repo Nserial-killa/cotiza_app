@@ -249,6 +249,102 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .cotizaciones-page .gestor-search { grid-column:auto; }
 }
 
+/* ---------- Cotizaciones: detalle de una cotización (Gestionar) ---------- */
+.gestor-detail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.gestor-detail-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gestor-detail-actions .field { margin-bottom: 0; min-width: 150px; }
+.gestor-detail-actions .field label { display: block; color: #8993A3; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 3px; }
+
+.gestor-detail-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 3px rgba(15,42,74,0.08);
+}
+.gestor-detail-hero h1 { margin: 2px 0 6px; color: #0F2A4A; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.gestor-detail-hero p { margin: 0; color: #7b899d; font-size: 13px; }
+.gestor-version-summary { display: block; margin-top: 6px; color: #56667d; font-size: 12px; font-style: italic; }
+.gestor-detail-hero > div:last-child { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; flex-shrink: 0; }
+.gestor-detail-total { color: #0F2A4A; font-size: 28px; font-weight: 800; line-height: 1; white-space: nowrap; }
+
+.gestor-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; align-items: start; }
+#gestorDetalleContenido .card h2 { color: #0F2A4A; font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+
+.gestor-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 20px; margin-top: 6px; }
+.gestor-fact { display: flex; flex-direction: column; gap: 4px; }
+.gestor-fact span { color: #8993A3; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+.gestor-fact strong { color: #0F2A4A; font-size: 15px; font-weight: 700; }
+/* .private es solo una marca visual de "dato sensible" para cuando el
+   backend SÍ lo envía (usuario con puede_ver_price) — no reemplaza el
+   control de acceso, que vive en el backend (ver cotizaciones.go). */
+.gestor-fact.private { padding: 8px 10px; margin: -8px -10px; border-radius: 8px; background: #FBF6E9; }
+.gestor-fact.private span::before { content: "🔒"; margin-right: 4px; font-size: 10px; }
+
+.gestor-state-editor { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 18px; padding-top: 18px; border-top: 1px solid #EEF1F6; }
+.gestor-state-editor > label { display: block; width: 100%; color: #8993A3; font-size: 11px; font-weight: 700; text-transform: uppercase; margin: 0 0 2px; }
+
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.card-head h2 { margin: 0; }
+.card-head span { color: #8993A3; font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+.gestor-timeline { display: flex; flex-direction: column; gap: 2px; }
+.gestor-timeline > div,
+.gestor-version-row {
+  position: relative;
+  padding: 10px 0 10px 18px;
+  border-left: 2px solid #E3E9F1;
+}
+.gestor-timeline > div:last-child,
+.gestor-version-row:last-child { padding-bottom: 2px; }
+.gestor-timeline > div::before,
+.gestor-version-row::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #185FA5;
+}
+.gestor-timeline > div b { display: block; color: #0F2A4A; font-size: 13px; }
+.gestor-timeline > div span { display: block; color: #7b899d; font-size: 11px; margin-top: 2px; }
+.gestor-timeline > div strong { display: block; color: #185FA5; font-size: 11px; font-weight: 700; margin-top: 3px; }
+.gestor-version-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.gestor-version-row b { color: #0F2A4A; font-size: 13px; white-space: nowrap; }
+.gestor-version-row span { flex: 1 1 160px; min-width: 160px; color: #7b899d; font-size: 11px; }
+.gestor-version-row span small { display: block; color: #97a3b4; font-style: italic; margin-top: 2px; }
+.gestor-version-row strong { color: #082650; font-size: 13px; font-weight: 800; white-space: nowrap; }
+
+.gestor-accepted-box { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #F0FBF5; border: 1px solid #C8EFD8; }
+.gestor-accepted-box span { display: block; color: #137345; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }
+.gestor-accepted-box strong { display: block; color: #0a5c38; font-size: 14px; font-weight: 800; }
+.gestor-accepted-box small { display: block; color: #4c8064; font-size: 11px; margin-top: 2px; }
+
+.gestor-client-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.gestor-client-link h2 { margin: 0 0 4px; }
+.gestor-client-link p { margin: 0; color: #7b899d; font-size: 13px; }
+
+@media (max-width:900px) {
+  .gestor-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width:700px) {
+  .gestor-detail-hero { flex-direction: column; }
+  .gestor-detail-hero > div:last-child { align-items: flex-start; width: 100%; }
+}
+
 /* ---------- Solicitudes de Propuesta ---------- */
 .solicitudes-page { --request-border:#d7e1ee; --request-ink:#082650; --request-muted:#7b899d; }
 .solicitudes-page .sol-topbar { margin-bottom:14px; align-items:center; }

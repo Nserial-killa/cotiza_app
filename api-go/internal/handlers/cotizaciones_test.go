@@ -8,6 +8,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -85,7 +86,14 @@ func getCotizaciones(t *testing.T, handler *CotizacionesHandler, query string) *
 	return rec
 }
 
-func getDetalleCotizacion(t *testing.T, handler *CotizacionesHandler, cotizacionID, query string) *httptest.ResponseRecorder {
+// getDetalleCotizacion recibe el usuario_id del actor de sesión (ver
+// conActor en usuarios_test.go) porque Detalle ahora consulta
+// puede_ver_price contra ese usuario_id para decidir si Costo/
+// Ganancia/Margen van en la respuesta — sin un actor en el contexto,
+// esa consulta falla y el handler responde 500. actorID puede quedar
+// vacío en pruebas que ni siquiera llegan a esa parte del handler
+// (ej. cotización inexistente, que corta antes con 404).
+func getDetalleCotizacion(t *testing.T, handler *CotizacionesHandler, actorID, cotizacionID, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	router := chi.NewRouter()
 	router.Get("/api/cotizaciones/{id}", handler.Detalle)
@@ -95,6 +103,9 @@ func getDetalleCotizacion(t *testing.T, handler *CotizacionesHandler, cotizacion
 		url += "?" + query
 	}
 	req := httptest.NewRequest(http.MethodGet, url, nil)
+	if actorID != "" {
+		req = conActor(req, actorID)
+	}
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	return rec
@@ -259,10 +270,13 @@ func TestCotizacionesListar_FiltroFechaDesde(t *testing.T) {
 		Cotizaciones []cotizacionListado `json:"cotizaciones"`
 	}
 	assertJSON(t, rec.Body.Bytes(), &res)
-	for _, c := range res.Cotizaciones {
-		if c.CotizacionID == cotizacionID {
-			t.Error("una fecha_desde en el futuro no debería incluir una cotización recién creada")
-		}
+	// Ninguna cotización existente puede tener fecha_creacion en el
+	// futuro, así que con fecha_desde=mañana la lista completa debe
+	// quedar vacía — no alcanza con que falte solo la de esta prueba,
+	// eso confirmaría que el filtro se está aplicando de verdad y no
+	// solo ignorándose silenciosamente.
+	if len(res.Cotizaciones) != 0 {
+		t.Errorf("una fecha_desde en el futuro debería vaciar la lista, dio %d cotizaciones", len(res.Cotizaciones))
 	}
 
 	ayer := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
@@ -285,7 +299,7 @@ func TestCotizacionesDetalle_DevuelveCotizacionYVersiones(t *testing.T) {
 	vendedorID := crearUsuarioPrueba(t, pool, "vendedor.detalle.prueba@exceltecgroup.com", "1234", "Vendedor", "Activo")
 	cotizacionID, calculadoraID, _ := crearCotizacionPrueba(t, pool, "Borrador", vendedorID, "")
 
-	rec := getDetalleCotizacion(t, handler, cotizacionID, "")
+	rec := getDetalleCotizacion(t, handler, vendedorID, cotizacionID, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
 	}
@@ -321,6 +335,7 @@ func TestCotizacionesDetalle_DevuelveCotizacionYVersiones(t *testing.T) {
 func TestCotizacionesDetalle_VersionPuntual(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &CotizacionesHandler{DB: pool}
+	admin := crearAdminActorPrueba(t, pool)
 	cotizacionID, _, _ := crearCotizacionPrueba(t, pool, "Borrador", "", "")
 
 	rec := postCotizacionSubruta(t, handler.CrearVersion, "/api/cotizaciones/{id}/version", cotizacionID, map[string]any{
@@ -330,7 +345,7 @@ func TestCotizacionesDetalle_VersionPuntual(t *testing.T) {
 		t.Fatalf("crear versión: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
 	}
 
-	recV1 := getDetalleCotizacion(t, handler, cotizacionID, "version=1")
+	recV1 := getDetalleCotizacion(t, handler, admin, cotizacionID, "version=1")
 	var resV1 struct {
 		Cotizacion map[string]any `json:"cotizacion"`
 	}
@@ -339,7 +354,7 @@ func TestCotizacionesDetalle_VersionPuntual(t *testing.T) {
 		t.Errorf("con ?version=1 esperaba version=1, dio %v", resV1.Cotizacion["version"])
 	}
 
-	recV2 := getDetalleCotizacion(t, handler, cotizacionID, "version=2")
+	recV2 := getDetalleCotizacion(t, handler, admin, cotizacionID, "version=2")
 	var resV2 struct {
 		Cotizacion map[string]any `json:"cotizacion"`
 	}
@@ -353,9 +368,72 @@ func TestCotizacionesDetalle_NoExiste(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &CotizacionesHandler{DB: pool}
 
-	rec := getDetalleCotizacion(t, handler, "COT-QUE-NO-EXISTE-"+sufijoUnico(), "")
+	rec := getDetalleCotizacion(t, handler, "", "COT-QUE-NO-EXISTE-"+sufijoUnico(), "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("esperaba 404, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// CRÍTICO: un rol sin puede_ver_price (Vendedor) no debe recibir
+// total_costo/total_ganancia/margen_total en el JSON del detalle — ni
+// siquiera en 0 o null, las claves tienen que estar AUSENTES. No
+// alcanza con json.Unmarshal a la struct tipada (que dejaría esos
+// campos en su cero-valor sin distinguir "vino en 0" de "no vino");
+// hay que decodificar a un mapa y comprobar la presencia de la clave
+// con el patrón value, ok := m["clave"].
+func TestCotizacionesDetalle_VendedorNoRecibeCamposDePrecio(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	vendedor := crearUsuarioPrueba(t, pool, "vendedor.sin.precio."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
+	cotizacionID, _, _ := crearCotizacionPrueba(t, pool, "Borrador", "", "")
+
+	rec := getDetalleCotizacion(t, handler, vendedor, cotizacionID, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res struct {
+		Cotizacion map[string]json.RawMessage `json:"cotizacion"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("la respuesta no es el JSON esperado: %v\nbody: %s", err, rec.Body.String())
+	}
+
+	for _, clave := range []string{"total_costo", "total_ganancia", "margen_total"} {
+		if _, presente := res.Cotizacion[clave]; presente {
+			t.Errorf("la clave %q no debería existir en la respuesta para un Vendedor (puede_ver_price=false), pero vino: %s", clave, res.Cotizacion[clave])
+		}
+	}
+	// El precio de venta sí es público — eso no se toca.
+	if _, presente := res.Cotizacion["total_precio"]; !presente {
+		t.Error("total_precio debería seguir presente — no es un dato sensible")
+	}
+}
+
+// Mismo caso pero con un rol que SÍ tiene puede_ver_price
+// (Administrador): las 3 claves deben venir con normalidad.
+func TestCotizacionesDetalle_AdministradorSiRecibeCamposDePrecio(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	admin := crearAdminActorPrueba(t, pool)
+	cotizacionID, _, _ := crearCotizacionPrueba(t, pool, "Borrador", "", "")
+
+	rec := getDetalleCotizacion(t, handler, admin, cotizacionID, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res struct {
+		Cotizacion map[string]json.RawMessage `json:"cotizacion"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("la respuesta no es el JSON esperado: %v\nbody: %s", err, rec.Body.String())
+	}
+
+	for _, clave := range []string{"total_costo", "total_ganancia", "margen_total"} {
+		if _, presente := res.Cotizacion[clave]; !presente {
+			t.Errorf("la clave %q debería venir para un Administrador (puede_ver_price=true), pero no está", clave)
+		}
 	}
 }
 

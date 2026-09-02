@@ -99,7 +99,7 @@ func (h *CotizacionesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		   AND ($4 = '' OR EXISTS (
 		        SELECT 1 FROM cotizacion_usuarios cu2
 		         WHERE cu2.cotizacion_id = c.cotizacion_id AND cu2.usuario_id = $4))
-		   AND ($5 = '' OR c.fecha_actualizacion::date >= $5::date)
+		   AND ($5 = '' OR c.fecha_creacion::date >= $5::date)
 		 GROUP BY c.cotizacion_id, c.version_actual, cv.nombre_version, c.version_aceptada,
 		          c.codigo_oferta, cl.nombre_comercial, cl.razon_social, calc.nombre_calculadora,
 		          c.calculadora_id, c.tipo_propuesta, c.estado, cv.total_precio, cv.moneda,
@@ -244,6 +244,24 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		"fecha_actualizacion": fechaActualizacion,
 	}
 
+	// Costo/Ganancia/Margen son precio interno — no todos los roles
+	// pueden verlo (roles.puede_ver_price, columna sin usar desde el
+	// Sprint 0). Ocultarlo solo con CSS no sirve: cualquiera lee el
+	// JSON crudo. Si el rol no tiene el permiso, se borran las claves
+	// del mapa antes de responder — no se mandan en 0 ni en null,
+	// directamente no existen en el JSON.
+	puedeVerPrice, err := h.sesionPuedeVerPrice(ctx, r)
+	if err != nil {
+		log.Printf("cotizaciones: error validando permiso de precio: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return
+	}
+	if !puedeVerPrice {
+		delete(cotizacion, "total_costo")
+		delete(cotizacion, "total_ganancia")
+		delete(cotizacion, "margen_total")
+	}
+
 	// La publicación al cliente (link público) es de un sprint futuro
 	// — se deja vacío a propósito, no simulado.
 	escribirJSON(w, http.StatusOK, map[string]any{
@@ -253,6 +271,24 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		"historial":  historial,
 		"links":      []any{},
 	})
+}
+
+// sesionPuedeVerPrice resuelve el usuario_id que middleware.RequiereSesion
+// dejó en el contexto de la petición al puede_ver_price de su rol HOY
+// en la base (mismo criterio que auth.go usa en el login, y que
+// UsuariosHandler.obtenerSesion usa para el rol en sí).
+func (h *CotizacionesHandler) sesionPuedeVerPrice(ctx context.Context, r *http.Request) (bool, error) {
+	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
+	if usuarioID == "" {
+		return false, errors.New("la sesión no tiene un usuario_id asociado")
+	}
+	var puedeVerPrice bool
+	err := h.DB.QueryRow(ctx, `
+		SELECT COALESCE(rl.puede_ver_price, false)
+		  FROM usuarios u
+		  LEFT JOIN roles rl ON rl.rol = u.rol
+		 WHERE u.usuario_id = $1`, usuarioID).Scan(&puedeVerPrice)
+	return puedeVerPrice, err
 }
 
 type versionResumen struct {

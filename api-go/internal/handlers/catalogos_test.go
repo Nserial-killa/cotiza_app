@@ -336,22 +336,75 @@ func TestCatalogosEliminar_SinUsoQuedaInactivo(t *testing.T) {
 	}
 }
 
+// Cubre el ciclo completo que pidió el reporte: rechazar mientras el
+// catálogo está en uso, y permitir el borrado en cuanto ese uso deja
+// de existir (acá, desactivando el elemento que lo usaba).
 func TestCatalogosEliminar_RechazaCatalogoUsadoPorElementoActivo(t *testing.T) {
 	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	pool := tabsHandler.DB
 	catalogoID := crearCatalogoPrueba(t, pool, "Catálogo en uso", "")
 	tabID := "TEST-TAB-CAT-USO-" + sufijoUnico()
+	elementoID := "TEST-EL-CAT-USO-" + sufijoUnico()
 	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
 		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Uso catálogo", "activo": true,
 	})
 	postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
-		"elemento_id": "TEST-EL-CAT-USO-" + sufijoUnico(), "tab_id": tabID,
+		"elemento_id": elementoID, "tab_id": tabID,
 		"tipo": "CAMPO_CATALOGO", "etiqueta": "Catálogo", "catalogo_id": catalogoID, "activo": true,
 	})
-	rec := deleteConRuta(t, "/api/catalogos/{id}", "/api/catalogos/"+catalogoID, (&CatalogosHandler{DB: pool}).EliminarCatalogo)
+
+	catalogosHandler := &CatalogosHandler{DB: pool}
+	rec := deleteConRuta(t, "/api/catalogos/{id}", "/api/catalogos/"+catalogoID, catalogosHandler.EliminarCatalogo)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("catálogo en uso: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
 	}
+	var activo bool
+	if err := pool.QueryRow(context.Background(), `SELECT activo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&activo); err != nil || !activo {
+		t.Fatalf("el catálogo rechazado debía seguir activo: activo=%v err=%v", activo, err)
+	}
+
+	// Desactivar el elemento que lo usaba: ahora sí debe poder eliminarse.
+	recEl := deleteConRuta(t, "/api/cotizador/elementos/{id}", "/api/cotizador/elementos/"+elementoID, tabsHandler.EliminarElemento)
+	if recEl.Code != http.StatusOK {
+		t.Fatalf("desactivar el elemento: esperaba 200, dio %d: %s", recEl.Code, recEl.Body.String())
+	}
+
+	recSegundoIntento := deleteConRuta(t, "/api/catalogos/{id}", "/api/catalogos/"+catalogoID, catalogosHandler.EliminarCatalogo)
+	if recSegundoIntento.Code != http.StatusOK {
+		t.Fatalf("catálogo ya sin uso: esperaba 200, dio %d: %s", recSegundoIntento.Code, recSegundoIntento.Body.String())
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT activo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&activo); err != nil || activo {
+		t.Fatalf("el catálogo debía quedar inactivo tras el segundo intento: activo=%v err=%v", activo, err)
+	}
+}
+
+// Mismo bug, pero por el otro camino: guardar el formulario del
+// catálogo con el checkbox "Activo" destildado (POST /api/catalogos
+// con activo:false) en vez de usar el botón "Eliminar" dedicado. Este
+// caso es el que realmente se coló: EliminarCatalogo ya validaba
+// esto, pero GuardarCatalogo no.
+func TestCatalogosGuardar_RechazaDesactivarCatalogoEnUso(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	pool := tabsHandler.DB
+	catalogoID := crearCatalogoPrueba(t, pool, "Catálogo en uso (guardar)", "")
+	tabID := "TEST-TAB-CAT-GUARDAR-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Uso catálogo", "activo": true,
+	})
+	postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CAT-GUARDAR-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CAMPO_CATALOGO", "etiqueta": "Catálogo", "catalogo_id": catalogoID, "activo": true,
+	})
+
+	catalogosHandler := &CatalogosHandler{DB: pool}
+	rec := postCatalogos(t, catalogosHandler.GuardarCatalogo, "/api/catalogos", map[string]any{
+		"catalogo_id": catalogoID, "nombre_catalogo": "Catálogo en uso (guardar)",
+		"alcance": "COTIZADOR", "activo": false,
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("guardar con activo:false estando en uso: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
 	var activo bool
 	if err := pool.QueryRow(context.Background(), `SELECT activo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&activo); err != nil || !activo {
 		t.Fatalf("el catálogo rechazado debía seguir activo: activo=%v err=%v", activo, err)
@@ -378,15 +431,57 @@ func TestCatalogosEliminar_RelacionDesapareceFisicamente(t *testing.T) {
 	}
 }
 
+// Cubre el ciclo completo: rechazar mientras la relación activa
+// existe, y permitir el borrado en cuanto esa relación desaparece.
 func TestCatalogosEliminar_ValorConRelacionActivaSeRechaza(t *testing.T) {
 	pool := setupTestDB(t)
 	padreID := crearCatalogoPrueba(t, pool, "Padre valor usado", "")
 	hijoID := crearCatalogoPrueba(t, pool, "Hijo valor usado", padreID)
 	valorPadreID := crearValorCatalogoPrueba(t, pool, padreID, "Padre", "")
 	valorHijoID := crearValorCatalogoPrueba(t, pool, hijoID, "Hijo", "")
-	crearRelacionPrueba(t, pool, padreID, valorPadreID, hijoID, valorHijoID)
-	rec := deleteConRuta(t, "/api/catalogos/valores/{id}", "/api/catalogos/valores/"+valorPadreID, (&CatalogosHandler{DB: pool}).EliminarValor)
+	relacionID := crearRelacionPrueba(t, pool, padreID, valorPadreID, hijoID, valorHijoID)
+
+	handler := &CatalogosHandler{DB: pool}
+	rec := deleteConRuta(t, "/api/catalogos/valores/{id}", "/api/catalogos/valores/"+valorPadreID, handler.EliminarValor)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("valor relacionado: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Quitar la relación: ahora sí debe poder eliminarse el valor.
+	recRel := deleteConRuta(t, "/api/catalogos/relaciones/{id}", "/api/catalogos/relaciones/"+relacionID, handler.EliminarRelacion)
+	if recRel.Code != http.StatusOK {
+		t.Fatalf("eliminar la relación: esperaba 200, dio %d: %s", recRel.Code, recRel.Body.String())
+	}
+
+	recSegundoIntento := deleteConRuta(t, "/api/catalogos/valores/{id}", "/api/catalogos/valores/"+valorPadreID, handler.EliminarValor)
+	if recSegundoIntento.Code != http.StatusOK {
+		t.Fatalf("valor ya sin relaciones: esperaba 200, dio %d: %s", recSegundoIntento.Code, recSegundoIntento.Body.String())
+	}
+}
+
+// Mismo bug que con el catálogo, pero en el formulario del valor:
+// guardar con el checkbox "Activo" destildado (POST
+// /api/catalogos/valores con activo:false) debía poder saltarse la
+// validación de EliminarValor antes de este fix.
+func TestCatalogosGuardar_RechazaDesactivarValorConRelacionActiva(t *testing.T) {
+	pool := setupTestDB(t)
+	padreID := crearCatalogoPrueba(t, pool, "Padre valor guardar", "")
+	hijoID := crearCatalogoPrueba(t, pool, "Hijo valor guardar", padreID)
+	valorPadreID := crearValorCatalogoPrueba(t, pool, padreID, "Padre", "")
+	valorHijoID := crearValorCatalogoPrueba(t, pool, hijoID, "Hijo", "")
+	crearRelacionPrueba(t, pool, padreID, valorPadreID, hijoID, valorHijoID)
+
+	handler := &CatalogosHandler{DB: pool}
+	rec := postCatalogos(t, handler.GuardarValor, "/api/catalogos/valores", map[string]any{
+		"valor_id": valorPadreID, "catalogo_id": padreID, "clave": "PADRE",
+		"texto_visible": "Padre", "activo": false,
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("guardar con activo:false teniendo relación activa: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var activo bool
+	if err := pool.QueryRow(context.Background(), `SELECT activo FROM catalogo_valores WHERE valor_id=$1`, valorPadreID).Scan(&activo); err != nil || !activo {
+		t.Fatalf("el valor rechazado debía seguir activo: activo=%v err=%v", activo, err)
 	}
 }
