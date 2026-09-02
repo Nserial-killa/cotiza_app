@@ -57,6 +57,7 @@ func main() {
 	reglas := &handlers.ReglasHandler{DB: pool}
 	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
 	calculadoras := &handlers.CalculadorasHandler{DB: pool}
+	runtimeCotizador := &handlers.CotizadorRuntimeHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		// Públicas — sin sesión. Todo lo demás bajo /api exige un
@@ -88,6 +89,8 @@ func main() {
 			r.Delete("/cotizador/elementos/{id}", cotizadorTabs.EliminarElemento)
 			r.Post("/cotizador/validar", compilador.Validar)
 			r.Post("/cotizador/compilar", compilador.Compilar)
+			r.Get("/cotizador/runtime/{cotizacion_id}", runtimeCotizador.Obtener)
+			r.Post("/cotizador/runtime/{cotizacion_id}/valores", runtimeCotizador.GuardarValores)
 			r.Route("/reglas", func(r chi.Router) {
 				r.Get("/", reglas.Listar)
 				r.Post("/", reglas.Guardar)

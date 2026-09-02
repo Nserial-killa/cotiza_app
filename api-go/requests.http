@@ -79,6 +79,27 @@ Content-Type: application/json
   "activo": true
 }
 
+### ---------------------------------------------------------
+### Sprint 5 — Runtime del Cotizador
+### ---------------------------------------------------------
+
+### Estructura compilada y valores de la versión actual
+GET {{baseUrl}}/api/cotizador/runtime/cot-demo-001
+Authorization: Bearer {{token}}
+
+### Guardar valores simples de una cotización
+POST {{baseUrl}}/api/cotizador/runtime/cot-demo-001/valores
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "version": 1,
+  "valores": {
+    "EL-NOMBRE-CLIENTE": "Cliente Demo",
+    "EL-TIPO-SERVICIO": "CONSULTORIA"
+  }
+}
+
 
 ### PIN incorrecto — 401 {"ok":false,"error":"Correo o PIN incorrectos."}
 POST {{baseUrl}}/api/auth/login
