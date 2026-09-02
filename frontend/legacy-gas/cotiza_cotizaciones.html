@@ -62,8 +62,14 @@
   <div id="gestorCotizadorEditor" class="hidden">
     <div class="gestor-detail-bar">
       <button id="btnCerrarCotizadorIntegrado" class="btn btn-light" type="button">← Volver al Gestor</button>
-      <div><strong id="gestorEditorTitulo">Cotizador</strong><span id="gestorEditorSubtitulo">Complete y guarde la propuesta.</span></div>
+      <div class="gestor-detail-actions">
+        <div class="runtime-titulo">
+          <strong id="gestorEditorTitulo">Cotizador</strong>
+          <span id="gestorEditorSubtitulo">Complete y guarde la propuesta.</span>
+        </div>
+        <button id="btnGuardarRuntimeCotizador" class="btn btn-primary" type="button">Guardar</button>
+      </div>
     </div>
-    <div class="gestor-runtime-shell"><iframe id="gestorCotizadorFrame" title="Cotizador Dinámico" allow="clipboard-write"></iframe></div>
+    <div id="gestorRuntimeContenido" class="gestor-runtime-shell"><div class="card">Cargando formulario...</div></div>
   </div>
 </section>

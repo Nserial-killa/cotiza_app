@@ -353,6 +353,52 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .gestor-detail-hero > div:last-child { align-items: flex-start; width: 100%; }
 }
 
+/* ---------- Cotizaciones: motor de ejecución del Cotizador (Sprint 5) ---------- */
+.runtime-titulo { display: flex; flex-direction: column; line-height: 1.3; }
+.runtime-titulo strong { color: #0F2A4A; font-size: 14px; }
+.runtime-titulo span { color: #7b899d; font-size: 12px; }
+
+.gestor-runtime-shell { display: flex; flex-direction: column; gap: 14px; }
+
+.runtime-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.runtime-tab-btn {
+  border: 1px solid #d7e1ee;
+  background: #fff;
+  color: #56667d;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.runtime-tab-btn.active { background: #185FA5; border-color: #185FA5; color: #fff; }
+
+.runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px 16px;
+  align-items: start;
+}
+.runtime-field.field { margin-bottom: 10px; }
+.runtime-field label { display: block; color: #17345b; font-size: 11px; font-weight: 700; margin-bottom: 5px; }
+.runtime-requerido { color: #b42318; }
+.runtime-field .runtime-input.input,
+.runtime-field .runtime-input.select { min-height: 38px; padding: 8px 11px; border-color: #ced9e7; border-radius: 8px; color: #344a68; font-size: 13px; width: 100%; }
+
+.runtime-leyenda { grid-column: 1/-1; margin: 6px 0 -2px; padding-top: 10px; border-top: 1px solid #EEF1F6; }
+.runtime-leyenda:first-child { padding-top: 0; border-top: 0; }
+.runtime-leyenda h3 { margin: 0; color: #0F2A4A; font-size: 15px; font-weight: 800; }
+.runtime-texto-informativo { grid-column: 1/-1; }
+.runtime-texto-informativo p { margin: 0; color: #7b899d; font-size: 12px; font-style: italic; }
+
+@media (max-width:900px) {
+  .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width:700px) {
+  .runtime-grid { grid-template-columns: 1fr; }
+  .runtime-grid > * { grid-column: 1 !important; }
+}
+
 /* ---------- Solicitudes de Propuesta ---------- */
 .solicitudes-page { --request-border:#d7e1ee; --request-ink:#082650; --request-muted:#7b899d; }
 .solicitudes-page .sol-topbar { margin-bottom:14px; align-items:center; }
@@ -961,9 +1007,15 @@ table tr:last-child td { border-bottom: none; }
   <div id="gestorCotizadorEditor" class="hidden">
     <div class="gestor-detail-bar">
       <button id="btnCerrarCotizadorIntegrado" class="btn btn-light" type="button">← Volver al Gestor</button>
-      <div><strong id="gestorEditorTitulo">Cotizador</strong><span id="gestorEditorSubtitulo">Complete y guarde la propuesta.</span></div>
+      <div class="gestor-detail-actions">
+        <div class="runtime-titulo">
+          <strong id="gestorEditorTitulo">Cotizador</strong>
+          <span id="gestorEditorSubtitulo">Complete y guarde la propuesta.</span>
+        </div>
+        <button id="btnGuardarRuntimeCotizador" class="btn btn-primary" type="button">Guardar</button>
+      </div>
     </div>
-    <div class="gestor-runtime-shell"><iframe id="gestorCotizadorFrame" title="Cotizador Dinámico" allow="clipboard-write"></iframe></div>
+    <div id="gestorRuntimeContenido" class="gestor-runtime-shell"><div class="card">Cargando formulario...</div></div>
   </div>
 </section>
 
@@ -5315,7 +5367,7 @@ window.CotizaApp = (function(){
         bind("btnGenerarLinkGestor","click",generarLinkDesdeDetalleV2);
         bind("gestorEstadoNuevo","change",cambiarEstadoSeleccionadoGestorV2);
         bind("btnCambiarEstadoGestor","click",actualizarEstadoGestorV2);
-        window.addEventListener("message",recibirMensajeCotizadorV2);
+        bind("btnGuardarRuntimeCotizador","click",guardarRuntimeCotizador);
         bind("btnActualizarFormasPago","click",refrescarParametrosActivos);
         bind("btnNuevoServicioProducto","click",function(){ abrirModalServicioProducto(); });
         bind("btnCerrarModalServicio","click",cerrarModalServicioProducto);
@@ -6518,15 +6570,170 @@ window.CotizaApp = (function(){
       }
 
       function cerrarCotizadorIntegradoV2(){
-        const frame=byId("gestorCotizadorFrame");if(frame)frame.src="about:blank";
+        state.cotizadorRuntime = null;
         if(state.gestorVistaAnterior==="detalle"&&state.gestorDetalle)cargarDetalleCotizacionV2(state.gestorDetalle.cotizacion);else mostrarListadoCotizacionesV2();
       }
 
-      // Editar el contenido real de una cotización abre el Cotizador
-      // en modo de uso real, que depende de un motor de ejecución que
-      // todavía no existe (Cotiza_Script_Cotizador) — se avisa en vez
-      // de abrir un editor roto.
-      function editarCotizacionDesdeDetalleV2(){mostrarToast("Editar el contenido de la cotización estará disponible próximamente.");}
+      // MIGRADA en el Sprint 5 — antes solo mostraba "disponible
+      // próximamente". Ahora carga el formulario real del motor de
+      // ejecución (GET /api/cotizador/runtime/{id}) y lo renderiza
+      // dentro de la misma aplicación — nada de iframe a otra URL,
+      // ese era el mecanismo viejo de Google Apps Script.
+      async function editarCotizacionDesdeDetalleV2(){
+        const c = state.gestorDetalle && state.gestorDetalle.cotizacion;
+        if(!c) return;
+
+        state.gestorVistaAnterior = "detalle";
+        mostrarPanelGestorV2("gestorCotizadorEditor");
+        setText("gestorEditorTitulo", c.codigo_oferta || c.cotizacion_id || "Cotizador");
+        setText("gestorEditorSubtitulo", "Versión " + (c.version || "1"));
+
+        const contenido = byId("gestorRuntimeContenido");
+        if(contenido) contenido.innerHTML = '<div class="card">Cargando formulario...</div>';
+
+        try{
+          const resp = await fetchAutenticado("/api/cotizador/runtime/" + encodeURIComponent(c.cotizacion_id || "") + "?version=" + encodeURIComponent(c.version || "1"));
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok){
+            if(contenido) contenido.innerHTML = '<div class="card"><p>' + escapeHtml((res && res.error) || "No fue posible cargar el formulario del cotizador.") + '</p></div>';
+            return;
+          }
+
+          const tabs = (res.estructura && res.estructura.tabs) || [];
+          state.cotizadorRuntime = {
+            cotizacionId: c.cotizacion_id || "",
+            version: res.version || c.version || 1,
+            estructura: res.estructura || {tabs:[]},
+            valores: res.valores || {},
+            tabActivoId: tabs.length ? tabs[0].tab_id : ""
+          };
+          renderRuntimeCotizador();
+        }catch(error){
+          if(contenido) contenido.innerHTML = '<div class="card"><p>' + escapeHtml(error && error.message ? error.message : "No fue posible cargar el formulario del cotizador.") + '</p></div>';
+        }
+      }
+
+      // Pinta la tira de tabs y los campos de la tab activa. Se
+      // vuelve a llamar completa cada vez que se cambia de tab —
+      // por eso leerValoresFormularioActual() se corre ANTES de
+      // cambiar de tab, para no perder lo que la persona ya escribió.
+      function renderRuntimeCotizador(){
+        const rt = state.cotizadorRuntime;
+        const contenido = byId("gestorRuntimeContenido");
+        if(!rt || !contenido) return;
+
+        const tabs = ((rt.estructura && rt.estructura.tabs) || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+        if(!tabs.length){
+          contenido.innerHTML = '<div class="card"><p>Este cotizador todavía no tiene secciones ni campos definidos en el Diseñador.</p></div>';
+          return;
+        }
+        if(!tabs.some(function(t){ return t.tab_id === rt.tabActivoId; })) rt.tabActivoId = tabs[0].tab_id;
+
+        const tiraTabs = tabs.map(function(tab){
+          const activa = tab.tab_id === rt.tabActivoId;
+          return '<button type="button" class="runtime-tab-btn' + (activa ? ' active' : '') + '" data-tab-id="' + escapeHtml(tab.tab_id) + '">' + escapeHtml(tab.nombre || tab.tab_id) + '</button>';
+        }).join("");
+
+        const tabActivo = tabs.find(function(t){ return t.tab_id === rt.tabActivoId; });
+        const elementos = ((tabActivo && tabActivo.elementos) || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+        const campos = elementos.map(function(el){ return renderRuntimeElemento(el, rt.valores); }).join("");
+
+        contenido.innerHTML =
+          '<div class="runtime-tabs">' + tiraTabs + '</div>' +
+          '<div class="card runtime-grid">' + (campos || '<p>Esta sección no tiene elementos.</p>') + '</div>';
+
+        contenido.querySelectorAll(".runtime-tab-btn").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            rt.tabActivoId = btn.dataset.tabId;
+            renderRuntimeCotizador();
+          });
+        });
+      }
+
+      // CAMPO -> input de texto. CAMPO_CATALOGO -> select con las
+      // opciones que ya vienen resueltas en la respuesta. LEYENDA y
+      // TEXTO_INFORMATIVO son solo texto, no tienen valor que guardar.
+      function renderRuntimeElemento(el, valores){
+        const ancho = Math.min(4, Math.max(1, Number(el.columnas_ancho) || 1));
+        const requerido = !!el.requerido;
+        const estiloSpan = 'style="grid-column:span ' + ancho + '"';
+        const valorGuardado = (valores && Object.prototype.hasOwnProperty.call(valores, el.elemento_id)) ? valores[el.elemento_id] : "";
+
+        if(el.tipo === "LEYENDA"){
+          return '<div class="runtime-field runtime-leyenda" ' + estiloSpan + '><h3>' + escapeHtml(el.etiqueta || "") + '</h3></div>';
+        }
+        if(el.tipo === "TEXTO_INFORMATIVO"){
+          return '<div class="runtime-field runtime-texto-informativo" ' + estiloSpan + '><p>' + escapeHtml(el.etiqueta || "") + '</p></div>';
+        }
+        if(el.tipo === "CAMPO_CATALOGO"){
+          const opciones = el.opciones || [];
+          const optionsHtml = '<option value="">Seleccione...</option>' + opciones.map(function(op){
+            const seleccionado = (valorGuardado !== "" && String(op.valor_sistema) === String(valorGuardado)) ? " selected" : "";
+            return '<option value="' + escapeHtml(op.valor_sistema) + '"' + seleccionado + '>' + escapeHtml(op.texto_visible) + '</option>';
+          }).join("");
+          return '<div class="field runtime-field" ' + estiloSpan + '>' +
+            '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
+            '<select class="select runtime-input" data-elemento-id="' + escapeHtml(el.elemento_id) + '">' + optionsHtml + '</select>' +
+            '</div>';
+        }
+        // CAMPO
+        const valorTexto = (valorGuardado === null || valorGuardado === undefined) ? "" : valorGuardado;
+        return '<div class="field runtime-field" ' + estiloSpan + '>' +
+          '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
+          '<input class="input runtime-input" type="text" data-elemento-id="' + escapeHtml(el.elemento_id) + '" value="' + escapeHtml(valorTexto) + '"' + (requerido ? ' required' : '') + '>' +
+          '</div>';
+      }
+
+      // Vuelca lo que hay ahora mismo en pantalla (de la tab activa)
+      // a state.cotizadorRuntime.valores, sin tocar los valores de las
+      // demás tabs (que ya quedaron guardados ahí en su propio turno).
+      function leerValoresFormularioActual(){
+        const rt = state.cotizadorRuntime;
+        if(!rt) return;
+        document.querySelectorAll("#gestorRuntimeContenido .runtime-input").forEach(function(input){
+          const id = input.dataset.elementoId;
+          if(id) rt.valores[id] = input.value;
+        });
+      }
+
+      // Junta los valores de todas las tabs (solo CAMPO y
+      // CAMPO_CATALOGO — Leyenda/Texto informativo no se guardan) y
+      // los manda con POST /api/cotizador/runtime/{id}/valores.
+      async function guardarRuntimeCotizador(){
+        const rt = state.cotizadorRuntime;
+        if(!rt) return;
+        leerValoresFormularioActual();
+
+        const idsGuardables = {};
+        ((rt.estructura && rt.estructura.tabs) || []).forEach(function(tab){
+          (tab.elementos || []).forEach(function(el){
+            if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO") idsGuardables[el.elemento_id] = true;
+          });
+        });
+        const valoresAEnviar = {};
+        Object.keys(rt.valores || {}).forEach(function(id){
+          if(idsGuardables[id]) valoresAEnviar[id] = rt.valores[id];
+        });
+
+        try{
+          const resp = await fetchAutenticado("/api/cotizador/runtime/" + encodeURIComponent(rt.cotizacionId) + "/valores", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({version: rt.version, valores: valoresAEnviar})
+          });
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok){
+            mostrarToast((res && res.error) || "No se pudo guardar el formulario.");
+            return;
+          }
+          mostrarToast("Cotización guardada correctamente.");
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No se pudo guardar el formulario.");
+        }
+      }
 
       // MIGRADA en el Sprint 4 — antes usaba
       // google.script.run.webCrearNuevaVersion(payload). La versión
@@ -6637,8 +6844,6 @@ window.CotizaApp = (function(){
           mostrarToast(e&&e.message?e.message:"No se pudo cambiar el estado.");
         }
       }
-
-      function recibirMensajeCotizadorV2(event){const d=event&&event.data||{};if(d.type==="COTIZA_RUNTIME_SAVED"){mostrarToast("Cotización guardada correctamente.");cerrarCotizadorIntegradoV2();}else if(d.type==="COTIZA_RUNTIME_CLOSE")cerrarCotizadorIntegradoV2();}
 
       // La publicación al cliente (generar el link público) depende
       // de un sprint futuro — ver CLAUDE.md. Se deja el mensaje claro
