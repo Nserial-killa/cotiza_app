@@ -32,7 +32,10 @@ go run ./cmd/server
 # (o F5 en VSCode: el perfil de .vscode/launch.json ya trae estas variables)
 
 # Verificación antes de cerrar una tarea de Go
-cd api-go && go build ./... && go vet ./... && gofmt -l .
+cd api-go && go build ./... && go vet ./... && gofmt -l . && go test ./...
+
+# Un solo paquete o test (requiere Postgres arriba y DATABASE_URL exportada)
+go test ./internal/handlers/ -run TestLogin_PinIncorrecto
 
 # Regenerar el frontend estático (obligatorio tras tocar legacy-gas/ o _build/)
 python3 frontend/_build/assemble.py
@@ -50,9 +53,13 @@ docker compose --profile tools up pgadmin
 docker compose down -v && docker compose up --build
 ```
 
-No hay suite de tests todavía. `api-go/requests.http` (extensión REST Client de
-VSCode) sirve como smoke test manual de los endpoints, con los casos de éxito
-y de error de `/api/auth/login` ya escritos.
+Cada handler y `internal/middleware/auth.go` tienen su `_test.go` junto al
+archivo que prueban, pero pegan contra Postgres de verdad: `setupTestDB` en
+`helpers_test.go` lee `DATABASE_URL` y hace `t.Skip` si no está seteada, así
+que sin `docker compose up -d postgres` + el export de `DATABASE_URL`, `go
+test ./...` "pasa" sin probar nada. Además, `api-go/requests.http` (extensión
+REST Client de VSCode) sirve como smoke test manual contra un servidor real,
+con los casos de éxito y de error de varios endpoints ya escritos.
 
 **Credenciales para probar sin los Excel.** `0002_seed_demo_data.sql` siembra
 usuarios de demo (`demo.admin@exceltecgroup.com` / PIN `1234`, entre otros —
@@ -83,20 +90,41 @@ variables de entorno directamente desde handlers.
 Apps Script (`<?!= include('Cotiza_Sidebar') ?>`). `frontend/_build/assemble.py`
 resuelve esos includes desde `frontend/legacy-gas/`, inyecta
 `_build/cotiza_base.css` (las 5 hojas de estilo originales nunca llegaron) y
-`_build/shim.html`, y escribe `frontend/index.html` (~680 KB). El archivo
+`_build/shim.html`, y escribe `frontend/index.html` (~780 KB). El archivo
 generado **sí se versiona**, así que cualquier cambio de una línea en la fuente
 produce un diff enorme en `index.html` — es normal. Editar `legacy-gas/` o
-`_build/` y volver a correr el script; nunca editar `index.html` a mano.
+`_build/` y volver a correr el script; nunca editar `index.html` a mano. La
+mayoría de los archivos de `legacy-gas/` se resuelven vía `FILE_MAP` en
+`assemble.py`, uno por cada `include('...')` de `Cotiza_App.html`, y lo que
+falta cae en `MISSING` como comentario `<!-- FALTA: ... -->`. La excepción es
+`cotiza_script_catalogos.html`: no tiene `include()` propio en el original, así
+que `assemble.py` lo inyecta a mano antes de `</body>` (paso 5 de `main()`) —
+si algún día aparece un `include('Cotiza_Script_Catalogos')` real, hay que
+quitar ese parche o el módulo se duplica.
 
 **El shim es el backend temporal, y se va vaciando.** `_build/shim.html` simula
-`google.script.run` para las funciones RPC que todavía no tienen endpoint (24
-de las 25 originales). Migrar una función es: escribir el endpoint en Go,
-cambiar esa llamada por un `fetch()` en `legacy-gas/`, borrar su entrada de
-`RPC_METHODS` y regenerar. Borrarla del shim es parte del trabajo, no un
-detalle: así una llamada olvidada revienta de una vez en vez de recibir datos
-falsos. `frontend/NOTAS_MIGRACION.md` lleva la cuenta y tiene el antes/después
-completo de la única migrada (`login()` → `POST /api/auth/login`). No agregar
-lógica de negocio nueva al shim.
+`google.script.run` para las funciones RPC que todavía no tienen endpoint (15
+de las 25 originales, ver `RPC_METHODS` en ese archivo — es la lista viva, más
+confiable que `frontend/NOTAS_MIGRACION.md`, que quedó desactualizada desde el
+Sprint 1). Migrar una función es: escribir el endpoint en Go, cambiar esa
+llamada por un `fetch()` en `legacy-gas/`, borrar su entrada de `RPC_METHODS`
+y regenerar. Borrarla del shim es parte del trabajo, no un detalle: así una
+llamada olvidada revienta de una vez en vez de recibir datos falsos.
+`frontend/NOTAS_MIGRACION.md` sí sigue sirviendo como referencia del patrón
+antes/después (`login()` → `POST /api/auth/login`). No agregar lógica de
+negocio nueva al shim.
+
+**Llamadas migradas: pasan por `fetchAutenticado`/`solicitarJSON`, no por
+`fetch()` a pelo.** Ambas viven en `cotiza_scripts.html`. `fetchAutenticado`
+agrega `Authorization: Bearer <token>` desde `localStorage` y dispara
+`manejarSesionExpirada()` en un 401; `solicitarJSON` la envuelve y además
+parsea el JSON y lanza si `!res.ok`. Los módulos de catálogos/reglas tienen su
+propia envoltura del mismo patrón (`guardarCatalogosDesigner`,
+`eliminarCatalogosDesigner`, `solicitarJSONReglas_`,
+`solicitarCompilacionCotizador`, todas en su respectivo `cotiza_script_*.html`
+o en `cotiza_scripts.html`). Al migrar una función nueva del shim, usar el
+helper del módulo correspondiente en vez de `fetch()` directo — es lo único
+que engancha el logout automático por sesión vencida.
 
 **`auth.go` es la plantilla para los endpoints nuevos.** Convenciones que
 conviene repetir: handler como struct con `DB *pgxpool.Pool` construido en
@@ -104,6 +132,22 @@ conviene repetir: handler como struct con `DB *pgxpool.Pool` construido en
 porque es la forma que el frontend heredado ya sabe leer (`if(!res || !res.ok)`);
 el helper compartido `escribirJSON` (definido en `auth.go`, disponible para todo
 el paquete `handlers`).
+
+**Gestor de Cotizaciones y Motor de Ejecución están separados a propósito.**
+`cotizaciones.go` es el cascarón administrativo (listar, detalle, cambiar
+estado, crear versión) sobre `cotizaciones`/`cotizacion_versiones`; no sabe
+nada de llenar el cotizador. `cotizador_runtime.go` es el motor de ejecución:
+`GET /api/cotizador/runtime/{cotizacion_id}` fija (primera apertura) o lee
+(`cotizaciones.compilado_id_usado`) el `cotizadores_compilados` activo de esa
+cotización y devuelve su estructura + los valores guardados en
+`cotizacion_valores`; `POST .../valores` valida cada elemento contra esa
+estructura fijada (incluye que las opciones de `CAMPO_CATALOGO` sigan activas)
+y hace upsert transaccional. Fijar el compilado en la apertura es deliberado:
+una cotización sigue usando la versión del cotizador con la que se abrió aunque
+alguien recompile la calculadora después. `estadosCotizacionValidos` en
+`cotizaciones.go` es una copia a mano del arreglo `ESTADOS` de
+`cotiza_scripts.html` y del `CHECK` de `0007_cotizaciones_shell.sql` — los tres
+tienen que cambiar juntos.
 
 **Migración de datos.** `migration-python/migrate_sheets_to_postgres.py` lee
 `BD_Cotizador_Exceltec.xlsx` (organizaciones, usuarios, calculadoras, clientes) y
@@ -119,6 +163,9 @@ esquema viejo, no usarla.
 Postgres**. Nunca editar una migración ya aplicada: agregar `0003_...sql`,
 `0004_...sql` con `ALTER TABLE`/tablas nuevas. Ojo con `0002_seed_demo_data.sql`:
 editarlo no cambia nada en una base que ya existe, hay que recrear el volumen.
+`api-go/migrations/0008_motot_ejecucion.sql` (con el typo) quedó en el repo
+vacío, de un merge — el contenido real está en `0008_motor_ejecucion.sql`; no
+escribir ahí ni asumir que es una migración pendiente.
 
 **Esquema.** IDs de negocio son `TEXT` (vienen de las hojas: `CTZ-CAT-001`,
 etc.); las tablas puente usan `UUID DEFAULT gen_random_uuid()`. Toda tabla con
@@ -209,12 +256,37 @@ tablas ni endpoints que nadie usa todavía.
     distintos por rol (cualquier usuario con sesión válida puede
     llamar cualquier endpoint, sin distinguir su rol) ni refresh de
     tokens — quedan para un sprint futuro.
-- **Después:** diseñador/plantillas/cotizaciones (esquema 0007+),
-  permisos por rol, refresh de tokens, y las funciones RPC restantes.
-  Los 5 scripts JS que todavía no llegaron (Compilador_Cotizador,
-  Cotizador runtime, Plantillas, Reglas — aplicación a un elemento,
-  distinto del catálogo global, Solicitudes) siguen documentados como
-  `<!-- FALTA: ... -->` en el ensamblado.
+- **Sprint 4 (hecho):**
+  - Gestor de Cotizaciones (`internal/handlers/cotizaciones.go`, esquema
+    0007): `GET /api/cotizaciones` (con filtros), `GET /api/cotizaciones/{id}`,
+    `POST /api/cotizaciones/{id}/version`, `POST /api/cotizaciones/{id}/estado`.
+    Sin `POST` de creación — las cotizaciones nacen de una Solicitud, que
+    sigue sin existir.
+  - Motor de Ejecución (`internal/handlers/cotizador_runtime.go`, esquema
+    0008): `GET /api/cotizador/runtime/{cotizacion_id}`,
+    `POST /api/cotizador/runtime/{cotizacion_id}/valores`. Ver el detalle en
+    "Arquitectura" arriba.
+  - Primer caso de dato filtrado por rol: `sesionPuedeVerPrice` en
+    `cotizaciones.go` consulta `roles.puede_ver_price` para decidir si el
+    detalle de una cotización trae precios. Sigue sin haber autorización por
+    rol a nivel de endpoint (ver pendiente de Sprint 3) — esto es un filtro de
+    campos, no un `403`.
+  - Frontend conectado de punta a punta con `fetchAutenticado`/`solicitarJSON`
+    en `cotiza_scripts.html` (listar/ver/cambiar estado de cotizaciones, abrir
+    y guardar valores del cotizador).
+- **Después:** diseñador/plantillas (esquema 0009+), Solicitudes (única forma
+  de crear una cotización nueva), publicación al cliente (link público),
+  permisos por rol a nivel de endpoint, refresh de tokens, y las funciones RPC
+  restantes (ver `RPC_METHODS` en `_build/shim.html`). Los includes que
+  todavía no llegaron siguen listados en `MISSING` en `assemble.py` y salen
+  como `<!-- FALTA: ... -->` en el ensamblado: `Cotiza_Script_Solicitudes`,
+  `Cotiza_Script_Plantillas`, `Cotiza_Script_Reglas` (aplicación de una regla a
+  un elemento del cotizador, distinto del catálogo global de Sprint 2). Los
+  otros dos de esa lista (`Cotiza_Script_Compilador_Cotizador`,
+  `Cotiza_Script_Cotizador`) son ya vestigiales: el compilador y el motor de
+  ejecución del Sprint 3/4 se escribieron directo en `cotiza_scripts.html` en
+  vez de en esos archivos separados, así que el FALTA que generan no significa
+  que falte esa funcionalidad.
 
 `docs/ENTORNO_LOCAL_FEDORA.md` cubre instalación en Fedora, el flujo de debug con
 breakpoints y los problemas comunes (puertos ocupados, migraciones que no se
