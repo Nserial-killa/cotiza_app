@@ -58,12 +58,14 @@ func main() {
 	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
 	calculadoras := &handlers.CalculadorasHandler{DB: pool}
 	runtimeCotizador := &handlers.CotizadorRuntimeHandler{DB: pool}
+	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		// Públicas — sin sesión. Todo lo demás bajo /api exige un
 		// token válido (ver el r.Group de acá abajo).
 		r.Get("/health", health.Check)
 		r.Post("/auth/login", auth.Login)
+		r.Get("/publico/cotizacion/{token}", enlacesPublicos.VerCotizacion)
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.RequiereSesion(pool))
@@ -112,6 +114,7 @@ func main() {
 				r.Get("/{id}", cotizaciones.Detalle)
 				r.Post("/{id}/version", cotizaciones.CrearVersion)
 				r.Post("/{id}/estado", cotizaciones.CambiarEstado)
+				r.Post("/{id}/enlace", enlacesPublicos.GenerarEnlace)
 			})
 		})
 	})
