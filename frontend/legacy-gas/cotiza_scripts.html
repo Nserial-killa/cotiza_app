@@ -21,6 +21,7 @@ window.CotizaApp = (function(){
         iniciado:false,
         usuario:null,
         calculadoras:[],
+        clientes:[],
         usuarios:[],
         cotizaciones:[],
         gestorDetalle:null,
@@ -70,11 +71,10 @@ window.CotizaApp = (function(){
         bind("filtroDashboardCalculadora","change",function(){ cargarDashboard(); if(state.dashboard) renderDashboard(state.dashboard); });
         bind("dashboardVendedor","change",function(){ if(state.dashboard) renderDashboard(state.dashboard); });
         bind("dashboardTipoCliente","change",function(){ if(state.dashboard) renderDashboard(state.dashboard); });
-        // Solicitudes todavía no está construido (Cotiza_Script_Solicitudes
-        // nunca llegó) — antes este botón navegaba en silencio a una
-        // sección sin datos reales; ahora avisa claramente.
-        bind("btnNuevaCotizacion","click",function(){mostrarToast("Crear una nueva solicitud estará disponible próximamente.");});
+        bind("btnNuevaCotizacion","click",abrirModalCalculadoras);
         bind("btnCerrarModalCalculadoras","click",cerrarModalCalculadoras);
+        bind("btnCancelarNuevaCotizacion","click",cerrarModalCalculadoras);
+        bind("btnCrearNuevaCotizacion","click",crearNuevaCotizacion);
         bind("btnBuscarCotizaciones","click",cargarCotizaciones);
         bind("filtroBusqueda","keydown",function(e){ if(e.key === "Enter") cargarCotizaciones(); });
         bind("btnVolverListadoCotizaciones","click",mostrarListadoCotizacionesV2);
@@ -1077,8 +1077,12 @@ window.CotizaApp = (function(){
       }
 
       function abrirModalCalculadoras(){
-        renderModalCalculadoras();
         if(byId("modalCalculadoras")) byId("modalCalculadoras").classList.add("open");
+        if(byId("nuevaCotizacionClienteNuevo")) byId("nuevaCotizacionClienteNuevo").value="";
+        if(byId("nuevaCotizacionTipo")) byId("nuevaCotizacionTipo").value="";
+        setText("nuevaCotizacionMensaje","");
+        Promise.all([cargarClientesNuevaCotizacion(), new Promise(function(resolve){cargarCalculadoras(resolve);})])
+          .then(renderModalCalculadoras);
       }
 
       function cerrarModalCalculadoras(){
@@ -1086,29 +1090,56 @@ window.CotizaApp = (function(){
       }
 
       function renderModalCalculadoras(){
-        const body = byId("modalCalculadorasBody");
-        if(!body) return;
-
-        const calculadoras = state.calculadoras || [];
-
-        if(!calculadoras.length){
-          body.innerHTML = '<p>No tiene cotizadores autorizados.</p>';
-          return;
+        const cliente = byId("nuevaCotizacionCliente");
+        const calculadora = byId("nuevaCotizacionCalculadora");
+        if(cliente){
+          cliente.innerHTML='<option value="">Seleccione un cliente</option>'+(state.clientes||[]).map(function(c){
+            return '<option value="'+escapeHtml(c.cliente_id||"")+'">'+escapeHtml(c.nombre_comercial||c.razon_social||c.cliente_id||"")+'</option>';
+          }).join("");
         }
+        if(calculadora){
+          calculadora.innerHTML='<option value="">Seleccione un cotizador</option>'+(state.calculadoras||[]).map(function(c){
+            return '<option value="'+escapeHtml(c.calculadora_id||"")+'">'+escapeHtml(c.nombre_calculadora||c.calculadora_id||"")+'</option>';
+          }).join("");
+        }
+      }
 
-        body.innerHTML = calculadoras.map(function(calc){
-          const calcId = encodeURIComponent(calc.calculadora_id || "");
-          const estadoUrl = '<span class="badge badge-ganada">Motor dinámico</span>';
+      async function cargarClientesNuevaCotizacion(){
+        try{
+          const resp=await fetchAutenticado("/api/clientes");
+          let res=null;try{res=await resp.json();}catch(e){res=null;}
+          if(!resp.ok||!res||!res.ok) throw new Error((res&&res.error)||"No fue posible cargar clientes.");
+          state.clientes=res.clientes||[];
+        }catch(error){
+          state.clientes=[];
+          setText("nuevaCotizacionMensaje",error&&error.message?error.message:"No fue posible cargar clientes.");
+        }
+      }
 
-          return '<div class="calc-card" onclick="CotizaApp.abrirCalculadora(decodeURIComponent(\'' + calcId + '\'))">' +
-            '<h3>' + escapeHtml(calc.nombre_calculadora || calc.calculadora_id || "Cotizador") + '</h3>' +
-            '<p>' + escapeHtml(calc.descripcion || calc.servicio_base || calc.linea_negocio || "") + '</p>' +
-            '<div class="calc-meta">' +
-              '<span class="badge badge-enviada-al-cliente">' + escapeHtml(calc.linea_negocio || "Sin línea") + '</span>' +
-              estadoUrl +
-            '</div>' +
-          '</div>';
-        }).join("");
+      async function crearNuevaCotizacion(){
+        const clienteId=(byId("nuevaCotizacionCliente")?byId("nuevaCotizacionCliente").value:"").trim();
+        const clienteNuevo=(byId("nuevaCotizacionClienteNuevo")?byId("nuevaCotizacionClienteNuevo").value:"").trim();
+        const calculadoraId=(byId("nuevaCotizacionCalculadora")?byId("nuevaCotizacionCalculadora").value:"").trim();
+        const tipo=(byId("nuevaCotizacionTipo")?byId("nuevaCotizacionTipo").value:"").trim();
+        if(!clienteId&&!clienteNuevo){setText("nuevaCotizacionMensaje","Seleccione un cliente o escriba uno nuevo.");return;}
+        if(!calculadoraId){setText("nuevaCotizacionMensaje","Seleccione un cotizador.");return;}
+
+        const boton=byId("btnCrearNuevaCotizacion");if(boton)boton.disabled=true;
+        setText("nuevaCotizacionMensaje","Creando cotización...");
+        try{
+          const payload={calculadora_id:calculadoraId,tipo_propuesta:tipo};
+          if(clienteNuevo)payload.cliente_nombre_nuevo=clienteNuevo;else payload.cliente_id=clienteId;
+          const resp=await fetchAutenticado("/api/cotizaciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+          let res=null;try{res=await resp.json();}catch(e){res=null;}
+          if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible crear la cotización.");
+          cerrarModalCalculadoras();
+          await cargarCotizaciones();
+          await cargarDetalleCotizacionV2({cotizacion_id:res.cotizacion_id,version:1});
+          await editarCotizacionDesdeDetalleV2();
+          mostrarToast("Cotización "+(res.codigo_oferta||"")+" creada correctamente.");
+        }catch(error){
+          setText("nuevaCotizacionMensaje",error&&error.message?error.message:"No fue posible crear la cotización.");
+        }finally{if(boton)boton.disabled=false;}
       }
 
       function obtenerBaseWebApp(){

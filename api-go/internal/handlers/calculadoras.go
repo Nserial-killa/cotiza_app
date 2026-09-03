@@ -26,7 +26,9 @@ type calculadoraSimple struct {
 	Descripcion   *string `json:"descripcion,omitempty"`
 }
 
-// Listar devuelve las calculadoras activas, ordenadas por nombre.
+// Listar devuelve las calculadoras disponibles, ordenadas por nombre.
+// El compilador cambia una calculadora de Activo a Publicado; ambos
+// estados deben seguir disponibles para crear y llenar cotizaciones.
 func (h *CalculadorasHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -34,7 +36,7 @@ func (h *CalculadorasHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(ctx, `
 		SELECT calculadora_id, nombre_calculadora, linea_negocio, servicio_base, descripcion
 		  FROM calculadoras
-		 WHERE estado = 'Activo'
+		 WHERE estado IN ('Activo', 'Publicado')
 		 ORDER BY nombre_calculadora`)
 	if err != nil {
 		log.Printf("calculadoras: error listando: %v", err)

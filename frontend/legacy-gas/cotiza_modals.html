@@ -154,12 +154,35 @@
       <div class="modal-head">
         <div>
           <h2>Nueva cotización</h2>
-          <p>Seleccione el cotizador autorizado que desea utilizar.</p>
+          <p>Seleccione el cliente y el cotizador con los que desea comenzar.</p>
         </div>
         <button id="btnCerrarModalCalculadoras" class="modal-close" type="button">×</button>
       </div>
-      <div id="modalCalculadorasBody" class="calc-grid">
-        <p>Cargando cotizadores...</p>
+
+      <div class="param-modal-grid">
+        <div class="field full">
+          <label for="nuevaCotizacionCliente">Cliente existente</label>
+          <select id="nuevaCotizacionCliente" class="select"><option value="">Cargando clientes...</option></select>
+        </div>
+        <div class="field full">
+          <label for="nuevaCotizacionClienteNuevo">O escriba uno nuevo</label>
+          <input id="nuevaCotizacionClienteNuevo" class="input" type="text" placeholder="Nombre comercial del cliente">
+          <p class="card-sub" style="margin:4px 0 0;">Si escribe un nombre, se creará y se usará en lugar del cliente seleccionado.</p>
+        </div>
+        <div class="field full">
+          <label for="nuevaCotizacionCalculadora">Cotizador</label>
+          <select id="nuevaCotizacionCalculadora" class="select"><option value="">Seleccione un cotizador</option></select>
+        </div>
+        <div class="field full">
+          <label for="nuevaCotizacionTipo">Tipo de propuesta <span class="card-sub">(opcional)</span></label>
+          <input id="nuevaCotizacionTipo" class="input" type="text" placeholder="Ejemplo: Propuesta comercial">
+        </div>
+        <div id="nuevaCotizacionMensaje" class="message full"></div>
+      </div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarNuevaCotizacion" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnCrearNuevaCotizacion" class="btn btn-primary" type="button">Crear</button>
       </div>
     </div>
   </div>

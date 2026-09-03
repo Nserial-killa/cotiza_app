@@ -100,6 +100,7 @@ func main() {
 			// --- Carril B (Operación): cotizaciones, dashboard, reportes.
 			r.Get("/roles", usuarios.ListarRoles)
 			r.Get("/calculadoras", calculadoras.Listar)
+			r.Get("/clientes", cotizaciones.ListarClientes)
 			r.Route("/usuarios", func(r chi.Router) {
 				r.Get("/", usuarios.Listar)
 				r.Post("/", usuarios.Crear)
@@ -107,6 +108,7 @@ func main() {
 			})
 			r.Route("/cotizaciones", func(r chi.Router) {
 				r.Get("/", cotizaciones.Listar)
+				r.Post("/", cotizaciones.Crear)
 				r.Get("/{id}", cotizaciones.Detalle)
 				r.Post("/{id}/version", cotizaciones.CrearVersion)
 				r.Post("/{id}/estado", cotizaciones.CambiarEstado)

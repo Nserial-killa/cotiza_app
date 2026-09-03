@@ -1,18 +1,16 @@
 package handlers
 
-// CotizacionesHandler es el "cascarón" administrativo del Gestor de
-// Cotizaciones (esquema 0007, Sprint 4): listar, ver detalle, cambiar
-// estado, crear una versión nueva. Llenar una cotización de verdad
-// (el Cotizador en modo de uso real) depende de un motor de ejecución
-// que todavía no existe, y la publicación al cliente (link público)
-// tampoco — ninguna de las dos se implementa acá. Las cotizaciones
-// nuevas nacen desde una Solicitud (sprint futuro); este handler no
-// tiene un POST de creación.
+// CotizacionesHandler concentra el Gestor de Cotizaciones: altas,
+// listado, detalle, cambios de estado y versiones.
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -26,6 +24,217 @@ import (
 
 type CotizacionesHandler struct {
 	DB *pgxpool.Pool
+}
+
+type clienteSelector struct {
+	ClienteID       string  `json:"cliente_id"`
+	NombreComercial string  `json:"nombre_comercial"`
+	RazonSocial     *string `json:"razon_social,omitempty"`
+}
+
+type crearCotizacionEntrada struct {
+	ClienteID          string `json:"cliente_id"`
+	ClienteNombreNuevo string `json:"cliente_nombre_nuevo"`
+	CalculadoraID      string `json:"calculadora_id"`
+	TipoPropuesta      string `json:"tipo_propuesta"`
+}
+
+// ListarClientes responde GET /api/clientes para el selector del alta.
+func (h *CotizacionesHandler) ListarClientes(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	rows, err := h.DB.Query(ctx, `
+		SELECT cliente_id, nombre_comercial, razon_social
+		  FROM clientes
+		 WHERE estado = 'Activo'
+		 ORDER BY nombre_comercial, cliente_id`)
+	if err != nil {
+		log.Printf("cotizaciones: error listando clientes: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los clientes."})
+		return
+	}
+	defer rows.Close()
+
+	clientes := make([]clienteSelector, 0)
+	for rows.Next() {
+		var cliente clienteSelector
+		if err := rows.Scan(&cliente.ClienteID, &cliente.NombreComercial, &cliente.RazonSocial); err != nil {
+			log.Printf("cotizaciones: error leyendo cliente: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los clientes."})
+			return
+		}
+		clientes = append(clientes, cliente)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("cotizaciones: error recorriendo clientes: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los clientes."})
+		return
+	}
+
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "clientes": clientes})
+}
+
+// Crear responde POST /api/cotizaciones y deja lista la primera versión
+// para que el motor runtime pueda abrirla inmediatamente.
+func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
+	var entrada crearCotizacionEntrada
+	if err := decodificarJSON(r, &entrada); err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Datos inválidos: " + err.Error()})
+		return
+	}
+	entrada.ClienteID = strings.TrimSpace(entrada.ClienteID)
+	entrada.ClienteNombreNuevo = strings.TrimSpace(entrada.ClienteNombreNuevo)
+	entrada.CalculadoraID = strings.TrimSpace(entrada.CalculadoraID)
+	entrada.TipoPropuesta = strings.TrimSpace(entrada.TipoPropuesta)
+	if entrada.ClienteID == "" && entrada.ClienteNombreNuevo == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Seleccione un cliente o escriba el nombre de uno nuevo."})
+		return
+	}
+	if entrada.CalculadoraID == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe seleccionar un cotizador."})
+		return
+	}
+	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
+	if usuarioID == "" {
+		escribirJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "No fue posible identificar al usuario de la sesión."})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		log.Printf("cotizaciones: error iniciando alta: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear la cotización."})
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var calculadoraExiste bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM calculadoras WHERE calculadora_id=$1 AND estado IN ('Activo','Publicado'))`, entrada.CalculadoraID).Scan(&calculadoraExiste); err != nil {
+		log.Printf("cotizaciones: error validando cotizador: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el cotizador seleccionado."})
+		return
+	}
+	if !calculadoraExiste {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cotizador seleccionado no existe o no está disponible."})
+		return
+	}
+
+	clienteID := entrada.ClienteID
+	if clienteID == "" {
+		clienteID, err = generarIDDisponible(ctx, tx, "cli", "clientes", "cliente_id")
+		if err == nil {
+			_, err = tx.Exec(ctx, `INSERT INTO clientes (cliente_id, origen, nombre_comercial, razon_social, estado, usuario_creador_id) VALUES ($1, 'COTIZA', $2, $2, 'Activo', $3)`, clienteID, entrada.ClienteNombreNuevo, usuarioID)
+		}
+	} else {
+		var clienteExiste bool
+		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM clientes WHERE cliente_id=$1 AND estado='Activo')`, clienteID).Scan(&clienteExiste)
+		if err == nil && !clienteExiste {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cliente seleccionado no existe o no está activo."})
+			return
+		}
+	}
+	if err != nil {
+		log.Printf("cotizaciones: error resolviendo cliente: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear el cliente de la cotización."})
+		return
+	}
+
+	// Serializa únicamente la asignación del código corto; así el chequeo
+	// de colisión sigue siendo correcto aun sin un índice UNIQUE heredado.
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('cotizaciones_codigo_oferta'))`); err != nil {
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el código de oferta."})
+		return
+	}
+	codigoOferta, err := generarCodigoOferta(ctx, tx)
+	if err != nil {
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar un código de oferta disponible."})
+		return
+	}
+	cotizacionID, err := generarIDDisponible(ctx, tx, "cot", "cotizaciones", "cotizacion_id")
+	if err != nil {
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el identificador de la cotización."})
+		return
+	}
+
+	var tipoPropuesta any
+	if entrada.TipoPropuesta != "" {
+		tipoPropuesta = entrada.TipoPropuesta
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO cotizaciones (cotizacion_id, calculadora_id, cliente_id, codigo_oferta, tipo_propuesta, estado, version_actual) VALUES ($1,$2,$3,$4,$5,'Borrador',1)`, cotizacionID, entrada.CalculadoraID, clienteID, codigoOferta, tipoPropuesta); err == nil {
+		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_versiones (cotizacion_id, numero_version, nombre_version, estado, moneda, total_precio) VALUES ($1,1,'Versión inicial','Borrador','US$',0)`, cotizacionID)
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_usuarios (cotizacion_id, usuario_id, funcion) VALUES ($1,$2,'Vendedor')`, cotizacionID, usuarioID)
+	}
+	if err == nil {
+		version := 1
+		err = insertarHistorial(ctx, tx, cotizacionID, &version, "creada", nil, nil, "Cotización creada desde el Gestor.", usuarioID)
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		log.Printf("cotizaciones: error creando cotización: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear la cotización."})
+		return
+	}
+
+	escribirJSON(w, http.StatusCreated, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "codigo_oferta": codigoOferta})
+}
+
+func generarCodigoOferta(ctx context.Context, tx pgx.Tx) (string, error) {
+	prefijo := "OF-" + fechaLocalCotiza().Format("20060102") + "-"
+	for intento := 0; intento < 100; intento++ {
+		n, err := rand.Int(rand.Reader, big.NewInt(10000))
+		if err != nil {
+			return "", err
+		}
+		codigo := fmt.Sprintf("%s%04d", prefijo, n.Int64())
+		var existe bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM cotizaciones WHERE codigo_oferta=$1)`, codigo).Scan(&existe); err != nil {
+			return "", err
+		}
+		if !existe {
+			return codigo, nil
+		}
+	}
+	return "", errors.New("se agotaron los códigos disponibles")
+}
+
+func generarIDDisponible(ctx context.Context, tx pgx.Tx, prefijo, tabla, columna string) (string, error) {
+	consultas := map[string]string{
+		"clientes.cliente_id":        `SELECT EXISTS(SELECT 1 FROM clientes WHERE cliente_id=$1)`,
+		"cotizaciones.cotizacion_id": `SELECT EXISTS(SELECT 1 FROM cotizaciones WHERE cotizacion_id=$1)`,
+	}
+	consulta, ok := consultas[tabla+"."+columna]
+	if !ok {
+		return "", errors.New("destino de id no permitido")
+	}
+	for intento := 0; intento < 10; intento++ {
+		sufijo := make([]byte, 4)
+		if _, err := rand.Read(sufijo); err != nil {
+			return "", err
+		}
+		id := prefijo + "-" + fechaLocalCotiza().Format("20060102") + "-" + hex.EncodeToString(sufijo)
+		var existe bool
+		if err := tx.QueryRow(ctx, consulta, id).Scan(&existe); err != nil {
+			return "", err
+		}
+		if !existe {
+			return id, nil
+		}
+	}
+	return "", errors.New("no se pudo generar un id disponible")
+}
+
+// Costa Rica no aplica horario de verano; usar una zona fija evita que
+// una imagen Alpine sin tzdata genere el código con la fecha UTC del día
+// siguiente durante las últimas seis horas de la jornada local.
+func fechaLocalCotiza() time.Time {
+	return time.Now().In(time.FixedZone("America/Costa_Rica", -6*60*60))
 }
 
 // estadosCotizacionValidos refleja el CHECK de

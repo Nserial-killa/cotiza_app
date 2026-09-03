@@ -7,6 +7,7 @@ package handlers
 // igual que nacerían desde una Solicitud en un sprint futuro.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -17,6 +18,183 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func crearBaseAltaCotizacion(t *testing.T, pool *pgxpool.Pool, conCliente bool) (calculadoraID, clienteID string) {
+	t.Helper()
+	sufijo := sufijoUnico()
+	calculadoraID = "TEST-CALC-ALTA-" + sufijo
+	if _, err := pool.Exec(context.Background(), `INSERT INTO calculadoras (calculadora_id, nombre_calculadora, estado) VALUES ($1,'Cotizador alta','Activo')`, calculadoraID); err != nil {
+		t.Fatalf("no se pudo crear cotizador para alta: %v", err)
+	}
+	if conCliente {
+		clienteID = "TEST-CLI-ALTA-" + sufijo
+		if _, err := pool.Exec(context.Background(), `INSERT INTO clientes (cliente_id, nombre_comercial, estado) VALUES ($1,'Cliente existente','Activo')`, clienteID); err != nil {
+			t.Fatalf("no se pudo crear cliente para alta: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		if clienteID != "" {
+			pool.Exec(context.Background(), `DELETE FROM clientes WHERE cliente_id=$1`, clienteID)
+		}
+		pool.Exec(context.Background(), `DELETE FROM calculadoras WHERE calculadora_id=$1`, calculadoraID)
+	})
+	return calculadoraID, clienteID
+}
+
+func postCrearCotizacion(t *testing.T, handler *CotizacionesHandler, actorID string, body map[string]any) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("no se pudo serializar alta: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/cotizaciones", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	req = conActor(req, actorID)
+	rec := httptest.NewRecorder()
+	handler.Crear(rec, req)
+	var res map[string]any
+	assertJSON(t, rec.Body.Bytes(), &res)
+	return rec, res
+}
+
+func limpiarCotizacionCreada(t *testing.T, pool *pgxpool.Pool, cotizacionID string) {
+	t.Helper()
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM cotizaciones WHERE cotizacion_id=$1`, cotizacionID)
+	})
+}
+
+func TestCotizacionesCrear_ClienteExistenteYUsuarioSesion(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	actorID := crearAdminActorPrueba(t, pool)
+	calculadoraID, clienteID := crearBaseAltaCotizacion(t, pool, true)
+
+	rec, res := postCrearCotizacion(t, handler, actorID, map[string]any{
+		"cliente_id": clienteID, "calculadora_id": calculadoraID, "tipo_propuesta": "Comercial",
+	})
+	if rec.Code != http.StatusCreated || res["ok"] != true {
+		t.Fatalf("esperaba 201/ok, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	cotizacionID, _ := res["cotizacion_id"].(string)
+	limpiarCotizacionCreada(t, pool, cotizacionID)
+
+	var clienteGuardado, estado, moneda, vendedor, accion string
+	var version int
+	var total float64
+	err := pool.QueryRow(context.Background(), `
+		SELECT c.cliente_id,c.estado,cv.numero_version,cv.moneda,cv.total_precio,cu.usuario_id,ch.accion
+		FROM cotizaciones c
+		JOIN cotizacion_versiones cv ON cv.cotizacion_id=c.cotizacion_id AND cv.numero_version=1
+		JOIN cotizacion_usuarios cu ON cu.cotizacion_id=c.cotizacion_id AND cu.funcion='Vendedor'
+		JOIN cotizacion_historial ch ON ch.cotizacion_id=c.cotizacion_id
+		WHERE c.cotizacion_id=$1`, cotizacionID).Scan(&clienteGuardado, &estado, &version, &moneda, &total, &vendedor, &accion)
+	if err != nil {
+		t.Fatalf("no se pudo comprobar el alta completa: %v", err)
+	}
+	if clienteGuardado != clienteID || estado != "Borrador" || version != 1 || moneda != "US$" || total != 0 || vendedor != actorID || accion != "creada" {
+		t.Fatalf("alta inconsistente: cliente=%s estado=%s version=%d moneda=%s total=%v vendedor=%s accion=%s", clienteGuardado, estado, version, moneda, total, vendedor, accion)
+	}
+}
+
+func TestCotizacionesCrear_ClienteNuevo(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	actorID := crearAdminActorPrueba(t, pool)
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
+	nombre := "Cliente nuevo " + sufijoUnico()
+
+	rec, res := postCrearCotizacion(t, handler, actorID, map[string]any{"cliente_nombre_nuevo": nombre, "calculadora_id": calculadoraID})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("esperaba 201, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	cotizacionID := res["cotizacion_id"].(string)
+	var clienteID, nombreGuardado, estado string
+	if err := pool.QueryRow(context.Background(), `SELECT cl.cliente_id,cl.nombre_comercial,cl.estado FROM cotizaciones c JOIN clientes cl ON cl.cliente_id=c.cliente_id WHERE c.cotizacion_id=$1`, cotizacionID).Scan(&clienteID, &nombreGuardado, &estado); err != nil {
+		t.Fatalf("no se creó el cliente: %v", err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM cotizaciones WHERE cotizacion_id=$1`, cotizacionID)
+		pool.Exec(context.Background(), `DELETE FROM clientes WHERE cliente_id=$1`, clienteID)
+	})
+	if nombreGuardado != nombre || estado != "Activo" {
+		t.Fatalf("cliente nuevo inesperado: nombre=%q estado=%q", nombreGuardado, estado)
+	}
+}
+
+func TestCotizacionesCrear_ValidaCamposObligatorios(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	actorID := crearAdminActorPrueba(t, pool)
+	calculadoraID, clienteID := crearBaseAltaCotizacion(t, pool, true)
+
+	rec, _ := postCrearCotizacion(t, handler, actorID, map[string]any{"calculadora_id": calculadoraID})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("sin cliente: esperaba 400, dio %d", rec.Code)
+	}
+	rec, _ = postCrearCotizacion(t, handler, actorID, map[string]any{"cliente_id": clienteID})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("sin cotizador: esperaba 400, dio %d", rec.Code)
+	}
+}
+
+func TestCotizacionesCrear_CodigosOfertaNoSeRepiten(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	actorID := crearAdminActorPrueba(t, pool)
+	calculadoraID, clienteID := crearBaseAltaCotizacion(t, pool, true)
+	codigos := map[string]bool{}
+	for i := 0; i < 20; i++ {
+		rec, res := postCrearCotizacion(t, handler, actorID, map[string]any{"cliente_id": clienteID, "calculadora_id": calculadoraID})
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("alta %d falló: %s", i, rec.Body.String())
+		}
+		limpiarCotizacionCreada(t, pool, res["cotizacion_id"].(string))
+		codigo := res["codigo_oferta"].(string)
+		if codigos[codigo] {
+			t.Fatalf("código repetido: %s", codigo)
+		}
+		codigos[codigo] = true
+	}
+}
+
+func TestCotizacionesListarClientes_SoloActivosOrdenados(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	sufijo := sufijoUnico()
+	idA, idZ, idInactivo := "TEST-CLI-A-"+sufijo, "TEST-CLI-Z-"+sufijo, "TEST-CLI-I-"+sufijo
+	_, err := pool.Exec(context.Background(), `INSERT INTO clientes(cliente_id,nombre_comercial,estado) VALUES ($1,'AAA selector','Activo'),($2,'ZZZ selector','Activo'),($3,'MMM oculto','Inactivo')`, idA, idZ, idInactivo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM clientes WHERE cliente_id=ANY($1)`, []string{idA, idZ, idInactivo})
+	})
+	rec := httptest.NewRecorder()
+	handler.ListarClientes(rec, httptest.NewRequest(http.MethodGet, "/api/clientes", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200: %s", rec.Body.String())
+	}
+	var res struct {
+		Clientes []clienteSelector `json:"clientes"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	posA, posZ := -1, -1
+	for i, c := range res.Clientes {
+		if c.ClienteID == idA {
+			posA = i
+		}
+		if c.ClienteID == idZ {
+			posZ = i
+		}
+		if c.ClienteID == idInactivo {
+			t.Fatal("incluyó cliente inactivo")
+		}
+	}
+	if posA < 0 || posZ < 0 || posA >= posZ {
+		t.Fatalf("clientes activos no quedaron ordenados: A=%d Z=%d", posA, posZ)
+	}
+}
 
 // crearCotizacionPrueba inserta una calculadora, un cliente y una
 // cotización descartables con su versión 1, y la borra (cascada sobre
