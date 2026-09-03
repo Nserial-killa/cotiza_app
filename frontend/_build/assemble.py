@@ -19,6 +19,7 @@ BUILD_DIR = Path(__file__).resolve().parent          # frontend/_build/
 FRONTEND = BUILD_DIR.parent                            # frontend/
 LEGACY = FRONTEND / "legacy-gas"
 OUT = FRONTEND / "index.html"
+PUBLIC_OUT = FRONTEND / "publico.html"
 
 # Mapeo nombre-de-include-GAS -> archivo real que sí tenemos.
 FILE_MAP = {
@@ -107,6 +108,12 @@ def main():
 
     OUT.write_text(assembled, encoding="utf-8")
     print(f"OK: {OUT} generado ({len(assembled):,} caracteres)")
+
+    # La vista pública no forma parte del shell ni recibe includes: se
+    # publica sin transformaciones como un estático independiente.
+    public_page = read("publico.html")
+    PUBLIC_OUT.write_text(public_page, encoding="utf-8")
+    print(f"OK: {PUBLIC_OUT} copiado como página autónoma")
 
     # Reporte de includes no resueltos que puedan haber quedado
     remaining = INCLUDE_RE.findall(assembled)

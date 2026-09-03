@@ -41,6 +41,7 @@ window.CotizaApp = (function(){
         compilacionResultadoTexto:"",
         compilacionResultadoNombre:"validacion_cotizador.txt",
         compilacionCotizadorPendiente:"",
+        enlaceClienteUrl:"",
         usuariosAdmin:[],
         rolesAdmin:[]
       };
@@ -82,6 +83,9 @@ window.CotizaApp = (function(){
         bind("btnEditarCotizacionGestor","click",editarCotizacionDesdeDetalleV2);
         bind("btnNuevaVersionGestor","click",crearNuevaVersionDesdeDetalleV2);
         bind("btnGenerarLinkGestor","click",generarLinkDesdeDetalleV2);
+        bind("btnCerrarModalEnlaceCliente","click",cerrarModalEnlaceCliente);
+        bind("btnCerrarEnlaceCliente","click",cerrarModalEnlaceCliente);
+        bind("btnCopiarEnlaceCliente","click",copiarEnlaceCliente);
         bind("gestorEstadoNuevo","change",cambiarEstadoSeleccionadoGestorV2);
         bind("btnCambiarEstadoGestor","click",actualizarEstadoGestorV2);
         bind("btnGuardarRuntimeCotizador","click",guardarRuntimeCotizador);
@@ -147,6 +151,11 @@ window.CotizaApp = (function(){
           modal.addEventListener("click",function(e){
             if(e.target.id === "modalCalculadoras") cerrarModalCalculadoras();
           });
+        }
+
+        const modalEnlace = byId("modalEnlaceCliente");
+        if(modalEnlace){
+          modalEnlace.addEventListener("click",function(e){if(e.target.id === "modalEnlaceCliente") cerrarModalEnlaceCliente();});
         }
 
         const modalSvc = byId("modalServicioProducto");
@@ -1277,7 +1286,7 @@ window.CotizaApp = (function(){
         const box=byId("gestorDetalleContenido");if(box)box.innerHTML=html;
         const edit=byId("btnEditarCotizacionGestor");if(edit)edit.disabled=c.puede_editar===false;
         const nueva=byId("btnNuevaVersionGestor");if(nueva)nueva.disabled=["Enviada al Cliente","Vista por el Cliente","Aceptada"].indexOf(c.estado)<0;
-        const link=byId("btnGenerarLinkGestor");if(link)link.disabled=c.estado!=="Liberada";
+        const link=byId("btnGenerarLinkGestor");if(link)link.disabled=versiones.length<1;
 
         // Control genérico de cambio de estado — los estados válidos
         // son exactamente los del CHECK de la tabla (mismo arreglo
@@ -1528,9 +1537,28 @@ window.CotizaApp = (function(){
         }
       }
 
-      // La publicación al cliente (generar/copiar el enlace público)
-      // depende de un sprint futuro — ver CLAUDE.md.
-      function generarLinkDesdeDetalleV2(){mostrarToast("Generar enlace para el cliente estará disponible próximamente.");}
+      async function generarLinkDesdeDetalleV2(){
+        const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
+        const boton=byId("btnGenerarLinkGestor");if(boton)boton.disabled=true;
+        try{
+          const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/enlace",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:Number(c.version||1)})});
+          let res=null;try{res=await resp.json();}catch(e){res=null;}
+          if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible generar el enlace.");
+          const url=new URL(res.url||("/publico.html?token="+encodeURIComponent(res.token||"")),window.location.origin).toString();
+          state.enlaceClienteUrl=url;if(byId("enlaceClienteUrl"))byId("enlaceClienteUrl").value=url;setText("enlaceClienteMensaje","");
+          if(byId("modalEnlaceCliente"))byId("modalEnlaceCliente").classList.add("open");
+        }catch(e){mostrarToast(e&&e.message?e.message:"No fue posible generar el enlace.");}
+        finally{if(boton)boton.disabled=false;}
+      }
+
+      function cerrarModalEnlaceCliente(){if(byId("modalEnlaceCliente"))byId("modalEnlaceCliente").classList.remove("open");}
+
+      function copiarEnlaceCliente(){
+        const url=state.enlaceClienteUrl||(byId("enlaceClienteUrl")?byId("enlaceClienteUrl").value:"");
+        if(!url){mostrarToast("No hay un enlace para copiar.");return;}
+        if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(function(){mostrarToast("Enlace copiado al portapapeles.");}).catch(function(){copiarTextoFallback(url);});return;}
+        copiarTextoFallback(url);
+      }
 
       function copiarEnlaceGestorV1008(urlCodificada){const url=decodeURIComponent(String(urlCodificada||""));if(!url){mostrarToast("No existe un enlace para copiar.");return;}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(function(){mostrarToast("Enlace copiado al portapapeles.");}).catch(function(){window.prompt("Copie el enlace:",url);});}else window.prompt("Copie el enlace:",url);}
 
