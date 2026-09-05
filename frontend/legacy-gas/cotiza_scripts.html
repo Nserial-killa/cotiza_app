@@ -1153,40 +1153,6 @@ window.CotizaApp = (function(){
         return "https://script.google.com/macros/s/AKfycbxWjQE9FKA0_Z5GjPKK7o7avEt0wbTxM6iFvPbeXhCNLxF13d_xjkWuYDCwPJdA2RolTQ/exec";
       }
 
-      function abrirCalculadora(calculadoraId){
-        const calc = (state.calculadoras || []).find(function(c){
-          return String(c.calculadora_id || "") === String(calculadoraId || "");
-        });
-
-        if(!calc){
-          mostrarToast("No se encontró el cotizador seleccionado.");
-          return;
-        }
-
-        const usuario = state.usuario || {};
-        const baseUrl = obtenerBaseWebApp();
-
-        if(!baseUrl){
-          mostrarToast("No fue posible determinar la URL del Web App de Cotiza. Abra Cotiza desde la URL /exec del Apps Script.");
-          return;
-        }
-
-        const params = new URLSearchParams({
-          app:"cotizador",
-          cotizador_id:calc.calculadora_id || "",
-          calculadora_id:calc.calculadora_id || "",
-          modo:"nuevo",
-          usuario_id:usuario.usuario_id || "",
-          correo:usuario.correo || "",
-          usuario_nombre:usuario.nombre || "",
-          rol:usuario.rol || "",
-          origen:"Cotiza"
-        });
-
-        abrirCotizadorIntegradoV2(baseUrl + "?" + params.toString(), "Nueva cotización", calc.nombre_calculadora || calc.calculadora_id || "Cotizador");
-        cerrarModalCalculadoras();
-      }
-
       function verCotizacion(cotizacionId, version){
         const cot = (state.cotizaciones || []).find(function(c){
           return String(c.cotizacion_id || "") === String(cotizacionId || "") &&
@@ -1199,14 +1165,6 @@ window.CotizaApp = (function(){
         }
 
         cargarDetalleCotizacionV2(cot);
-      }
-
-      function abrirCotizadorSolicitudV1004(calculadoraId,solicitudId){
-        const calc=(state.calculadoras||[]).find(function(c){return String(c.calculadora_id||"")===String(calculadoraId||"");});
-        if(!calc){mostrarToast("No se encontró el cotizador seleccionado.");return;}
-        const u=state.usuario||{};const p=new URLSearchParams({app:"cotizador",cotizador_id:calc.calculadora_id||"",calculadora_id:calc.calculadora_id||"",solicitud_id:solicitudId||"",modo:"nuevo",usuario_id:u.usuario_id||"",correo:u.correo||"",usuario_nombre:u.nombre||"",rol:u.rol||"",origen:"Solicitud_Cotiza"});
-        cambiarSeccion("cotizaciones",true);
-        abrirCotizadorIntegradoV2(obtenerBaseWebApp()+"?"+p.toString(),"Nueva cotización desde solicitud",calc.nombre_calculadora||calc.calculadora_id||"Cotizador");
       }
 
       function abrirCotizacionDesdeSolicitudV1004(cotizacionId,version){
@@ -1308,27 +1266,6 @@ window.CotizaApp = (function(){
 
       function construirUrlCotizadorV2(cot,modo){
         const u=state.usuario||{};const p=new URLSearchParams({app:"cotizador",cotizador_id:cot.calculadora_id||"",calculadora_id:cot.calculadora_id||"",cotizacion_id:cot.cotizacion_id||"",version:cot.version||"1",modo:modo||"editar",usuario_id:u.usuario_id||"",correo:u.correo||"",usuario_nombre:u.nombre||"",rol:u.rol||"",origen:"Gestor_V2"});return obtenerBaseWebApp()+"?"+p.toString();
-      }
-
-      // PENDIENTE DE REESCRIBIR — mecanismo viejo, ya no alcanzable desde
-      // ningún botón real de la UI. Esta función (y sus dos únicos
-      // llamadores: abrirCalculadora(), que arma la URL para "Nueva
-      // cotización" desde el modal de calculadoras, y
-      // abrirCotizadorSolicitudV1004()) abre un <iframe> apuntando a la
-      // URL /exec de un Web App de Google Apps Script que ya no existe en
-      // esta arquitectura (ver obtenerBaseWebApp(), que cae a una URL de
-      // Apps Script fija como último recurso). No es un bug activo hoy
-      // porque nada llama a abrirCalculadora()/abrirCotizadorSolicitudV1004()
-      // desde la UI real. El día que se construya "Crear cotización nueva"
-      // (depende de Solicitudes, sprint futuro) hay que reescribir esos dos
-      // llamadores con el mismo patrón ya real y probado del motor de
-      // ejecución: fetchAutenticado() + renderRuntimeCotizador() (ver
-      // editarCotizacionDesdeDetalleV2(), migrada en el Sprint 5), en vez
-      // de este iframe.
-      function abrirCotizadorIntegradoV2(url,titulo,subtitulo){
-        state.gestorVistaAnterior=state.gestorDetalle?"detalle":"lista";mostrarPanelGestorV2("gestorCotizadorEditor");
-        const frame=byId("gestorCotizadorFrame");if(frame)frame.src=url;
-        setText("gestorEditorTitulo",titulo||"Cotizador");setText("gestorEditorSubtitulo",subtitulo||"");
       }
 
       function cerrarCotizadorIntegradoV2(){
@@ -1499,10 +1436,9 @@ window.CotizaApp = (function(){
 
       // MIGRADA en el Sprint 4 — antes usaba
       // google.script.run.webCrearNuevaVersion(payload). La versión
-      // nueva SÍ queda creada de verdad en la base; lo que no existe
-      // todavía es el motor de ejecución del Cotizador, así que en vez
-      // de abrir ese editor (abrirCotizadorIntegradoV2, roto sin ese
-      // motor) se avisa que el llenado real queda pendiente.
+      // nueva SÍ queda creada de verdad en la base; el llenado del
+      // contenido de esa versión se hace aparte, abriendo el editor real
+      // del motor de ejecución (editarCotizacionDesdeDetalleV2()).
       async function crearNuevaVersionDesdeDetalleV2(){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
         if(c.estado==="Aceptada"&&!window.confirm("Esta versión fue aceptada por el cliente. La aceptación quedará conservada y bloqueada. ¿Desea crear una nueva versión?"))return;
@@ -6262,8 +6198,6 @@ window.CotizaApp = (function(){
         mostrarProcesoGlobal:mostrarProcesoGlobal,
         ocultarProcesoGlobal:function(){ ocultarProcesoGlobal(true); },
         logout:logout,
-        abrirCalculadora:abrirCalculadora,
-        abrirCotizadorSolicitud:abrirCotizadorSolicitudV1004,
         abrirCotizacionSolicitud:abrirCotizacionDesdeSolicitudV1004,
         verCotizacion:verCotizacion,
         ejecutarAccionCotizacion:ejecutarAccionCotizacionV1006,
