@@ -69,9 +69,9 @@ window.CotizaApp = (function(){
         bind("btnToggleSidebarPrincipal","click",function(){ alternarSidebarPrincipal(); });
         inicializarSidebarPrincipal();
         bind("btnDashboardRefresh","click",function(){ cargarDashboard(); cargarCotizaciones(); });
-        bind("filtroDashboardCalculadora","change",function(){ cargarDashboard(); if(state.dashboard) renderDashboard(state.dashboard); });
-        bind("dashboardVendedor","change",function(){ if(state.dashboard) renderDashboard(state.dashboard); });
-        bind("dashboardTipoCliente","change",function(){ if(state.dashboard) renderDashboard(state.dashboard); });
+        bind("filtroDashboardCalculadora","change",cargarDashboard);
+        bind("dashboardVendedor","change",cargarDashboard);
+        bind("dashboardTipoCliente","change",cargarDashboard);
         bind("btnNuevaCotizacion","click",abrirModalCalculadoras);
         bind("btnCerrarModalCalculadoras","click",cerrarModalCalculadoras);
         bind("btnCancelarNuevaCotizacion","click",cerrarModalCalculadoras);
@@ -488,36 +488,22 @@ window.CotizaApp = (function(){
         });
       }
 
-      function cargarDashboard(){
+      async function cargarDashboard(){
         if(!state.usuario) return;
 
         setLoading("section-dashboard", true);
-
-        google.script.run
-          .withSuccessHandler(function(res){
-            try{
-              if(!res || !res.ok){
-                throw new Error((res && res.error) ? res.error : "No fue posible cargar el dashboard.");
-              }
-
-              state.dashboard = res;
-              renderDashboard(res);
-
-            }catch(error){
-              mostrarToast(error.message || "Error cargando dashboard.");
-            }finally{
-              setLoading("section-dashboard", false);
-            }
-          })
-          .withFailureHandler(function(error){
-            setLoading("section-dashboard", false);
-            mostrarToast(error && error.message ? error.message : "Error cargando dashboard.");
-          })
-          .webObtenerDashboardPorUsuario(
-            state.usuario.usuario_id || "",
-            state.usuario.correo || "",
-            byId("filtroDashboardCalculadora") ? byId("filtroDashboardCalculadora").value || "" : ""
-          );
+        const params = new URLSearchParams({
+          calculadora_id:byId("filtroDashboardCalculadora") ? byId("filtroDashboardCalculadora").value || "" : "",
+          vendedor_id:byId("dashboardVendedor") ? byId("dashboardVendedor").value || "" : "",
+          tipo_cliente:byId("dashboardTipoCliente") ? byId("dashboardTipoCliente").value || "" : ""
+        });
+        try{
+          const resp=await fetchAutenticado("/api/dashboard?"+params.toString());
+          let res=null;try{res=await resp.json();}catch(e){res=null;}
+          if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible cargar el dashboard.");
+          state.dashboard=res;renderDashboard(res);
+        }catch(error){mostrarToast(error&&error.message?error.message:"Error cargando dashboard.");}
+        finally{setLoading("section-dashboard",false);}
       }
 
       function renderDashboard(data){
@@ -558,10 +544,10 @@ window.CotizaApp = (function(){
       function obtenerCotizacionesDashboard(data){
         let rows = [];
 
-        if(state.cotizaciones && state.cotizaciones.length){
-          rows = state.cotizaciones.slice();
-        }else if(data && data.cotizaciones_recientes && data.cotizaciones_recientes.length){
+        if(data && data.cotizaciones_recientes){
           rows = data.cotizaciones_recientes.slice();
+        }else if(state.cotizaciones && state.cotizaciones.length){
+          rows = state.cotizaciones.slice();
         }
 
         rows = obtenerUltimaVersionPorCotizacion(rows);
@@ -572,7 +558,7 @@ window.CotizaApp = (function(){
 
         return rows.filter(function(c){
           const okCalc = !calc || String(c.calculadora_id || "") === String(calc);
-          const okVend = !vendedor || String(c.vendedor || "") === String(vendedor);
+          const okVend = !vendedor || String(c.vendedor_id || "") === String(vendedor);
           const okTipo = !tipo || normalizarTipoCliente(c.tipo_cliente || c.tipoCliente || "") === tipo;
           return okCalc && okVend && okTipo;
         });
@@ -636,6 +622,7 @@ window.CotizaApp = (function(){
 
         let total = 0;
         let montoCotizado = 0;
+        let montoTotal = 0;
         let aceptadas = 0;
         let ganadas = 0;
         let perdidas = 0;
@@ -653,7 +640,11 @@ window.CotizaApp = (function(){
           const margen = numero(c.margen_total);
 
           total++;
-          montoCotizado += monto;
+          montoTotal += monto;
+
+          if(["aceptada","ganada","perdida","cancelada","vencida"].indexOf(estadoNorm)<0){
+            montoCotizado += monto;
+          }
 
           if(!estadosCantidad[estado]) estadosCantidad[estado] = 0;
           if(!estadosMonto[estado]) estadosMonto[estado] = 0;
@@ -698,7 +689,7 @@ window.CotizaApp = (function(){
 
         return {
           total: total,
-          vigentes: (rows || []).filter(function(c){ return ["perdida","vencida","cancelada"].indexOf(normalizarTexto(c.estado)) < 0; }).length || total,
+          vigentes: (rows || []).filter(function(c){ return ["aceptada","ganada","perdida","vencida","cancelada"].indexOf(normalizarTexto(c.estado)) < 0; }).length,
           monto_cotizado: montoCotizado,
           aceptadas: aceptadas,
           monto_aceptado: montoAceptado,
@@ -706,7 +697,7 @@ window.CotizaApp = (function(){
           monto_ganado: montoGanado,
           perdidas: perdidas,
           vencidas_canceladas: vencidasCanceladas,
-          ticket_promedio: total ? montoCotizado / total : Number(k.ticket_promedio_general || 0),
+          ticket_promedio: total ? montoTotal / total : Number(k.ticket_promedio_general || 0),
           margen_promedio: margenCount ? margenAcum / margenCount : Number(k.margen_promedio || 0),
           tasa_aceptacion: enviadasBase ? (aceptadas / enviadasBase) * 100 : 0,
           tasa_ganancia: enviadasBase ? (ganadas / enviadasBase) * 100 : 0,
@@ -871,13 +862,12 @@ window.CotizaApp = (function(){
         if(!select) return;
 
         const actual = select.value || "";
-        const vendedores = {};
-        (state.cotizaciones || []).forEach(function(c){
-          if(c.vendedor) vendedores[c.vendedor] = true;
+        const vendedores = (state.usuarios || []).slice().sort(function(a,b){
+          return String(a.nombre||a.correo||"").localeCompare(String(b.nombre||b.correo||""));
         });
 
-        select.innerHTML = '<option value="">Todos</option>' + Object.keys(vendedores).sort().map(function(v){
-          return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>';
+        select.innerHTML = '<option value="">Todos</option>' + vendedores.map(function(v){
+          return '<option value="' + escapeHtml(v.usuario_id||"") + '">' + escapeHtml(v.nombre||v.correo||v.usuario_id||"") + '</option>';
         }).join("");
 
         if(actual) select.value = actual;
