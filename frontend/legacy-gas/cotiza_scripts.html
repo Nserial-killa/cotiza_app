@@ -27,6 +27,7 @@ window.CotizaApp = (function(){
         gestorDetalle:null,
         gestorVistaAnterior:"lista",
         dashboard:null,
+        reportesCotizaciones:[],
         formasPago:[],
         serviciosProductos:[],
         modelosCobroParametros:[],
@@ -72,6 +73,9 @@ window.CotizaApp = (function(){
         bind("filtroDashboardCalculadora","change",cargarDashboard);
         bind("dashboardVendedor","change",cargarDashboard);
         bind("dashboardTipoCliente","change",cargarDashboard);
+        bind("btnAplicarFiltrosReporte","click",cargarReportesCotizaciones);
+        bind("btnLimpiarFiltrosReporte","click",limpiarFiltrosReporteCotizaciones);
+        bind("btnExportarReporteCotizaciones","click",exportarReporteCotizaciones);
         bind("btnNuevaCotizacion","click",abrirModalCalculadoras);
         bind("btnCerrarModalCalculadoras","click",cerrarModalCalculadoras);
         bind("btnCancelarNuevaCotizacion","click",cerrarModalCalculadoras);
@@ -452,6 +456,7 @@ window.CotizaApp = (function(){
         const selects = [
           byId("filtroCalculadora"),
           byId("filtroDashboardCalculadora"),
+          byId("reporteCalculadora"),
           byId("paramCotizadorSelector")
         ].filter(Boolean);
 
@@ -475,17 +480,131 @@ window.CotizaApp = (function(){
       }
 
       function llenarComboUsuarios(){
-        const select = byId("filtroUsuario");
+        const selects = [byId("filtroUsuario"),byId("reporteVendedor")].filter(Boolean);
+        selects.forEach(function(select){
+          const valorActual = select.value || "";
+          select.innerHTML = '<option value="">' + (select.id === "reporteVendedor" ? "Todos" : "Todos los usuarios") + '</option>';
+          state.usuarios.forEach(function(usuario){
+            const option = document.createElement("option");
+            option.value = usuario.usuario_id || "";
+            option.textContent = usuario.nombre || usuario.correo || usuario.usuario_id || "Usuario";
+            select.appendChild(option);
+          });
+          if(valorActual) select.value = valorActual;
+        });
+      }
+
+      function llenarComboEstadosReporte(){
+        const select = byId("reporteEstado");
         if(!select) return;
-
-        select.innerHTML = '<option value="">Todos los usuarios</option>';
-
-        state.usuarios.forEach(function(usuario){
+        const valorActual = select.value || "";
+        select.innerHTML = '<option value="">Todos</option>';
+        ESTADOS.forEach(function(estado){
           const option = document.createElement("option");
-          option.value = usuario.usuario_id || "";
-          option.textContent = usuario.nombre || usuario.correo || usuario.usuario_id || "Usuario";
+          option.value = estado;
+          option.textContent = estado;
           select.appendChild(option);
         });
+        if(valorActual) select.value = valorActual;
+      }
+
+      function parametrosReporteCotizaciones(){
+        return new URLSearchParams({
+          fecha_desde:byId("reporteFechaDesde") ? byId("reporteFechaDesde").value || "" : "",
+          fecha_hasta:byId("reporteFechaHasta") ? byId("reporteFechaHasta").value || "" : "",
+          vendedor_id:byId("reporteVendedor") ? byId("reporteVendedor").value || "" : "",
+          calculadora_id:byId("reporteCalculadora") ? byId("reporteCalculadora").value || "" : "",
+          estado:byId("reporteEstado") ? byId("reporteEstado").value || "" : ""
+        });
+      }
+
+      async function cargarReportesCotizaciones(){
+        if(!state.usuario) return;
+        llenarComboEstadosReporte();
+        setLoading("section-reportes",true);
+        try{
+          const resp = await fetchAutenticado("/api/reportes/cotizaciones?" + parametrosReporteCotizaciones().toString());
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok) throw new Error((res && res.error) || "No fue posible cargar el reporte.");
+          state.reportesCotizaciones = res.filas || [];
+          renderReporteCotizaciones(state.reportesCotizaciones);
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible cargar el reporte.");
+        }finally{
+          setLoading("section-reportes",false);
+        }
+      }
+
+      function renderReporteCotizaciones(filas){
+        filas = Array.isArray(filas) ? filas : [];
+        const puedeVerMargen = filas.some(function(fila){ return Object.prototype.hasOwnProperty.call(fila,"margen_total"); });
+        const head = byId("reportesCotizacionesHead");
+        const body = byId("reportesCotizacionesBody");
+        const encabezados = ["Código de oferta","Cliente","Empresa","Cotizador","Estado","Total","Moneda","Vendedor","Fecha de creación"];
+        if(puedeVerMargen) encabezados.push("Margen total");
+        if(head) head.innerHTML = encabezados.map(function(texto){ return "<th>" + escapeHtml(texto) + "</th>"; }).join("");
+        setText("reportesTotalFilas",formatoNumero(filas.length) + (filas.length === 1 ? " cotización" : " cotizaciones"));
+        if(!body) return;
+        if(!filas.length){
+          body.innerHTML = '<tr><td class="report-empty" colspan="' + encabezados.length + '">No hay cotizaciones que coincidan con los filtros seleccionados.</td></tr>';
+          return;
+        }
+        body.innerHTML = filas.map(function(fila){
+          let fecha = "—";
+          if(fila.fecha_creacion){
+            const parsed = new Date(fila.fecha_creacion);
+            if(!Number.isNaN(parsed.getTime())) fecha = parsed.toLocaleString("es-CR",{dateStyle:"medium",timeStyle:"short"});
+          }
+          const celdas = [
+            '<td><div class="report-code"><strong>' + escapeHtml(fila.codigo_oferta || "Sin código") + '</strong><span>Cotización comercial</span></div></td>',
+            '<td><div class="report-client"><strong>' + escapeHtml(fila.cliente || "Sin cliente") + '</strong></div></td>',
+            '<td>' + escapeHtml(fila.empresa || fila.cliente || "—") + '</td>',
+            '<td>' + escapeHtml(fila.calculadora_nombre || "—") + '</td>',
+            '<td>' + badgeEstado(fila.estado) + '</td>',
+            '<td class="report-amount">' + escapeHtml(formatoMoneda(fila.total_precio,fila.moneda)) + '</td>',
+            '<td>' + escapeHtml(fila.moneda || "—") + '</td>',
+            '<td>' + escapeHtml(fila.vendedor || "Sin asignar") + '</td>',
+            '<td>' + escapeHtml(fecha) + '</td>'
+          ];
+          if(puedeVerMargen) celdas.push('<td class="report-margin">' + escapeHtml(formatoNumero(fila.margen_total)) + '%</td>');
+          return "<tr>" + celdas.join("") + "</tr>";
+        }).join("");
+      }
+
+      function limpiarFiltrosReporteCotizaciones(){
+        ["reporteFechaDesde","reporteFechaHasta","reporteVendedor","reporteCalculadora","reporteEstado"].forEach(function(id){
+          const el = byId(id);
+          if(el) el.value = "";
+        });
+        cargarReportesCotizaciones();
+      }
+
+      async function exportarReporteCotizaciones(){
+        if(!state.usuario) return;
+        setLoading("section-reportes",true);
+        try{
+          const resp = await fetchAutenticado("/api/reportes/cotizaciones/exportar?" + parametrosReporteCotizaciones().toString());
+          if(!resp.ok){
+            let res = null;
+            try{ res = await resp.json(); }catch(e){ res = null; }
+            throw new Error((res && res.error) || "No fue posible exportar el reporte.");
+          }
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement("a");
+          enlace.href = url;
+          enlace.download = "reporte_cotizaciones.csv";
+          document.body.appendChild(enlace);
+          enlace.click();
+          enlace.remove();
+          setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+          mostrarToast("Reporte CSV descargado correctamente.");
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible exportar el reporte.");
+        }finally{
+          setLoading("section-reportes",false);
+        }
       }
 
       async function cargarDashboard(){
@@ -1584,6 +1703,7 @@ window.CotizaApp = (function(){
         if(section === "cotizaciones" && !omitirCarga) mostrarListadoCotizacionesV2();
         if(section === "solicitudes" && window.CotizaSolicitudes) window.CotizaSolicitudes.mostrarListado();
         if(section === "dashboard") cargarDashboard();
+        if(section === "reportes") cargarReportesCotizaciones();
         if(section === "parametros"){
           inicializarParametrosV9();
         }

@@ -57,6 +57,7 @@ func main() {
 	reglas := &handlers.ReglasHandler{DB: pool}
 	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
 	dashboard := &handlers.DashboardHandler{DB: pool}
+	reportes := &handlers.ReportesHandler{DB: pool}
 	calculadoras := &handlers.CalculadorasHandler{DB: pool}
 	runtimeCotizador := &handlers.CotizadorRuntimeHandler{DB: pool}
 	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool}
@@ -102,6 +103,8 @@ func main() {
 
 			// --- Carril B (Operación): cotizaciones, dashboard, reportes.
 			r.Get("/dashboard", dashboard.Obtener)
+			r.Get("/reportes/cotizaciones", reportes.Listar)
+			r.Get("/reportes/cotizaciones/exportar", reportes.Exportar)
 			r.Get("/roles", usuarios.ListarRoles)
 			r.Get("/calculadoras", calculadoras.Listar)
 			r.Get("/clientes", cotizaciones.ListarClientes)

@@ -34,13 +34,14 @@ func crearFixtureDashboard(t *testing.T, pool *pgxpool.Pool) fixtureDashboard {
 	clienteA, clienteB, clienteC := "TEST-DASH-CLI-A-"+sufijo, "TEST-DASH-CLI-B-"+sufijo, "TEST-DASH-CLI-C-"+sufijo
 	ctx := context.Background()
 
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO calculadoras(calculadora_id,nombre_calculadora,estado) VALUES
-		($1,'Dashboard A','Activo'),($2,'Dashboard B','Activo');
-		INSERT INTO clientes(cliente_id,nombre_comercial,estado) VALUES
-		($3,'Cliente Dashboard A','Activo'),($4,'Cliente Dashboard B','Activo'),($5,'Cliente Dashboard C','Activo')`,
-		calcA, calcB, clienteA, clienteB, clienteC); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO calculadoras(calculadora_id,nombre_calculadora,estado) VALUES
+		($1,'Dashboard A','Activo'),($2,'Dashboard B','Activo')`, calcA, calcB); err != nil {
 		t.Fatalf("no se pudo crear la base del dashboard: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO clientes(cliente_id,nombre_comercial,estado) VALUES
+		($1,'Cliente Dashboard A','Activo'),($2,'Cliente Dashboard B','Activo'),($3,'Cliente Dashboard C','Activo')`,
+		clienteA, clienteB, clienteC); err != nil {
+		t.Fatalf("no se pudieron crear los clientes del dashboard: %v", err)
 	}
 
 	type fila struct {
@@ -56,14 +57,16 @@ func crearFixtureDashboard(t *testing.T, pool *pgxpool.Pool) fixtureDashboard {
 	}
 	for _, f := range filas {
 		fecha := time.Now().AddDate(0, 0, f.dias)
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO cotizaciones(cotizacion_id,calculadora_id,cliente_id,codigo_oferta,estado,version_actual,fecha_creacion,fecha_actualizacion)
-			VALUES($1,$2,$3,'OF-'||$1,$4,1,$5,$5);
-			INSERT INTO cotizacion_versiones(cotizacion_id,numero_version,estado,moneda,total_precio,margen_total)
-			VALUES($1,1,$4,'US$',$6,$7);
-			INSERT INTO cotizacion_usuarios(cotizacion_id,usuario_id,funcion) VALUES($1,$8,'Vendedor')`,
-			f.id, f.calc, f.cliente, f.estado, fecha, f.monto, f.margen, f.vendedor); err != nil {
+		if _, err := pool.Exec(ctx, `INSERT INTO cotizaciones(cotizacion_id,calculadora_id,cliente_id,codigo_oferta,estado,version_actual,fecha_creacion,fecha_actualizacion)
+			VALUES($1,$2,$3,'OF-'||$1,$4,1,$5,$5)`, f.id, f.calc, f.cliente, f.estado, fecha); err != nil {
 			t.Fatalf("no se pudo crear cotización del dashboard: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO cotizacion_versiones(cotizacion_id,numero_version,estado,moneda,total_precio,margen_total)
+			VALUES($1,1,$2,'US$',$3,$4)`, f.id, f.estado, f.monto, f.margen); err != nil {
+			t.Fatalf("no se pudo crear la versión del dashboard: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO cotizacion_usuarios(cotizacion_id,usuario_id,funcion) VALUES($1,$2,'Vendedor')`, f.id, f.vendedor); err != nil {
+			t.Fatalf("no se pudo asignar vendedor del dashboard: %v", err)
 		}
 	}
 
@@ -150,5 +153,40 @@ func TestDashboard_FiltraPorTipoCliente(t *testing.T) {
 	}
 	if res.CotizacionesRecientes[0].TipoCliente != "Cliente existente" {
 		t.Fatalf("tipo inesperado: %+v", res.CotizacionesRecientes[0])
+	}
+}
+
+func TestDashboard_SinPermisoOmiteMargenes(t *testing.T) {
+	pool := setupTestDB(t)
+	actor := crearUsuarioPrueba(t, pool, "dashboard.sin.margen."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
+	fixture := crearFixtureDashboard(t, pool)
+	req := httptest.NewRequest(http.MethodGet, "/api/dashboard?calculadora_id="+url.QueryEscape(fixture.CalculadoraA), nil)
+	req = conActor(req, actor)
+	rec := httptest.NewRecorder()
+	(&DashboardHandler{DB: pool}).Obtener(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard respondió %d: %s", rec.Code, rec.Body.String())
+	}
+	var respuesta map[string]any
+	assertJSON(t, rec.Body.Bytes(), &respuesta)
+	kpis, ok := respuesta["kpis"].(map[string]any)
+	if !ok {
+		t.Fatalf("kpis inválidos: %#v", respuesta["kpis"])
+	}
+	if _, existe := kpis["margen_promedio"]; existe {
+		t.Errorf("margen_promedio no debe existir para un Vendedor: %#v", kpis)
+	}
+	filas, ok := respuesta["cotizaciones_recientes"].([]any)
+	if !ok || len(filas) == 0 {
+		t.Fatalf("cotizaciones_recientes inválidas: %#v", respuesta["cotizaciones_recientes"])
+	}
+	for _, raw := range filas {
+		fila, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("fila inválida: %#v", raw)
+		}
+		if _, existe := fila["margen_total"]; existe {
+			t.Errorf("margen_total no debe existir para un Vendedor: %#v", fila)
+		}
 	}
 }

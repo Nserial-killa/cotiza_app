@@ -195,6 +195,46 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .bottom-metric { border-right:0; padding:4px 0; }
 }
 
+/* ---------- Reportes comerciales ---------- */
+.reportes-page { --report-border:#d7e1ee; --report-ink:#082650; --report-muted:#75849a; }
+.reportes-head { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+.reportes-head h1 { color:var(--report-ink); font-size:27px; line-height:1.05; font-weight:800; letter-spacing:-.035em; margin:3px 0 7px; }
+.reportes-head p { color:var(--report-muted); font-size:11px; }
+.reportes-export { min-height:36px; padding:8px 15px; border-radius:7px; font-size:10px; box-shadow:0 5px 12px rgba(31,111,255,.22); }
+.reportes-card { padding:0; margin:0; border:1px solid var(--report-border); border-radius:11px; overflow:hidden; box-shadow:0 2px 6px rgba(20,48,84,.05); }
+.reportes-filters { display:grid; grid-template-columns:repeat(2,minmax(130px,.8fr)) repeat(3,minmax(155px,1fr)) auto auto; align-items:end; gap:9px; padding:14px; }
+.reportes-filters .field { min-width:0; margin:0; }
+.reportes-filters label { color:#1c365b; font-size:9px; font-weight:700; margin-bottom:6px; }
+.reportes-filters input,.reportes-filters select { height:36px; padding:7px 10px; border-color:#cdd8e7; border-radius:7px; color:#273d5d; background:#fff; font-size:10px; }
+.reportes-apply,.reportes-clear { min-height:36px; padding:7px 12px; border-radius:7px; font-size:9px; white-space:nowrap; }
+.reportes-table-meta { min-height:43px; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 14px; border-top:1px solid var(--report-border); background:#f8faff; }
+.reportes-table-meta strong { color:var(--report-ink); font-size:10px; }
+.reportes-table-meta span { color:var(--report-muted); font-size:9px; }
+.reportes-table-wrap { border:0; border-radius:0; box-shadow:none; }
+.reportes-table { width:100%; min-width:1120px; border-collapse:collapse; table-layout:auto; }
+.reportes-table thead { background:#f3f6fb; }
+.reportes-table th { height:35px; padding:9px 12px; color:#607087; border-bottom:1px solid #dce4ef; font-size:8px; font-weight:800; letter-spacing:.045em; text-align:left; white-space:nowrap; }
+.reportes-table td { height:50px; padding:9px 12px; color:#53637a; border-bottom:1px solid #e3e9f1; font-size:9px; vertical-align:middle; }
+.reportes-table tbody tr:hover { background:#f8fbff; }
+.reportes-table .report-code,.reportes-table .report-client { display:flex; flex-direction:column; gap:4px; min-width:120px; }
+.reportes-table .report-code strong,.reportes-table .report-client strong { color:#0a294f; font-size:9px; font-weight:800; }
+.reportes-table .report-code span,.reportes-table .report-client span { color:#8390a4; font-size:8px; }
+.reportes-table .report-amount { color:#082650; font-size:10px; font-weight:800; white-space:nowrap; }
+.reportes-table .report-margin { color:#137345; font-weight:800; white-space:nowrap; }
+.reportes-table .report-empty { padding:42px 20px; color:#75849a; font-size:11px; text-align:center; }
+
+@media (max-width:1180px) {
+  .reportes-filters { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .reportes-apply,.reportes-clear { width:100%; }
+}
+@media (max-width:700px) {
+  .reportes-head { align-items:flex-start; }
+  .reportes-head h1 { font-size:24px; }
+  .reportes-export { width:100%; justify-content:center; }
+  .reportes-filters { grid-template-columns:1fr; }
+  .reportes-table-meta { align-items:flex-start; flex-direction:column; }
+}
+
 /* ---------- Gestor de Cotizaciones / listados generales ---------- */
 .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
 .gestor-eyebrow, .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #185FA5; text-transform: uppercase; display: block; margin-bottom: 4px; }
@@ -4337,18 +4377,40 @@ table tr:last-child td { border-bottom: none; }
 
       
 <!-- === Cotiza_Reportes (cotiza_reportes.html) === -->
-<section id="section-reportes" class="section">
-        <div class="topbar">
-          <div>
-            <h1>Reportes</h1>
-            <p>Análisis comercial y control de ofertas.</p>
-          </div>
-        </div>
-        <div class="placeholder">
-          <h2>Reportes</h2>
-          <p>Sección preparada para reportes comerciales.</p>
-        </div>
-      </section>
+<section id="section-reportes" class="section reportes-page">
+  <div class="reportes-head">
+    <div>
+      <span class="gestor-eyebrow">ANÁLISIS COMERCIAL</span>
+      <h1>Reportes</h1>
+      <p>Consulte las cotizaciones reales, aplique filtros y exporte el resultado.</p>
+    </div>
+    <button id="btnExportarReporteCotizaciones" class="btn btn-primary reportes-export" type="button">↓ Exportar CSV</button>
+  </div>
+
+  <div class="card reportes-card">
+    <div class="reportes-filters">
+      <div class="field"><label for="reporteFechaDesde">Fecha desde</label><input id="reporteFechaDesde" class="input" type="date"></div>
+      <div class="field"><label for="reporteFechaHasta">Fecha hasta</label><input id="reporteFechaHasta" class="input" type="date"></div>
+      <div class="field"><label for="reporteVendedor">Vendedor</label><select id="reporteVendedor" class="select"><option value="">Todos</option></select></div>
+      <div class="field"><label for="reporteCalculadora">Cotizador</label><select id="reporteCalculadora" class="select"><option value="">Todos</option></select></div>
+      <div class="field"><label for="reporteEstado">Estado</label><select id="reporteEstado" class="select"><option value="">Todos</option></select></div>
+      <button id="btnAplicarFiltrosReporte" class="btn btn-primary reportes-apply" type="button">Aplicar filtros</button>
+      <button id="btnLimpiarFiltrosReporte" class="btn btn-light reportes-clear" type="button">Limpiar</button>
+    </div>
+
+    <div class="reportes-table-meta">
+      <strong id="reportesTotalFilas">0 cotizaciones</strong>
+      <span>Los importes corresponden a la versión actual de cada cotización.</span>
+    </div>
+
+    <div class="table-wrap reportes-table-wrap">
+      <table class="reportes-table">
+        <thead><tr id="reportesCotizacionesHead"></tr></thead>
+        <tbody id="reportesCotizacionesBody"><tr><td>Cargando reporte...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
 
       
@@ -5401,6 +5463,7 @@ window.CotizaApp = (function(){
         gestorDetalle:null,
         gestorVistaAnterior:"lista",
         dashboard:null,
+        reportesCotizaciones:[],
         formasPago:[],
         serviciosProductos:[],
         modelosCobroParametros:[],
@@ -5446,6 +5509,9 @@ window.CotizaApp = (function(){
         bind("filtroDashboardCalculadora","change",cargarDashboard);
         bind("dashboardVendedor","change",cargarDashboard);
         bind("dashboardTipoCliente","change",cargarDashboard);
+        bind("btnAplicarFiltrosReporte","click",cargarReportesCotizaciones);
+        bind("btnLimpiarFiltrosReporte","click",limpiarFiltrosReporteCotizaciones);
+        bind("btnExportarReporteCotizaciones","click",exportarReporteCotizaciones);
         bind("btnNuevaCotizacion","click",abrirModalCalculadoras);
         bind("btnCerrarModalCalculadoras","click",cerrarModalCalculadoras);
         bind("btnCancelarNuevaCotizacion","click",cerrarModalCalculadoras);
@@ -5826,6 +5892,7 @@ window.CotizaApp = (function(){
         const selects = [
           byId("filtroCalculadora"),
           byId("filtroDashboardCalculadora"),
+          byId("reporteCalculadora"),
           byId("paramCotizadorSelector")
         ].filter(Boolean);
 
@@ -5849,17 +5916,131 @@ window.CotizaApp = (function(){
       }
 
       function llenarComboUsuarios(){
-        const select = byId("filtroUsuario");
+        const selects = [byId("filtroUsuario"),byId("reporteVendedor")].filter(Boolean);
+        selects.forEach(function(select){
+          const valorActual = select.value || "";
+          select.innerHTML = '<option value="">' + (select.id === "reporteVendedor" ? "Todos" : "Todos los usuarios") + '</option>';
+          state.usuarios.forEach(function(usuario){
+            const option = document.createElement("option");
+            option.value = usuario.usuario_id || "";
+            option.textContent = usuario.nombre || usuario.correo || usuario.usuario_id || "Usuario";
+            select.appendChild(option);
+          });
+          if(valorActual) select.value = valorActual;
+        });
+      }
+
+      function llenarComboEstadosReporte(){
+        const select = byId("reporteEstado");
         if(!select) return;
-
-        select.innerHTML = '<option value="">Todos los usuarios</option>';
-
-        state.usuarios.forEach(function(usuario){
+        const valorActual = select.value || "";
+        select.innerHTML = '<option value="">Todos</option>';
+        ESTADOS.forEach(function(estado){
           const option = document.createElement("option");
-          option.value = usuario.usuario_id || "";
-          option.textContent = usuario.nombre || usuario.correo || usuario.usuario_id || "Usuario";
+          option.value = estado;
+          option.textContent = estado;
           select.appendChild(option);
         });
+        if(valorActual) select.value = valorActual;
+      }
+
+      function parametrosReporteCotizaciones(){
+        return new URLSearchParams({
+          fecha_desde:byId("reporteFechaDesde") ? byId("reporteFechaDesde").value || "" : "",
+          fecha_hasta:byId("reporteFechaHasta") ? byId("reporteFechaHasta").value || "" : "",
+          vendedor_id:byId("reporteVendedor") ? byId("reporteVendedor").value || "" : "",
+          calculadora_id:byId("reporteCalculadora") ? byId("reporteCalculadora").value || "" : "",
+          estado:byId("reporteEstado") ? byId("reporteEstado").value || "" : ""
+        });
+      }
+
+      async function cargarReportesCotizaciones(){
+        if(!state.usuario) return;
+        llenarComboEstadosReporte();
+        setLoading("section-reportes",true);
+        try{
+          const resp = await fetchAutenticado("/api/reportes/cotizaciones?" + parametrosReporteCotizaciones().toString());
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok) throw new Error((res && res.error) || "No fue posible cargar el reporte.");
+          state.reportesCotizaciones = res.filas || [];
+          renderReporteCotizaciones(state.reportesCotizaciones);
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible cargar el reporte.");
+        }finally{
+          setLoading("section-reportes",false);
+        }
+      }
+
+      function renderReporteCotizaciones(filas){
+        filas = Array.isArray(filas) ? filas : [];
+        const puedeVerMargen = filas.some(function(fila){ return Object.prototype.hasOwnProperty.call(fila,"margen_total"); });
+        const head = byId("reportesCotizacionesHead");
+        const body = byId("reportesCotizacionesBody");
+        const encabezados = ["Código de oferta","Cliente","Empresa","Cotizador","Estado","Total","Moneda","Vendedor","Fecha de creación"];
+        if(puedeVerMargen) encabezados.push("Margen total");
+        if(head) head.innerHTML = encabezados.map(function(texto){ return "<th>" + escapeHtml(texto) + "</th>"; }).join("");
+        setText("reportesTotalFilas",formatoNumero(filas.length) + (filas.length === 1 ? " cotización" : " cotizaciones"));
+        if(!body) return;
+        if(!filas.length){
+          body.innerHTML = '<tr><td class="report-empty" colspan="' + encabezados.length + '">No hay cotizaciones que coincidan con los filtros seleccionados.</td></tr>';
+          return;
+        }
+        body.innerHTML = filas.map(function(fila){
+          let fecha = "—";
+          if(fila.fecha_creacion){
+            const parsed = new Date(fila.fecha_creacion);
+            if(!Number.isNaN(parsed.getTime())) fecha = parsed.toLocaleString("es-CR",{dateStyle:"medium",timeStyle:"short"});
+          }
+          const celdas = [
+            '<td><div class="report-code"><strong>' + escapeHtml(fila.codigo_oferta || "Sin código") + '</strong><span>Cotización comercial</span></div></td>',
+            '<td><div class="report-client"><strong>' + escapeHtml(fila.cliente || "Sin cliente") + '</strong></div></td>',
+            '<td>' + escapeHtml(fila.empresa || fila.cliente || "—") + '</td>',
+            '<td>' + escapeHtml(fila.calculadora_nombre || "—") + '</td>',
+            '<td>' + badgeEstado(fila.estado) + '</td>',
+            '<td class="report-amount">' + escapeHtml(formatoMoneda(fila.total_precio,fila.moneda)) + '</td>',
+            '<td>' + escapeHtml(fila.moneda || "—") + '</td>',
+            '<td>' + escapeHtml(fila.vendedor || "Sin asignar") + '</td>',
+            '<td>' + escapeHtml(fecha) + '</td>'
+          ];
+          if(puedeVerMargen) celdas.push('<td class="report-margin">' + escapeHtml(formatoNumero(fila.margen_total)) + '%</td>');
+          return "<tr>" + celdas.join("") + "</tr>";
+        }).join("");
+      }
+
+      function limpiarFiltrosReporteCotizaciones(){
+        ["reporteFechaDesde","reporteFechaHasta","reporteVendedor","reporteCalculadora","reporteEstado"].forEach(function(id){
+          const el = byId(id);
+          if(el) el.value = "";
+        });
+        cargarReportesCotizaciones();
+      }
+
+      async function exportarReporteCotizaciones(){
+        if(!state.usuario) return;
+        setLoading("section-reportes",true);
+        try{
+          const resp = await fetchAutenticado("/api/reportes/cotizaciones/exportar?" + parametrosReporteCotizaciones().toString());
+          if(!resp.ok){
+            let res = null;
+            try{ res = await resp.json(); }catch(e){ res = null; }
+            throw new Error((res && res.error) || "No fue posible exportar el reporte.");
+          }
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement("a");
+          enlace.href = url;
+          enlace.download = "reporte_cotizaciones.csv";
+          document.body.appendChild(enlace);
+          enlace.click();
+          enlace.remove();
+          setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+          mostrarToast("Reporte CSV descargado correctamente.");
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible exportar el reporte.");
+        }finally{
+          setLoading("section-reportes",false);
+        }
       }
 
       async function cargarDashboard(){
@@ -6958,6 +7139,7 @@ window.CotizaApp = (function(){
         if(section === "cotizaciones" && !omitirCarga) mostrarListadoCotizacionesV2();
         if(section === "solicitudes" && window.CotizaSolicitudes) window.CotizaSolicitudes.mostrarListado();
         if(section === "dashboard") cargarDashboard();
+        if(section === "reportes") cargarReportesCotizaciones();
         if(section === "parametros"){
           inicializarParametrosV9();
         }

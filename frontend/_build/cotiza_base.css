@@ -187,6 +187,46 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .bottom-metric { border-right:0; padding:4px 0; }
 }
 
+/* ---------- Reportes comerciales ---------- */
+.reportes-page { --report-border:#d7e1ee; --report-ink:#082650; --report-muted:#75849a; }
+.reportes-head { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+.reportes-head h1 { color:var(--report-ink); font-size:27px; line-height:1.05; font-weight:800; letter-spacing:-.035em; margin:3px 0 7px; }
+.reportes-head p { color:var(--report-muted); font-size:11px; }
+.reportes-export { min-height:36px; padding:8px 15px; border-radius:7px; font-size:10px; box-shadow:0 5px 12px rgba(31,111,255,.22); }
+.reportes-card { padding:0; margin:0; border:1px solid var(--report-border); border-radius:11px; overflow:hidden; box-shadow:0 2px 6px rgba(20,48,84,.05); }
+.reportes-filters { display:grid; grid-template-columns:repeat(2,minmax(130px,.8fr)) repeat(3,minmax(155px,1fr)) auto auto; align-items:end; gap:9px; padding:14px; }
+.reportes-filters .field { min-width:0; margin:0; }
+.reportes-filters label { color:#1c365b; font-size:9px; font-weight:700; margin-bottom:6px; }
+.reportes-filters input,.reportes-filters select { height:36px; padding:7px 10px; border-color:#cdd8e7; border-radius:7px; color:#273d5d; background:#fff; font-size:10px; }
+.reportes-apply,.reportes-clear { min-height:36px; padding:7px 12px; border-radius:7px; font-size:9px; white-space:nowrap; }
+.reportes-table-meta { min-height:43px; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 14px; border-top:1px solid var(--report-border); background:#f8faff; }
+.reportes-table-meta strong { color:var(--report-ink); font-size:10px; }
+.reportes-table-meta span { color:var(--report-muted); font-size:9px; }
+.reportes-table-wrap { border:0; border-radius:0; box-shadow:none; }
+.reportes-table { width:100%; min-width:1120px; border-collapse:collapse; table-layout:auto; }
+.reportes-table thead { background:#f3f6fb; }
+.reportes-table th { height:35px; padding:9px 12px; color:#607087; border-bottom:1px solid #dce4ef; font-size:8px; font-weight:800; letter-spacing:.045em; text-align:left; white-space:nowrap; }
+.reportes-table td { height:50px; padding:9px 12px; color:#53637a; border-bottom:1px solid #e3e9f1; font-size:9px; vertical-align:middle; }
+.reportes-table tbody tr:hover { background:#f8fbff; }
+.reportes-table .report-code,.reportes-table .report-client { display:flex; flex-direction:column; gap:4px; min-width:120px; }
+.reportes-table .report-code strong,.reportes-table .report-client strong { color:#0a294f; font-size:9px; font-weight:800; }
+.reportes-table .report-code span,.reportes-table .report-client span { color:#8390a4; font-size:8px; }
+.reportes-table .report-amount { color:#082650; font-size:10px; font-weight:800; white-space:nowrap; }
+.reportes-table .report-margin { color:#137345; font-weight:800; white-space:nowrap; }
+.reportes-table .report-empty { padding:42px 20px; color:#75849a; font-size:11px; text-align:center; }
+
+@media (max-width:1180px) {
+  .reportes-filters { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .reportes-apply,.reportes-clear { width:100%; }
+}
+@media (max-width:700px) {
+  .reportes-head { align-items:flex-start; }
+  .reportes-head h1 { font-size:24px; }
+  .reportes-export { width:100%; justify-content:center; }
+  .reportes-filters { grid-template-columns:1fr; }
+  .reportes-table-meta { align-items:flex-start; flex-direction:column; }
+}
+
 /* ---------- Gestor de Cotizaciones / listados generales ---------- */
 .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
 .gestor-eyebrow, .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #185FA5; text-transform: uppercase; display: block; margin-bottom: 4px; }
