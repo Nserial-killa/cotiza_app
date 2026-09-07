@@ -524,6 +524,102 @@ func TestUsuariosEditar_VendedorNoPuedeCambiarSuPropioEstado(t *testing.T) {
 	}
 }
 
+// CRÍTICO (edición parcial): un Administrador debe poder cambiar SOLO
+// el estado de otro usuario sin mandar nombre/correo — antes de este
+// fix, editarUsuarioRequest exigía nombre y correo en TODA edición y
+// esto se rechazaba con 400.
+func TestUsuariosEditar_AdminCambiaSoloElEstado(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &UsuariosHandler{DB: pool}
+	admin := crearAdminActorPrueba(t, pool)
+	correoOriginal := "prueba.solo.estado." + sufijoUnico() + "@exceltecgroup.com"
+	usuarioID := crearUsuarioPrueba(t, pool, correoOriginal, "1111", "Vendedor", "Activo")
+
+	rec, res := patchUsuario(t, handler, admin, usuarioID, map[string]any{
+		"estado": "Inactivo",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200 al cambiar solo el estado, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	usuario, ok := res["usuario"].(map[string]any)
+	if !ok {
+		t.Fatalf("esperaba un objeto 'usuario' en la respuesta, dio: %+v", res)
+	}
+	if usuario["estado"] != "Inactivo" {
+		t.Errorf("estado = %v, esperaba 'Inactivo'", usuario["estado"])
+	}
+	// nombre, correo y rol no vinieron en el pedido: deben conservarse.
+	if usuario["correo"] != correoOriginal {
+		t.Errorf("correo = %v, no debía cambiar sin venir en el pedido (esperaba %q)", usuario["correo"], correoOriginal)
+	}
+	if usuario["rol"] != "Vendedor" {
+		t.Errorf("rol = %v, no debía cambiar sin venir en el pedido", usuario["rol"])
+	}
+}
+
+// CRÍTICO (edición parcial): un Vendedor debe poder cambiar SOLO su
+// propio PIN sin mandar nombre/correo.
+func TestUsuariosEditar_VendedorCambiaSoloSuPropioPin(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &UsuariosHandler{DB: pool}
+	correo := "vendedor.solo.pin." + sufijoUnico() + "@exceltecgroup.com"
+	vendedor := crearUsuarioPrueba(t, pool, correo, "1234", "Vendedor", "Activo")
+
+	rec, res := patchUsuario(t, handler, vendedor, vendedor, map[string]any{
+		"pin": "9876",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200 al cambiar solo el PIN, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	usuario, ok := res["usuario"].(map[string]any)
+	if !ok {
+		t.Fatalf("esperaba un objeto 'usuario' en la respuesta, dio: %+v", res)
+	}
+	if usuario["correo"] != correo {
+		t.Errorf("correo = %v, no debía cambiar sin venir en el pedido", usuario["correo"])
+	}
+
+	// El PIN nuevo debe quedar activo: login con el PIN viejo falla,
+	// con el nuevo funciona.
+	authHandler := &AuthHandler{DB: pool}
+	_, loginViejo := postLogin(t, authHandler, map[string]string{"correo": correo, "pin": "1234"})
+	if loginViejo.OK {
+		t.Error("el PIN viejo debería haber quedado invalidado tras el cambio parcial")
+	}
+	_, loginNuevo := postLogin(t, authHandler, map[string]string{"correo": correo, "pin": "9876"})
+	if !loginNuevo.OK {
+		t.Errorf("el PIN nuevo debería funcionar tras el cambio parcial, dio: %+v", loginNuevo)
+	}
+}
+
+// CRÍTICO: tras "desactivar" a un usuario con una edición parcial
+// (solo estado, sin mandar nombre/correo), un login posterior con ese
+// usuario debe seguir rechazándose — el fix de edición parcial no
+// debe dejar el estado a medio aplicar.
+func TestUsuariosEditar_SoloEstadoInactivoBloqueaLoginPosterior(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &UsuariosHandler{DB: pool}
+	admin := crearAdminActorPrueba(t, pool)
+	correo := "prueba.desactivado.parcial." + sufijoUnico() + "@exceltecgroup.com"
+	usuarioID := crearUsuarioPrueba(t, pool, correo, "4444", "Vendedor", "Activo")
+
+	rec, _ := patchUsuario(t, handler, admin, usuarioID, map[string]any{
+		"estado": "Inactivo",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200 al desactivar con edición parcial, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	authHandler := &AuthHandler{DB: pool}
+	rec2, res2 := postLogin(t, authHandler, map[string]string{"correo": correo, "pin": "4444"})
+	if rec2.Code != http.StatusUnauthorized {
+		t.Fatalf("esperaba 401 tras desactivar, dio %d: %s", rec2.Code, rec2.Body.String())
+	}
+	if res2.OK {
+		t.Error("un usuario desactivado con edición parcial no debería poder loguearse")
+	}
+}
+
 func TestRoles_ListaLosSembrados(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &UsuariosHandler{DB: pool}

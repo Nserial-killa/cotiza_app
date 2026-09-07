@@ -1,21 +1,18 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -68,12 +65,17 @@ type crearUsuarioRequest struct {
 	Estado string `json:"estado"`
 }
 
+// editarUsuarioRequest usa punteros para distinguir "el campo no vino
+// en el pedido" (nil, se conserva el valor actual en la base) de
+// "vino vacío" (string vacío tras el trim, se rechaza si es nombre o
+// correo). Así una edición parcial — solo estado, o solo el PIN de un
+// Vendedor — no exige repetir nombre/correo en cada pedido.
 type editarUsuarioRequest struct {
-	Nombre string `json:"nombre"`
-	Correo string `json:"correo"`
-	Rol    string `json:"rol"`
-	Estado string `json:"estado"`
-	Pin    string `json:"pin"` // vacío = no resetear el PIN
+	Nombre *string `json:"nombre"`
+	Correo *string `json:"correo"`
+	Rol    *string `json:"rol"`
+	Estado *string `json:"estado"`
+	Pin    *string `json:"pin"` // nil o vacío = no resetear el PIN
 }
 
 // Listar devuelve los usuarios para la tabla de la pantalla. Nunca
@@ -279,59 +281,74 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cuerpo, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "No fue posible leer el cuerpo de la solicitud."})
-		return
-	}
-
 	var req editarUsuarioRequest
-	decoder := json.NewDecoder(bytes.NewReader(cuerpo))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cuerpo de la solicitud no es JSON válido."})
+	if err := decodificarJSON(r, &req); err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 
 	if !esAdmin {
-		var crudo map[string]json.RawMessage
-		if err := json.Unmarshal(cuerpo, &crudo); err != nil {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cuerpo de la solicitud no es JSON válido."})
-			return
-		}
-		if _, traeRol := crudo["rol"]; traeRol {
+		if req.Rol != nil {
 			escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo un Administrador puede cambiar el rol."})
 			return
 		}
-		if _, traeEstado := crudo["estado"]; traeEstado {
+		if req.Estado != nil {
 			escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo un Administrador puede cambiar el estado."})
 			return
 		}
 	}
 
-	nombre := strings.TrimSpace(req.Nombre)
-	correo := strings.ToLower(strings.TrimSpace(req.Correo))
-	pin := strings.TrimSpace(req.Pin)
-	rol := strings.TrimSpace(req.Rol)
-	estado := strings.TrimSpace(req.Estado)
+	// nombre/correo/rol/estado/pin quedan en nil cuando el campo no
+	// vino en el pedido — se arma el UPDATE solo con las columnas
+	// presentes más abajo, así una edición parcial no pisa el resto
+	// con cadenas vacías ni exige repetir todo el usuario.
+	var nombre, correo, rol, estado, pin *string
+	if req.Nombre != nil {
+		v := strings.TrimSpace(*req.Nombre)
+		nombre = &v
+	}
+	if req.Correo != nil {
+		v := strings.ToLower(strings.TrimSpace(*req.Correo))
+		correo = &v
+	}
+	if req.Rol != nil {
+		v := strings.TrimSpace(*req.Rol)
+		rol = &v
+	}
+	if req.Estado != nil {
+		v := strings.TrimSpace(*req.Estado)
+		estado = &v
+	}
+	if req.Pin != nil {
+		v := strings.TrimSpace(*req.Pin)
+		if v != "" {
+			pin = &v
+		}
+	}
 
-	if nombre == "" || correo == "" {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar nombre y correo."})
+	if nombre != nil && *nombre == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El nombre no puede quedar vacío."})
 		return
 	}
-	if !patronCorreoValido.MatchString(correo) {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El correo no tiene un formato válido."})
-		return
-	}
-
-	if esAdmin {
-		if rol == "" || estado == "" {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar rol y estado."})
+	if correo != nil {
+		if *correo == "" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El correo no puede quedar vacío."})
 			return
 		}
-		existeRol, err := rolExiste(ctx, h.DB, rol)
+		if !patronCorreoValido.MatchString(*correo) {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El correo no tiene un formato válido."})
+			return
+		}
+	}
+
+	if rol != nil {
+		if *rol == "" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El rol no puede quedar vacío."})
+			return
+		}
+		existeRol, err := rolExiste(ctx, h.DB, *rol)
 		if err != nil {
-			log.Printf("usuarios: error validando rol %s: %v", rol, err)
+			log.Printf("usuarios: error validando rol %s: %v", *rol, err)
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el rol."})
 			return
 		}
@@ -339,41 +356,51 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El rol indicado no existe."})
 			return
 		}
-	} else {
-		// No vinieron en el cuerpo (ya se rechazó si lo intentó) — se
-		// mantienen los actuales para no pisarlos con la cadena vacía.
-		if err := h.DB.QueryRow(ctx, `SELECT rol, estado FROM usuarios WHERE usuario_id = $1`, usuarioID).Scan(&rol, &estado); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Usuario no encontrado."})
-				return
-			}
-			log.Printf("usuarios: error leyendo rol/estado actuales de %s: %v", usuarioID, err)
-			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar los cambios."})
-			return
-		}
+	}
+	if estado != nil && *estado == "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El estado no puede quedar vacío."})
+		return
 	}
 
-	var tag pgconn.CommandTag
-	if pin == "" {
-		tag, err = h.DB.Exec(ctx, `
-			UPDATE usuarios SET nombre = $1, correo = $2, rol = $3, estado = $4
-			 WHERE usuario_id = $5`,
-			nombre, correo, rol, estado, usuarioID,
-		)
-	} else {
-		var pinHash []byte
-		pinHash, err = bcrypt.GenerateFromPassword([]byte(pin), costoPin)
+	var pinHash *string
+	if pin != nil {
+		hash, err := bcrypt.GenerateFromPassword([]byte(*pin), costoPin)
 		if err != nil {
 			log.Printf("usuarios: error hasheando PIN nuevo: %v", err)
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible procesar el PIN."})
 			return
 		}
-		tag, err = h.DB.Exec(ctx, `
-			UPDATE usuarios SET nombre = $1, correo = $2, rol = $3, estado = $4, pin_hash = $5
-			 WHERE usuario_id = $6`,
-			nombre, correo, rol, estado, string(pinHash), usuarioID,
-		)
+		v := string(hash)
+		pinHash = &v
 	}
+
+	// UPDATE dinámico: solo se tocan las columnas cuyo puntero no es
+	// nil (mismo criterio que decidió no venir en el pedido = no
+	// tocar). Con ningún campo presente (ej. pedido vacío) no hay
+	// nada que actualizar.
+	columnas := make([]string, 0, 5)
+	valores := make([]any, 0, 5)
+	agregar := func(columna string, valor *string) {
+		if valor == nil {
+			return
+		}
+		valores = append(valores, *valor)
+		columnas = append(columnas, columna+" = $"+strconv.Itoa(len(valores)))
+	}
+	agregar("nombre", nombre)
+	agregar("correo", correo)
+	agregar("rol", rol)
+	agregar("estado", estado)
+	agregar("pin_hash", pinHash)
+
+	if len(columnas) == 0 {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar al menos un campo para editar."})
+		return
+	}
+
+	valores = append(valores, usuarioID)
+	consulta := "UPDATE usuarios SET " + strings.Join(columnas, ", ") + " WHERE usuario_id = $" + strconv.Itoa(len(valores))
+	tag, err := h.DB.Exec(ctx, consulta, valores...)
 	if err != nil {
 		if _, esUnica := comoViolacionUnica(err); esUnica {
 			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "Ya existe un usuario con ese correo."})
