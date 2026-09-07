@@ -65,27 +65,6 @@
         return !!(res && (res.ok === true || res.success === true));
       }
 
-      function runModuloParametrosFase1_(modulo, payload, onOk, onFail){
-        payload = payload || {};
-        payload.modulo = modulo;
-        if(!window.google || !google.script || !google.script.run){
-          if(onFail) onFail(new Error("google.script.run no disponible."));
-          return;
-        }
-        google.script.run
-          .withSuccessHandler(function(res){
-            if(!isOkRespuestaFase1_(res)){
-              if(onFail) onFail(new Error((res && (res.message || res.mensaje || res.error)) || "Respuesta no valida del API."), res);
-              return;
-            }
-            if(onOk) onOk(res);
-          })
-          .withFailureHandler(function(err){
-            if(onFail) onFail(err);
-          })
-          .webListarModuloParametros(payload);
-      }
-
       function guardarModuloParametrosFase1_(modulo, payload, onOk, onFail){
         payload = payload || {};
         payload.modulo = modulo;
@@ -302,6 +281,85 @@
         });
       }
 
+      // Mismo mecanismo viejo que catalogos_definicion, mismo arreglo:
+      // /api/catalogos/designer?modo=valores_catalogo&catalogo_id=X ya
+      // existe y ya lo usa el resto del Diseñador de Catálogos, pero
+      // es por-catálogo — no hay un solo endpoint que traiga "todos los
+      // valores de todos los catálogos" de una vez. Por eso primero se
+      // pide la lista de catálogos activos y después se piden sus
+      // valores en paralelo; si algún catálogo puntual falla, ese
+      // catálogo queda sin valores (no rompe el resto), y solo si falla
+      // la primera llamada (o todas) se avisa con un toast y se deja
+      // la lista completa vacía — nunca datos inventados.
+      function cargarValoresCatalogosFase1_(done){
+        fetchAutenticado("/api/catalogos/designer").then(function(resp){
+          if(!resp.ok) throw new Error("HTTP " + resp.status);
+          return resp.json();
+        }).then(function(res){
+          const catalogos = (res && Array.isArray(res.catalogos)) ? res.catalogos : [];
+          return Promise.all(catalogos.map(function(cat){
+            const catalogoId = String(cat.catalogo_id || "").trim();
+            if(!catalogoId) return [];
+            return fetchAutenticado("/api/catalogos/designer?modo=valores_catalogo&catalogo_id=" + encodeURIComponent(catalogoId))
+              .then(function(resp2){
+                if(!resp2.ok) throw new Error("HTTP " + resp2.status);
+                return resp2.json();
+              }).then(function(res2){
+                return (res2 && Array.isArray(res2.valores)) ? res2.valores : [];
+              }).catch(function(){ return []; });
+          }));
+        }).then(function(listasPorCatalogo){
+          const st = getCotizadorFase1State_();
+          st.catalogoValores = [].concat.apply([], listasPorCatalogo);
+          if(done) done();
+        }).catch(function(error){
+          const st = getCotizadorFase1State_();
+          st.catalogoValores = [];
+          mostrarToast("No fue posible cargar los valores de catálogo: " + (error && error.message ? error.message : "error desconocido"));
+          if(done) done();
+        });
+      }
+
+      // tabs_cotizador_relaciones, campos_modelo y reglas (asignada a un
+      // campo puntual) usaban el mismo runModuloParametrosFase1_ muerto
+      // que los dos de arriba, pero a diferencia de esos, acá NO hay un
+      // endpoint real que alimente esto todavía — no es el mismo bug,
+      // es funcionalidad que nunca se construyó:
+      //  - tabs_cotizador_relaciones es "Aplicabilidad de sección" (qué
+      //    tipos de servicio/oferta aplican a una sección del
+      //    cotizador). No existe tabla ni endpoint para esto — la única
+      //    tabla de relaciones del esquema es catalogo_relaciones
+      //    (0001_init_schema.sql), y es un concepto distinto: padre-
+      //    hijo entre VALORES de catálogo, no entre tabs y tipos.
+      //  - reglas acá significa "qué reglas se le asignan a un campo
+      //    puntual del cotizador" (reglas_cotizador). GET /api/reglas
+      //    es el catálogo GLOBAL de reglas (ver el comentario al inicio
+      //    de reglas.go: "cómo se aplican a un elemento del cotizador es
+      //    reglas_cotizador, una tabla y sprint aparte") — no trae
+      //    ninguna relación con un cotizador ni un campo. Además,
+      //    "Agregar regla al campo" en este archivo nunca tuvo un POST
+      //    detrás (campoReglasTemp es puramente local): poblar el
+      //    selector con el catálogo global daría la falsa impresión de
+      //    que ya se puede asignar y guardar, cuando no hay dónde
+      //    guardarlo.
+      //  - campos_modelo (consumida solo por
+      //    getCampoModeloByIdCotizadorFase1_, que a su vez no tiene
+      //    NINGÚN llamador en todo este archivo) quedó de un intento
+      //    vestigial de Campo Calculado/Tabla referenciando "modelos de
+      //    campo" — los tipos de campo complejos que CLAUDE.md
+      //    documenta como fuera de alcance de este sprint.
+      // Los tres quedan en lista vacía a propósito, con un aviso en vez
+      // de romper o inventar datos — mismo criterio que arriba — hasta
+      // que exista la funcionalidad real en un sprint futuro.
+      function cargarPendientesDisenadorCotizadorFase1_(done){
+        const st = getCotizadorFase1State_();
+        st.relaciones = [];
+        st.camposModelo = [];
+        st.reglasModelo = [];
+        mostrarToast("Aplicabilidad de secciones y reglas por campo: pendientes de un sprint futuro.");
+        done(); done(); done();
+      }
+
       function renderCotizadoresSelectFase1_(){
         const st = getCotizadorFase1State_();
         const sel = byId("designerCotizadorActualFiltro");
@@ -354,11 +412,9 @@
             done();
           }, function(err){ st.elementos = []; fail(err); });
         }, fail);
-        runModuloParametrosFase1_("tabs_cotizador_relaciones", {}, function(res){ st.relaciones = rowsFromRespuestaFase1_(res); done(); }, fail);
-        runModuloParametrosFase1_("catalogos_valores", {}, function(res){ st.catalogoValores = rowsFromRespuestaFase1_(res); done(); }, fail);
+        cargarValoresCatalogosFase1_(done);
         cargarCatalogosDefinicionFase1_(done);
-        runModuloParametrosFase1_("campos_modelo", {}, function(res){ st.camposModelo = rowsFromRespuestaFase1_(res); done(); }, fail);
-        runModuloParametrosFase1_("reglas", {}, function(res){ st.reglasModelo = rowsFromRespuestaFase1_(res); done(); }, fail);
+        cargarPendientesDisenadorCotizadorFase1_(done);
       }
 
       function renderCotizadorFase1_(){
