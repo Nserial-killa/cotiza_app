@@ -4919,6 +4919,32 @@ table tr:last-child td { border-bottom: none; }
   </div>
 </section>
 
+<script>
+(function(){
+  // Las plantillas de esta galería son datos de ejemplo (ver el
+  // comentario "Galería inicial de demostración" más arriba) — todavía
+  // no hay módulo de plantillas en el API (Cotiza_Script_Plantillas
+  // sigue sin llegar, ver CLAUDE.md). Mismo patrón que otras acciones
+  // pendientes del proyecto: un toast de "disponible próximamente" en
+  // vez de un botón que no responde al click.
+  const grid = document.getElementById("tplCards");
+  if(!grid) return;
+  function mostrarToastPlantillas_(texto){
+    const core = window.__cotizaCore;
+    if(core && typeof core.mostrarToast === "function"){ core.mostrarToast(texto); return; }
+    console.log(texto || "");
+  }
+  grid.addEventListener("click", function(e){
+    const btn = e.target.closest(".tpl-card-actions button");
+    if(!btn) return;
+    const texto = btn.textContent || "";
+    if(texto.indexOf("Vista previa") >= 0 || texto.indexOf("Usar como base") >= 0){
+      mostrarToastPlantillas_("Esta acción estará disponible próximamente.");
+    }
+  });
+})();
+</script>
+
 
       
 <!-- === Cotiza_Configuracion (cotiza_configuracion.html) === -->
@@ -7168,7 +7194,7 @@ window.CotizaApp = (function(){
 
       function cargarUsuariosAdmin(force){
         const btnNuevo = byId("btnNuevoUsuario");
-        if(btnNuevo) btnNuevo.hidden = !state.usuario || state.usuario.rol !== "Administrador";
+        if(btnNuevo) btnNuevo.style.display = (!state.usuario || state.usuario.rol !== "Administrador") ? "none" : "";
 
         cargarRolesAdmin();
 
@@ -12610,6 +12636,29 @@ window.CotizaApp = (function(){
         });
      }
 
+      // Antes usaba runModuloParametrosFase1_ (mecanismo viejo de Apps
+      // Script que google.script.run no resuelve más), y su onFail
+      // dejaba st.catalogosDefinicion vacío en silencio — el selector
+      // de "Campo con catálogo" salía vacío aunque el catálogo
+      // existiera. Mismo patrón de arreglo que cargarCotizadoresFase1_:
+      // llamar al endpoint real, y si falla, avisar con un toast y
+      // dejar la lista vacía (nunca inventar catálogos de ejemplo).
+      function cargarCatalogosDefinicionFase1_(done){
+        fetchAutenticado("/api/catalogos/designer").then(function(resp){
+          if(!resp.ok) throw new Error("HTTP " + resp.status);
+          return resp.json();
+        }).then(function(res){
+          const st = getCotizadorFase1State_();
+          st.catalogosDefinicion = (res && Array.isArray(res.catalogos)) ? res.catalogos : [];
+          if(done) done();
+        }).catch(function(error){
+          const st = getCotizadorFase1State_();
+          st.catalogosDefinicion = [];
+          mostrarToast("No fue posible cargar los catálogos: " + (error && error.message ? error.message : "error desconocido"));
+          if(done) done();
+        });
+      }
+
       function renderCotizadoresSelectFase1_(){
         const st = getCotizadorFase1State_();
         const sel = byId("designerCotizadorActualFiltro");
@@ -12664,7 +12713,7 @@ window.CotizaApp = (function(){
         }, fail);
         runModuloParametrosFase1_("tabs_cotizador_relaciones", {}, function(res){ st.relaciones = rowsFromRespuestaFase1_(res); done(); }, fail);
         runModuloParametrosFase1_("catalogos_valores", {}, function(res){ st.catalogoValores = rowsFromRespuestaFase1_(res); done(); }, fail);
-        runModuloParametrosFase1_("catalogos_definicion", {}, function(res){ st.catalogosDefinicion = rowsFromRespuestaFase1_(res); done(); }, function(){ st.catalogosDefinicion = []; done(); });
+        cargarCatalogosDefinicionFase1_(done);
         runModuloParametrosFase1_("campos_modelo", {}, function(res){ st.camposModelo = rowsFromRespuestaFase1_(res); done(); }, fail);
         runModuloParametrosFase1_("reglas", {}, function(res){ st.reglasModelo = rowsFromRespuestaFase1_(res); done(); }, fail);
       }

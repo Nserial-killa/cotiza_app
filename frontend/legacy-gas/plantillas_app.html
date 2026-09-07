@@ -501,3 +501,29 @@
     </div>
   </div>
 </section>
+
+<script>
+(function(){
+  // Las plantillas de esta galería son datos de ejemplo (ver el
+  // comentario "Galería inicial de demostración" más arriba) — todavía
+  // no hay módulo de plantillas en el API (Cotiza_Script_Plantillas
+  // sigue sin llegar, ver CLAUDE.md). Mismo patrón que otras acciones
+  // pendientes del proyecto: un toast de "disponible próximamente" en
+  // vez de un botón que no responde al click.
+  const grid = document.getElementById("tplCards");
+  if(!grid) return;
+  function mostrarToastPlantillas_(texto){
+    const core = window.__cotizaCore;
+    if(core && typeof core.mostrarToast === "function"){ core.mostrarToast(texto); return; }
+    console.log(texto || "");
+  }
+  grid.addEventListener("click", function(e){
+    const btn = e.target.closest(".tpl-card-actions button");
+    if(!btn) return;
+    const texto = btn.textContent || "";
+    if(texto.indexOf("Vista previa") >= 0 || texto.indexOf("Usar como base") >= 0){
+      mostrarToastPlantillas_("Esta acción estará disponible próximamente.");
+    }
+  });
+})();
+</script>

@@ -1732,7 +1732,7 @@ window.CotizaApp = (function(){
 
       function cargarUsuariosAdmin(force){
         const btnNuevo = byId("btnNuevoUsuario");
-        if(btnNuevo) btnNuevo.hidden = !state.usuario || state.usuario.rol !== "Administrador";
+        if(btnNuevo) btnNuevo.style.display = (!state.usuario || state.usuario.rol !== "Administrador") ? "none" : "";
 
         cargarRolesAdmin();
 

@@ -279,6 +279,29 @@
         });
      }
 
+      // Antes usaba runModuloParametrosFase1_ (mecanismo viejo de Apps
+      // Script que google.script.run no resuelve más), y su onFail
+      // dejaba st.catalogosDefinicion vacío en silencio — el selector
+      // de "Campo con catálogo" salía vacío aunque el catálogo
+      // existiera. Mismo patrón de arreglo que cargarCotizadoresFase1_:
+      // llamar al endpoint real, y si falla, avisar con un toast y
+      // dejar la lista vacía (nunca inventar catálogos de ejemplo).
+      function cargarCatalogosDefinicionFase1_(done){
+        fetchAutenticado("/api/catalogos/designer").then(function(resp){
+          if(!resp.ok) throw new Error("HTTP " + resp.status);
+          return resp.json();
+        }).then(function(res){
+          const st = getCotizadorFase1State_();
+          st.catalogosDefinicion = (res && Array.isArray(res.catalogos)) ? res.catalogos : [];
+          if(done) done();
+        }).catch(function(error){
+          const st = getCotizadorFase1State_();
+          st.catalogosDefinicion = [];
+          mostrarToast("No fue posible cargar los catálogos: " + (error && error.message ? error.message : "error desconocido"));
+          if(done) done();
+        });
+      }
+
       function renderCotizadoresSelectFase1_(){
         const st = getCotizadorFase1State_();
         const sel = byId("designerCotizadorActualFiltro");
@@ -333,7 +356,7 @@
         }, fail);
         runModuloParametrosFase1_("tabs_cotizador_relaciones", {}, function(res){ st.relaciones = rowsFromRespuestaFase1_(res); done(); }, fail);
         runModuloParametrosFase1_("catalogos_valores", {}, function(res){ st.catalogoValores = rowsFromRespuestaFase1_(res); done(); }, fail);
-        runModuloParametrosFase1_("catalogos_definicion", {}, function(res){ st.catalogosDefinicion = rowsFromRespuestaFase1_(res); done(); }, function(){ st.catalogosDefinicion = []; done(); });
+        cargarCatalogosDefinicionFase1_(done);
         runModuloParametrosFase1_("campos_modelo", {}, function(res){ st.camposModelo = rowsFromRespuestaFase1_(res); done(); }, fail);
         runModuloParametrosFase1_("reglas", {}, function(res){ st.reglasModelo = rowsFromRespuestaFase1_(res); done(); }, fail);
       }
