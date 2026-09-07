@@ -669,12 +669,13 @@ table tr:last-child td { border-bottom: none; }
 /* Badges de estado (Borrador, Aceptada, etc.) */
 .badge, .status-badge, .estado-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #EEF1F6; color: #4B5768; }
 
-/* ---------- Vacío / sección preparada (Clientes, Reportes, etc.) ---------- */
-.empty-state, .placeholder-card {
+/* ---------- Vacío / sección preparada (Clientes, Configuración, Reportes, etc.) ---------- */
+.empty-state, .placeholder-card, .placeholder {
   background: #fff; border-radius: 12px; padding: 48px 24px; text-align: center;
   border: 1px dashed #D3D9E3; color: #8993A3;
 }
-.empty-state h3, .empty-state h2 { color: #0F2A4A; margin-bottom: 8px; }
+.empty-state h3, .empty-state h2, .placeholder h2 { color: #0F2A4A; font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+.placeholder p { color: #8993A3; font-size: 13px; }
 
 /* ---------- Modales ---------- */
 .modal { position: fixed; inset: 0; background: rgba(15,26,46,0.5); display: none; align-items: center; justify-content: center; z-index: 100; }
