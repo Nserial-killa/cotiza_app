@@ -1851,7 +1851,7 @@ window.CotizaApp = (function(){
           byId("usuarioIdOriginal").value = item.usuario_id || "";
           byId("usuarioNombre").value = item.nombre || "";
           byId("usuarioCorreo").value = item.correo || "";
-          byId("usuarioCorreo").disabled = true;
+          byId("usuarioCorreo").disabled = false;
           if(byId("usuarioRol")) byId("usuarioRol").value = item.rol || "";
           byId("usuarioEstado").value = item.estado || "Activo";
           if(labelPin) labelPin.textContent = "Nuevo PIN (opcional)";
@@ -1890,7 +1890,17 @@ window.CotizaApp = (function(){
 
         try{
           if(usuarioId){
-            const cuerpo = { nombre:nombre, rol:rol, estado:estado };
+            // rol/estado solo se mandan si la sesión es Administrador:
+            // el backend rechaza con 403 si esas claves vienen en el
+            // cuerpo y quien edita no es Administrador (ver
+            // internal/handlers/usuarios.go), incluso si el valor
+            // enviado es el mismo que ya tenía — así que un Vendedor
+            // editando su propio nombre/correo/PIN no puede incluirlas.
+            const cuerpo = { nombre:nombre, correo:correo };
+            if(state.usuario && state.usuario.rol === "Administrador"){
+              cuerpo.rol = rol;
+              cuerpo.estado = estado;
+            }
             if(pin) cuerpo.pin = pin;
             await solicitarJSON("/api/usuarios/" + encodeURIComponent(usuarioId), {
               method:"PATCH",
