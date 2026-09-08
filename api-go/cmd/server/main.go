@@ -65,6 +65,9 @@ func main() {
 	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
 	plantillaVinculaciones := &handlers.PlantillaVinculacionesHandler{DB: pool}
 	plantillaEstilo := &handlers.PlantillaEstiloHandler{DB: pool}
+	integraciones := &handlers.IntegracionesHandler{DB: pool}
+	solicitudes := &handlers.SolicitudesHandler{DB: pool, Cotizaciones: cotizaciones}
+	solicitudesExternas := &handlers.SolicitudesExternasHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		// Públicas — sin sesión. Todo lo demás bajo /api exige un
@@ -72,6 +75,14 @@ func main() {
 		r.Get("/health", health.Check)
 		r.Post("/auth/login", auth.Login)
 		r.Get("/publico/cotizacion/{token}", enlacesPublicos.VerCotizacion)
+
+		// API externo (Bitrix24 u otro): clave propia por header
+		// X-Api-Key, nunca una sesión de usuario — grupo aparte del de
+		// abajo, con su propio middleware.
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequiereApiKey(pool))
+			r.Post("/externo/solicitudes", solicitudesExternas.Crear)
+		})
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.RequiereSesion(pool))
@@ -147,6 +158,16 @@ func main() {
 				r.Post("/{id}/version", cotizaciones.CrearVersion)
 				r.Post("/{id}/estado", cotizaciones.CambiarEstado)
 				r.Post("/{id}/enlace", enlacesPublicos.GenerarEnlace)
+			})
+			r.Route("/integraciones", func(r chi.Router) {
+				r.Get("/", integraciones.Listar)
+				r.Post("/", integraciones.Crear)
+				r.Patch("/{id}", integraciones.Editar)
+			})
+			r.Route("/solicitudes", func(r chi.Router) {
+				r.Get("/", solicitudes.Listar)
+				r.Patch("/{id}", solicitudes.CambiarEstado)
+				r.Post("/{id}/convertir", solicitudes.Convertir)
 			})
 		})
 	})

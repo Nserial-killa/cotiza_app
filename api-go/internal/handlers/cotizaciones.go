@@ -111,18 +111,42 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
+	cotizacionID, codigoOferta, ok := h.crearCotizacionEnTx(w, ctx, tx, entrada, usuarioID, "Cotización creada desde el Gestor.")
+	if !ok {
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("cotizaciones: error creando cotización: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear la cotización."})
+		return
+	}
+
+	escribirJSON(w, http.StatusCreated, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "codigo_oferta": codigoOferta})
+}
+
+// crearCotizacionEnTx contiene el núcleo transaccional de dar de alta
+// una cotización: validar el cotizador, resolver o crear el cliente,
+// generar código de oferta e id, e insertar cotización + versión +
+// cotizacion_usuarios + historial. Lo comparten Crear (POST
+// /api/cotizaciones) y SolicitudesHandler.Convertir (POST
+// /api/solicitudes/{id}/convertir) para no duplicar esta lógica —
+// cada uno abre y confirma su propia transacción; acá solo se agregan
+// las operaciones. Si devuelve ok=false, ya escribió la respuesta de
+// error en w y el caller debe hacer return sin escribir nada más.
+func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx context.Context, tx pgx.Tx, entrada crearCotizacionEntrada, usuarioID, comentarioHistorial string) (cotizacionID, codigoOferta string, ok bool) {
 	var calculadoraExiste bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM calculadoras WHERE calculadora_id=$1 AND estado IN ('Activo','Publicado'))`, entrada.CalculadoraID).Scan(&calculadoraExiste); err != nil {
 		log.Printf("cotizaciones: error validando cotizador: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el cotizador seleccionado."})
-		return
+		return "", "", false
 	}
 	if !calculadoraExiste {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cotizador seleccionado no existe o no está disponible."})
-		return
+		return "", "", false
 	}
 
 	clienteID := entrada.ClienteID
+	var err error
 	if clienteID == "" {
 		clienteID, err = generarIDDisponible(ctx, tx, "cli", "clientes", "cliente_id")
 		if err == nil {
@@ -133,30 +157,30 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM clientes WHERE cliente_id=$1 AND estado='Activo')`, clienteID).Scan(&clienteExiste)
 		if err == nil && !clienteExiste {
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cliente seleccionado no existe o no está activo."})
-			return
+			return "", "", false
 		}
 	}
 	if err != nil {
 		log.Printf("cotizaciones: error resolviendo cliente: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear el cliente de la cotización."})
-		return
+		return "", "", false
 	}
 
 	// Serializa únicamente la asignación del código corto; así el chequeo
 	// de colisión sigue siendo correcto aun sin un índice UNIQUE heredado.
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('cotizaciones_codigo_oferta'))`); err != nil {
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el código de oferta."})
-		return
+		return "", "", false
 	}
-	codigoOferta, err := generarCodigoOferta(ctx, tx)
+	codigoOferta, err = generarCodigoOferta(ctx, tx)
 	if err != nil {
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar un código de oferta disponible."})
-		return
+		return "", "", false
 	}
-	cotizacionID, err := generarIDDisponible(ctx, tx, "cot", "cotizaciones", "cotizacion_id")
+	cotizacionID, err = generarIDDisponible(ctx, tx, "cot", "cotizaciones", "cotizacion_id")
 	if err != nil {
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el identificador de la cotización."})
-		return
+		return "", "", false
 	}
 
 	var tipoPropuesta any
@@ -171,18 +195,14 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		version := 1
-		err = insertarHistorial(ctx, tx, cotizacionID, &version, "creada", nil, nil, "Cotización creada desde el Gestor.", usuarioID)
-	}
-	if err == nil {
-		err = tx.Commit(ctx)
+		err = insertarHistorial(ctx, tx, cotizacionID, &version, "creada", nil, nil, comentarioHistorial, usuarioID)
 	}
 	if err != nil {
 		log.Printf("cotizaciones: error creando cotización: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear la cotización."})
-		return
+		return "", "", false
 	}
-
-	escribirJSON(w, http.StatusCreated, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "codigo_oferta": codigoOferta})
+	return cotizacionID, codigoOferta, true
 }
 
 func generarCodigoOferta(ctx context.Context, tx pgx.Tx) (string, error) {
