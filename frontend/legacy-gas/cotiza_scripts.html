@@ -1709,6 +1709,7 @@ window.CotizaApp = (function(){
           inicializarParametrosV9();
         }
         if(section === "usuarios") cargarUsuariosAdmin();
+        if(section === "plantillas" && window.CotizaPlantillas) window.CotizaPlantillas.cargarGaleria();
       }
 
 

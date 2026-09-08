@@ -61,6 +61,10 @@ func main() {
 	calculadoras := &handlers.CalculadorasHandler{DB: pool}
 	runtimeCotizador := &handlers.CotizadorRuntimeHandler{DB: pool}
 	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool}
+	plantillas := &handlers.PlantillasHandler{DB: pool}
+	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
+	plantillaVinculaciones := &handlers.PlantillaVinculacionesHandler{DB: pool}
+	plantillaEstilo := &handlers.PlantillaEstiloHandler{DB: pool}
 
 	router.Route("/api", func(r chi.Router) {
 		// Públicas — sin sesión. Todo lo demás bajo /api exige un
@@ -99,6 +103,29 @@ func main() {
 				r.Get("/", reglas.Listar)
 				r.Post("/", reglas.Guardar)
 				r.Delete("/{id}", reglas.Eliminar)
+			})
+
+			// --- Carril A (Configuración): plantillas.
+			r.Route("/plantillas", func(r chi.Router) {
+				r.Get("/", plantillas.Listar)
+				r.Post("/", plantillas.Crear)
+				r.Get("/opciones", plantillas.Opciones)
+				r.Get("/{id}", plantillas.Detalle)
+				r.Patch("/{id}", plantillas.Editar)
+				r.Post("/{id}/publicar", plantillas.Publicar)
+				r.Delete("/{id}", plantillas.Eliminar)
+				r.Post("/{id}/secciones", plantillaEstructura.CrearSeccion)
+				r.Patch("/secciones/{seccion_id}", plantillaEstructura.EditarSeccion)
+				r.Delete("/secciones/{seccion_id}", plantillaEstructura.EliminarSeccion)
+				r.Post("/secciones/{seccion_id}/orden", plantillaEstructura.OrdenarSecciones)
+				r.Post("/secciones/{seccion_id}/bloques", plantillaEstructura.CrearBloque)
+				r.Patch("/bloques/{bloque_id}", plantillaEstructura.EditarBloque)
+				r.Delete("/bloques/{bloque_id}", plantillaEstructura.EliminarBloque)
+				r.Post("/bloques/{bloque_id}/orden", plantillaEstructura.OrdenarBloques)
+				r.Get("/{id}/fuentes", plantillaVinculaciones.Fuentes)
+				r.Post("/bloques/{bloque_id}/vinculacion", plantillaVinculaciones.Guardar)
+				r.Delete("/bloques/{bloque_id}/vinculacion", plantillaVinculaciones.Eliminar)
+				r.Patch("/{id}/estilo", plantillaEstilo.Actualizar)
 			})
 
 			// --- Carril B (Operación): cotizaciones, dashboard, reportes.

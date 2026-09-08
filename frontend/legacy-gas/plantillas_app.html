@@ -46,7 +46,7 @@
       <h2>Plantillas disponibles</h2>
       <span id="tplResultadoTexto">6 resultados</span>
     </div>
-    <!-- Galería inicial de demostración. El módulo API sustituirá este contenido al cargar plantillas reales. -->
+    <!-- Contenido inicial de respaldo; el módulo API lo sustituye al cargar plantillas reales. -->
     <div id="tplCards" class="tpl-card-grid">
       <article class="tpl-template-card">
         <div class="tpl-card-preview theme-navy"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
@@ -504,30 +504,828 @@
 
 <script>
 (function(){
-  // Las plantillas de esta galería son datos de ejemplo (ver el
-  // comentario "Galería inicial de demostración" más arriba) — todavía
-  // no hay módulo de plantillas en el API (Cotiza_Script_Plantillas
-  // sigue sin llegar, ver CLAUDE.md). Mismo patrón que otras acciones
-  // pendientes del proyecto ("+ Nueva solicitud" de Cotizaciones, etc.):
-  // un toast de "disponible próximamente" en vez de un botón que no
-  // responde al click. Cada tarjeta es marcado fijo (no una lista
-  // generada desde datos), así que se bindea por id como el resto de
-  // los botones estáticos del proyecto, en vez de delegar el evento.
-  //
-  // window.__cotizaCore todavía no existe cuando este script corre
-  // (Plantillas_App se incluye en el body ANTES de Cotiza_Scripts, al
-  // revés que cotiza_script_catalogos.html) — por eso mostrarToast se
-  // resuelve recién al hacer click, no al cargar la página, o siempre
-  // usaría el fallback de consola aunque el toast real ya esté listo.
-  function avisarProximamente(){
-    const core = window.__cotizaCore;
-    if(core && typeof core.mostrarToast === "function"){ core.mostrarToast("Esta acción estará disponible próximamente."); return; }
-    console.log("Esta acción estará disponible próximamente.");
+  const estado = {
+    iniciado:false,
+    cargando:false,
+    plantillas:[],
+    publicadas:[],
+    calculadoras:[],
+    tiposPropuesta:[],
+    organizaciones:[],
+    detallePreview:null,
+    wizard:{
+      plantillaId:"",
+      crearDesde:"",
+      paso:1,
+      sucio:false,
+      guardando:false,
+      detalle:null,
+      estructura:nuevoEstadoEstructura()
+    }
+  };
+
+  function nuevoEstadoEstructura(){
+    return {secciones:[],seleccion:null,arrastre:null,timers:{}};
   }
-  ["tplBtnVistaPrevia1","tplBtnVistaPrevia2","tplBtnVistaPrevia3","tplBtnVistaPrevia4","tplBtnVistaPrevia5","tplBtnVistaPrevia6",
-   "tplBtnUsarBase1","tplBtnUsarBase2","tplBtnUsarBase3","tplBtnUsarBase4"].forEach(function(id){
-    const el = document.getElementById(id);
-    if(el) el.addEventListener("click", avisarProximamente);
-  });
+
+  function core(){ return window.__cotizaCore || null; }
+  function byId(id){ return document.getElementById(id); }
+  function escapar(value){
+    const c = core();
+    if(c && typeof c.escapeHtml === "function") return c.escapeHtml(value);
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+  }
+  function toast(mensaje){
+    const c = core();
+    if(c && typeof c.mostrarToast === "function") c.mostrarToast(mensaje);
+    else console.log(mensaje);
+  }
+  function setTexto(id,valor){ const nodo=byId(id); if(nodo) nodo.textContent=valor===undefined||valor===null?"":String(valor); }
+  function mostrarCargando(activo){
+    estado.cargando=!!activo;
+    const raiz=byId("section-plantillas");
+    if(raiz) raiz.classList.toggle("loading",!!activo);
+    ["tplBtnNueva","tplBtnAplicarFiltros","tplBtnGuardar","tplBtnGuardarContinuar"].forEach(function(id){
+      const boton=byId(id);if(boton) boton.disabled=!!activo;
+    });
+  }
+
+  async function solicitarJSON(url,opciones){
+    const c=core();
+    if(!c || typeof c.fetchAutenticado !== "function") throw new Error("La sesión de Cotiza todavía no está lista.");
+    const resp=await c.fetchAutenticado(url,opciones||{});
+    let data=null;
+    try{data=await resp.json();}catch(error){data=null;}
+    if(!resp.ok || !data || !data.ok) throw new Error((data&&data.error)||"No fue posible completar la solicitud.");
+    return data;
+  }
+
+  function iniciar(){
+    if(estado.iniciado) return;
+    estado.iniciado=true;
+    bind("tplBtnNueva","click",function(){ abrirWizardNuevo(""); });
+    bind("tplBtnAplicarFiltros","click",cargarGaleria);
+    bind("tplFiltroCotizador","change",cargarGaleria);
+    bind("tplFiltroTipo","change",cargarGaleria);
+    bind("tplFiltroEstado","change",cargarGaleria);
+    let timerBusqueda=null;
+    bind("tplFiltroBusqueda","input",function(){clearTimeout(timerBusqueda);timerBusqueda=setTimeout(cargarGaleria,250);});
+    bind("tplFiltroBusqueda","change",cargarGaleria);
+    bind("tplBtnVolverGaleria","click",volverGaleria);
+    bind("tplBtnCancelar","click",volverGaleria);
+    bind("tplBtnGuardar","click",guardarBorrador);
+    bind("tplBtnGuardarContinuar","click",accionPrincipalWizard);
+    bind("tplBtnCerrarPreview","click",cerrarPreview);
+    bind("tplBtnUsarPreview","click",usarPreviewComoBase);
+    bind("tplBtnVistaPreviaWizard","click",function(){
+      if(estado.wizard.plantillaId) abrirPreview(estado.wizard.plantillaId);
+    });
+    bind("tplBtnRefreshReview","click",cargarResumenRevision);
+    bind("tplBtnNuevaSeccion","click",crearSeccion);
+    bind("tplBtnDeleteSection","click",eliminarSeccionSeleccionada);
+    bind("tplBtnDeleteBlock","click",eliminarBloqueSeleccionado);
+
+    const tarjetas=byId("tplCards");
+    if(tarjetas) tarjetas.addEventListener("click",manejarAccionTarjeta);
+    const bases=byId("tplBaseOptions");
+    if(bases) bases.addEventListener("click",manejarSeleccionBase);
+    const listaSecciones=byId("tplSectionList");
+    if(listaSecciones){
+      listaSecciones.addEventListener("click",manejarSeleccionSeccion);
+      listaSecciones.addEventListener("dragstart",iniciarArrastreSeccion);
+      listaSecciones.addEventListener("dragover",permitirSoltarSeccion);
+      listaSecciones.addEventListener("drop",soltarSeccion);
+      listaSecciones.addEventListener("dragend",terminarArrastreEstructura);
+      listaSecciones.addEventListener("keydown",manejarTecladoSeccion);
+    }
+    const paletaBloques=byId("tplBlockPalette");
+    if(paletaBloques){
+      paletaBloques.addEventListener("dragstart",iniciarArrastreTipoBloque);
+      paletaBloques.addEventListener("dragend",terminarArrastreEstructura);
+      paletaBloques.addEventListener("dblclick",agregarBloqueDesdePaleta);
+      paletaBloques.addEventListener("keydown",function(evento){if(evento.key==="Enter"||evento.key===" "){evento.preventDefault();agregarBloqueDesdePaleta(evento);}});
+    }
+    const canvasEstructura=byId("tplStructureCanvas");
+    if(canvasEstructura){
+      canvasEstructura.addEventListener("click",manejarSeleccionCanvas);
+      canvasEstructura.addEventListener("dragstart",iniciarArrastreBloque);
+      canvasEstructura.addEventListener("dragover",permitirSoltarEnColumna);
+      canvasEstructura.addEventListener("dragleave",limpiarZonaSoltar);
+      canvasEstructura.addEventListener("drop",soltarEnColumna);
+      canvasEstructura.addEventListener("dragend",terminarArrastreEstructura);
+      canvasEstructura.addEventListener("keydown",manejarTecladoBloque);
+    }
+    const modal=byId("tplPreviewModal");
+    if(modal) modal.addEventListener("click",function(evento){if(evento.target===modal) cerrarPreview();});
+    document.querySelectorAll("#section-plantillas .tpl-step").forEach(function(boton){
+      boton.addEventListener("click",function(){ irAPaso(Number(boton.dataset.tplStep||1),true); });
+    });
+    document.querySelectorAll("#section-plantillas [data-preview-channel]").forEach(function(boton){
+      boton.addEventListener("click",function(){ cambiarCanalRevision(boton.dataset.previewChannel||"WEB"); });
+    });
+    ["tplNombre","tplDescripcion","tplCotizadores","tplTiposPropuesta","tplOrganizacion","tplDisponible","tplPermiteDuplicar"].forEach(function(id){
+      const campo=byId(id);
+      if(!campo) return;
+      campo.addEventListener(id==="tplNombre"||id==="tplDescripcion"?"input":"change",function(){
+        estado.wizard.sucio=true;
+        if(id==="tplDescripcion") actualizarContadorDescripcion();
+        if(id==="tplNombre") setTexto("tplWizardNombreCabecera",campo.value.trim()||"Nueva plantilla");
+      });
+    });
+    ["tplPropSectionName","tplPropSectionTitle","tplPropSectionShowTitle","tplPropSectionVisibility","tplPropSectionLayout","tplPropSectionWeb","tplPropSectionPdf"].forEach(function(id){
+      bind(id,"change",programarGuardadoSeccion);
+    });
+    ["tplPropBlockName","tplPropBlockTitle","tplPropBlockPlaceholder","tplPropBlockColumn","tplPropBlockWeb","tplPropBlockPdf"].forEach(function(id){
+      bind(id,"change",programarGuardadoBloque);
+    });
+  }
+
+  function bind(id,evento,fn){const nodo=byId(id);if(nodo)nodo.addEventListener(evento,fn);}
+
+  async function cargarOpciones(forzar){
+    if(!forzar && estado.calculadoras.length && estado.tiposPropuesta.length){
+      poblarSelectores();
+      return;
+    }
+    const resultados=await Promise.all([
+      solicitarJSON("/api/calculadoras"),
+      solicitarJSON("/api/plantillas/opciones"),
+      solicitarJSON("/api/plantillas?estado=Publicada")
+    ]);
+    estado.calculadoras=resultados[0].calculadoras||[];
+    estado.tiposPropuesta=resultados[1].tipos_propuesta||[];
+    estado.organizaciones=resultados[1].organizaciones||[];
+    estado.publicadas=resultados[2].plantillas||[];
+    poblarSelectores();
+  }
+
+  function poblarSelectores(){
+    llenarSelectSimple("tplFiltroCotizador",estado.calculadoras,"calculadora_id","nombre_calculadora","Todos");
+    llenarSelectMultiple("tplCotizadores",estado.calculadoras,"calculadora_id","nombre_calculadora");
+    llenarSelectSimpleValores("tplFiltroTipo",estado.tiposPropuesta,"Todos");
+    llenarSelectMultipleValores("tplTiposPropuesta",estado.tiposPropuesta);
+    llenarSelectSimple("tplOrganizacion",estado.organizaciones,"organizacion_id","nombre","Sin organización asignada");
+    renderBasesPublicadas();
+  }
+
+  function llenarSelectSimple(id,items,campoValor,campoTexto,etiquetaVacia){
+    const select=byId(id);if(!select)return;
+    const actual=select.value||"";
+    select.innerHTML='<option value="">'+escapar(etiquetaVacia)+'</option>'+(items||[]).map(function(item){
+      const valor=item[campoValor]||"";return '<option value="'+escapar(valor)+'">'+escapar(item[campoTexto]||valor)+'</option>';
+    }).join("");
+    select.value=actual;
+  }
+  function llenarSelectSimpleValores(id,items,etiquetaVacia){
+    const select=byId(id);if(!select)return;const actual=select.value||"";
+    select.innerHTML='<option value="">'+escapar(etiquetaVacia)+'</option>'+(items||[]).map(function(item){return '<option value="'+escapar(item)+'">'+escapar(item)+'</option>';}).join("");
+    select.value=actual;
+  }
+  function llenarSelectMultiple(id,items,campoValor,campoTexto){
+    const select=byId(id);if(!select)return;const actuales=valoresSeleccionados(select);
+    select.innerHTML=(items||[]).map(function(item){const valor=item[campoValor]||"";return '<option value="'+escapar(valor)+'">'+escapar(item[campoTexto]||valor)+'</option>';}).join("");
+    seleccionarValores(select,actuales);
+  }
+  function llenarSelectMultipleValores(id,items){
+    const select=byId(id);if(!select)return;const actuales=valoresSeleccionados(select);
+    select.innerHTML=(items||[]).map(function(item){return '<option value="'+escapar(item)+'">'+escapar(item)+'</option>';}).join("");
+    seleccionarValores(select,actuales);
+  }
+  function valoresSeleccionados(select){return Array.prototype.slice.call((select&&select.selectedOptions)||[]).map(function(opcion){return opcion.value;}).filter(Boolean);}
+  function seleccionarValores(select,valores){
+    const mapa={};(valores||[]).forEach(function(valor){mapa[String(valor)]=true;});
+    Array.prototype.forEach.call((select&&select.options)||[],function(opcion){opcion.selected=!!mapa[String(opcion.value)];});
+  }
+
+  async function cargarGaleria(){
+    const c=core();
+    if(!c || !c.state || !c.state.usuario) return;
+    mostrarCargando(true);
+    try{
+      await cargarOpciones(false);
+      const params=new URLSearchParams();
+      const filtros={
+        busqueda:byId("tplFiltroBusqueda")?byId("tplFiltroBusqueda").value.trim():"",
+        calculadora_id:byId("tplFiltroCotizador")?byId("tplFiltroCotizador").value:"",
+        tipo_propuesta:byId("tplFiltroTipo")?byId("tplFiltroTipo").value:"",
+        estado:byId("tplFiltroEstado")?byId("tplFiltroEstado").value:""
+      };
+      Object.keys(filtros).forEach(function(clave){if(filtros[clave])params.set(clave,filtros[clave]);});
+      const data=await solicitarJSON("/api/plantillas"+(params.toString()?"?"+params.toString():""));
+      estado.plantillas=data.plantillas||[];
+      renderGaleria(data);
+    }catch(error){
+      toast(error&&error.message?error.message:"No fue posible cargar las plantillas.");
+    }finally{mostrarCargando(false);}
+  }
+
+  function renderGaleria(data){
+    const contadores=data.contadores||data||{};
+    setTexto("tplKpiTotal",contadores.total||0);
+    setTexto("tplKpiPublicadas",contadores.publicadas||0);
+    setTexto("tplKpiBorradores",contadores.borradores||0);
+    setTexto("tplKpiEstilos",contadores.estilos||0);
+    const cantidad=estado.plantillas.length;
+    setTexto("tplResultadoTexto",cantidad+(cantidad===1?" resultado":" resultados"));
+    const contenedor=byId("tplCards");
+    const vacio=byId("tplEmpty");
+    if(contenedor) contenedor.classList.toggle("hidden",cantidad===0);
+    if(vacio) vacio.classList.toggle("hidden",cantidad!==0);
+    if(!contenedor)return;
+    const temas=["theme-navy","theme-blue","theme-green","theme-slate"];
+    contenedor.innerHTML=estado.plantillas.map(function(item,indice){
+      const publicada=item.estado==="Publicada";
+      const claseEstado=publicada?"tpl-badge-published":"tpl-badge-draft";
+      const accion=publicada?"base":"editar";
+      const etiqueta=publicada?"Usar como base":"Editar borrador";
+      const cotizadores=(item.cotizadores||[]).join(", ")||"Sin cotizadores asociados";
+      const tipos=(item.tipos_propuesta||[]).join(", ")||"Sin tipos asociados";
+      return '<article class="tpl-template-card">'+
+        '<div class="tpl-card-preview '+temas[indice%temas.length]+'"><span>PROPUESTA COMERCIAL</span><h4>'+escapar(item.nombre||"Plantilla")+'</h4><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>'+escapar(item.codigo||"")+'</b><strong>V'+escapar(item.version||1)+'</strong></footer></div>'+
+        '<div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge '+claseEstado+'">'+escapar(item.estado||"Borrador")+'</span></div><h3>'+escapar(item.nombre||"Plantilla")+'</h3><p>'+escapar(item.descripcion||"Sin descripción")+'</p><ul><li>'+escapar(cotizadores)+'</li><li>'+escapar(tipos)+'</li></ul><small>Versión '+escapar(item.version||1)+'</small></div>'+
+        '<div class="tpl-card-actions"><button class="btn btn-ghost" data-tpl-accion="preview" data-plantilla-id="'+escapar(item.plantilla_id)+'" type="button">◉ Vista previa</button><button class="btn btn-primary" data-tpl-accion="'+accion+'" data-plantilla-id="'+escapar(item.plantilla_id)+'" type="button">'+etiqueta+'</button></div>'+
+      '</article>';
+    }).join("");
+  }
+
+  function manejarAccionTarjeta(evento){
+    const boton=evento.target.closest("[data-tpl-accion]");if(!boton)return;
+    const id=boton.dataset.plantillaId||"";
+    if(boton.dataset.tplAccion==="preview") abrirPreview(id);
+    else if(boton.dataset.tplAccion==="base") abrirWizardNuevo(id);
+    else if(boton.dataset.tplAccion==="editar") abrirWizardEdicion(id);
+  }
+
+  async function obtenerDetalle(id){const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(id));return data.plantilla;}
+
+  async function abrirPreview(id){
+    if(!id)return;mostrarCargando(true);
+    try{
+      const detalle=await obtenerDetalle(id);estado.detallePreview=detalle;
+      setTexto("tplPreviewTitle",detalle.nombre||"Plantilla");
+      setTexto("tplPreviewDescripcion",detalle.descripcion||"Sin descripción");
+      setTexto("tplPreviewEstado",detalle.estado||"Borrador");
+      setTexto("tplPreviewVersion","Versión "+(detalle.version||1));
+      setTexto("tplPreviewCotizadores",nombresCotizadores(detalle.calculadora_ids));
+      setTexto("tplPreviewTipos",(detalle.tipos_propuesta||[]).join(", ")||"Sin tipos asociados");
+      renderEstructuraSimplificada(detalle,byId("tplPreviewPage"));
+      const modal=byId("tplPreviewModal");if(modal)modal.classList.remove("hidden");
+    }catch(error){toast(error&&error.message?error.message:"No fue posible cargar la vista previa.");}
+    finally{mostrarCargando(false);}
+  }
+  function cerrarPreview(){const modal=byId("tplPreviewModal");if(modal)modal.classList.add("hidden");}
+  function usarPreviewComoBase(){
+    const id=estado.detallePreview&&estado.detallePreview.plantilla_id;
+    cerrarPreview();if(id)abrirWizardNuevo(id,estado.detallePreview);
+  }
+  function renderEstructuraSimplificada(detalle,contenedor){
+    if(!contenedor)return;const secciones=(detalle&&detalle.secciones)||[];
+    if(!secciones.length){contenedor.innerHTML='<div class="tpl-structure-empty"><strong>Sin secciones configuradas</strong><span>Esta plantilla todavía no tiene una estructura para mostrar.</span></div>';return;}
+    contenedor.innerHTML=secciones.map(function(seccion){
+      const bloques=seccion.bloques||[];
+      return '<section><h3>'+escapar(seccion.titulo||seccion.nombre||"Sección")+'</h3>'+
+        (bloques.length?'<ul>'+bloques.map(function(bloque){return '<li><strong>'+escapar(bloque.titulo||bloque.nombre_interno||"Bloque")+'</strong><span>'+escapar(bloque.tipo_bloque||"BLOQUE")+'</span></li>';}).join("")+'</ul>':'<p>Sin bloques.</p>')+'</section>';
+    }).join("");
+  }
+
+  const tiposBloqueEstructura=[
+    {tipo:"TEXTO",titulo:"Texto",descripcion:"Párrafos y contenido libre",icono:"T"},
+    {tipo:"LISTA",titulo:"Lista",descripcion:"Elementos ordenados o con viñetas",icono:"≡"},
+    {tipo:"TABLA_INVERSION",titulo:"Tabla de inversión",descripcion:"Resumen económico de la propuesta",icono:"▦"},
+    {tipo:"CAMPO_VINCULADO",titulo:"Campo vinculado",descripcion:"Dato del cotizador",icono:"⌁"},
+    {tipo:"CONDICIONES",titulo:"Condiciones",descripcion:"Términos comerciales",icono:"§"},
+    {tipo:"IMAGEN",titulo:"Imagen",descripcion:"Recurso gráfico de la propuesta",icono:"▧"}
+  ];
+
+  function cargarEstructura(opciones){
+    if(!estado.wizard.plantillaId)return Promise.resolve();
+    opciones=opciones||{};
+    cambiarEstadoEstructura("Cargando...");
+    return obtenerDetalle(estado.wizard.plantillaId).then(function(detalle){
+      estado.wizard.detalle=detalle;
+      estado.wizard.estructura.secciones=detalle.secciones||[];
+      if(opciones.seleccion){estado.wizard.estructura.seleccion=opciones.seleccion;}
+      validarSeleccionEstructura();
+      renderConstructorEstructura();
+      cambiarEstadoEstructura(opciones.guardado?"Guardado":"Sin cambios");
+    }).catch(function(error){
+      cambiarEstadoEstructura("Error al cargar",true);
+      toast(error&&error.message?error.message:"No fue posible cargar la estructura.");
+    });
+  }
+
+  function renderConstructorEstructura(){
+    renderPaletaBloques();
+    renderListaSecciones();
+    renderCanvasEstructura();
+    renderPropiedadesEstructura();
+  }
+
+  function renderPaletaBloques(){
+    const paleta=byId("tplBlockPalette");if(!paleta)return;
+    paleta.innerHTML=tiposBloqueEstructura.map(function(item){
+      return '<div class="tpl-palette-block" draggable="true" tabindex="0" role="button" title="Arrastre o presione Enter para agregar" data-tipo-bloque="'+item.tipo+'">'+
+        '<span class="tpl-palette-icon">'+escapar(item.icono)+'</span><span><strong>'+escapar(item.titulo)+'</strong><small>'+escapar(item.descripcion)+'</small></span><i>⋮⋮</i></div>';
+    }).join("");
+  }
+
+  function renderListaSecciones(){
+    const lista=byId("tplSectionList");if(!lista)return;
+    const secciones=estado.wizard.estructura.secciones;
+    const seleccion=estado.wizard.estructura.seleccion;
+    lista.innerHTML=secciones.map(function(seccion,indice){
+      const activa=seleccion&&seleccion.tipo==="seccion"&&seleccion.id===seccion.seccion_id;
+      const cantidad=(seccion.bloques||[]).length;
+      return '<button class="tpl-section-item '+(activa?'selected':'')+'" type="button" draggable="true" data-seccion-id="'+escapar(seccion.seccion_id)+'">'+
+        '<span class="tpl-drag-handle">⋮⋮</span><span class="tpl-section-number">'+(indice+1)+'</span><span class="tpl-section-copy"><strong>'+escapar(seccion.nombre||"Sección")+'</strong><small>'+cantidad+(cantidad===1?' bloque':' bloques')+'</small></span></button>';
+    }).join("");
+    const cantidad=secciones.length;
+    setTexto("tplStructureSummary",cantidad+(cantidad===1?" sección":" secciones"));
+  }
+
+  function renderCanvasEstructura(){
+    const canvas=byId("tplStructureCanvas"),vacio=byId("tplStructureEmpty");if(!canvas)return;
+    const secciones=estado.wizard.estructura.secciones;
+    canvas.classList.toggle("hidden",secciones.length===0);
+    if(vacio)vacio.classList.toggle("hidden",secciones.length!==0);
+    if(!secciones.length){canvas.innerHTML="";return;}
+    const seleccion=estado.wizard.estructura.seleccion;
+    canvas.innerHTML=secciones.map(function(seccion,indice){
+      const columnas=numeroColumnas(seccion.diseno_bloques);
+      const activa=seleccion&&seleccion.tipo==="seccion"&&seleccion.id===seccion.seccion_id;
+      let columnasHTML="";
+      for(let columna=0;columna<columnas;columna++){
+        const bloques=(seccion.bloques||[]).filter(function(bloque){return columnaNormalizada(seccion,bloque.columna)===columna;});
+        columnasHTML+='<div class="tpl-structure-column" data-seccion-id="'+escapar(seccion.seccion_id)+'" data-columna="'+columna+'"><span class="tpl-column-label">'+(columnas===1?'Columna única':'Columna '+(columna+1))+'</span>'+
+          bloques.map(function(bloque){
+            const seleccionado=seleccion&&seleccion.tipo==="bloque"&&seleccion.id===bloque.bloque_id;
+            return '<article class="tpl-structure-block '+(seleccionado?'selected':'')+'" draggable="true" tabindex="0" role="button" title="Arrastre para reordenar; use Alt + flechas como alternativa" data-bloque-id="'+escapar(bloque.bloque_id)+'" data-seccion-id="'+escapar(seccion.seccion_id)+'" data-columna="'+columna+'"><span class="tpl-drag-handle">⋮⋮</span><span><strong>'+escapar(bloque.titulo||bloque.nombre_interno||etiquetaTipoBloque(bloque.tipo_bloque))+'</strong><small>'+escapar(etiquetaTipoBloque(bloque.tipo_bloque))+'</small></span></article>';
+          }).join("")+(bloques.length?'':'<em class="tpl-column-empty">Suelte un bloque aquí</em>')+'</div>';
+      }
+      return '<section class="tpl-canvas-section '+(activa?'selected':'')+'" data-seccion-id="'+escapar(seccion.seccion_id)+'"><header><span>'+(indice+1)+'</span><div><h3>'+escapar(seccion.titulo||seccion.nombre||"Sección")+'</h3><small>'+escapar(etiquetaDiseno(seccion.diseno_bloques))+'</small></div></header><div class="tpl-canvas-columns" style="grid-template-columns:'+columnasCSS(seccion.diseno_bloques)+'">'+columnasHTML+'</div></section>';
+    }).join("");
+  }
+
+  function renderPropiedadesEstructura(){
+    const seleccion=estado.wizard.estructura.seleccion;
+    const vacio=byId("tplPropertyEmpty"),panelSeccion=byId("tplPropertySection"),panelBloque=byId("tplPropertyBlock");
+    if(vacio)vacio.classList.toggle("hidden",!!seleccion);
+    if(panelSeccion)panelSeccion.classList.add("hidden");
+    if(panelBloque)panelBloque.classList.add("hidden");
+    if(!seleccion){setTexto("tplPropertyType","Seleccione un elemento");return;}
+    if(seleccion.tipo==="seccion"){
+      const seccion=buscarSeccion(seleccion.id);if(!seccion){estado.wizard.estructura.seleccion=null;renderPropiedadesEstructura();return;}
+      setTexto("tplPropertyType","Sección");if(panelSeccion)panelSeccion.classList.remove("hidden");
+      byId("tplPropSectionName").value=seccion.nombre||"";
+      byId("tplPropSectionTitle").value=seccion.titulo||"";
+      byId("tplPropSectionShowTitle").checked=seccion.mostrar_titulo!==false;
+      byId("tplPropSectionVisibility").value=seccion.visibilidad||"SIEMPRE";
+      byId("tplPropSectionLayout").value=seccion.diseno_bloques||"UNA";
+      byId("tplPropSectionWeb").checked=seccion.mostrar_web!==false;
+      byId("tplPropSectionPdf").checked=seccion.mostrar_pdf!==false;
+      return;
+    }
+    const resultado=buscarBloque(seleccion.id);if(!resultado){estado.wizard.estructura.seleccion=null;renderPropiedadesEstructura();return;}
+    setTexto("tplPropertyType","Bloque");if(panelBloque)panelBloque.classList.remove("hidden");
+    byId("tplPropBlockType").value=etiquetaTipoBloque(resultado.bloque.tipo_bloque);
+    byId("tplPropBlockName").value=resultado.bloque.nombre_interno||"";
+    byId("tplPropBlockTitle").value=resultado.bloque.titulo||"";
+    byId("tplPropBlockPlaceholder").value=resultado.bloque.contenido||"";
+    poblarColumnasBloque(resultado.seccion,resultado.bloque);
+    byId("tplPropBlockWeb").checked=resultado.bloque.mostrar_web!==false;
+    byId("tplPropBlockPdf").checked=resultado.bloque.mostrar_pdf!==false;
+  }
+
+  function poblarColumnasBloque(seccion,bloque){
+    const select=byId("tplPropBlockColumn");if(!select)return;
+    const cantidad=numeroColumnas(seccion.diseno_bloques);let html="";
+    for(let i=0;i<cantidad;i++)html+='<option value="'+i+'">'+(cantidad===1?'Columna única':'Columna '+(i+1))+'</option>';
+    select.innerHTML=html;select.value=String(columnaNormalizada(seccion,bloque.columna));
+  }
+
+  function numeroColumnas(diseno){return diseno==="TRES_IGUALES"?3:(String(diseno||"").indexOf("DOS_")===0?2:1);}
+  function columnaNormalizada(seccion,columna){return Math.max(0,Math.min(numeroColumnas(seccion.diseno_bloques)-1,Number(columna)||0));}
+  function columnasCSS(diseno){
+    if(diseno==="DOS_30_70")return "minmax(0,3fr) minmax(0,7fr)";
+    if(diseno==="DOS_70_30")return "minmax(0,7fr) minmax(0,3fr)";
+    return "repeat("+numeroColumnas(diseno)+",minmax(0,1fr))";
+  }
+  function etiquetaDiseno(diseno){
+    const etiquetas={UNA:"1 columna",DOS_50_50:"2 columnas iguales",DOS_30_70:"2 columnas · 30/70",DOS_70_30:"2 columnas · 70/30",TRES_IGUALES:"3 columnas iguales"};
+    return etiquetas[diseno]||"1 columna";
+  }
+  function etiquetaTipoBloque(tipo){const item=tiposBloqueEstructura.find(function(actual){return actual.tipo===tipo;});return item?item.titulo:(tipo||"Bloque");}
+  function buscarSeccion(id){return estado.wizard.estructura.secciones.find(function(seccion){return seccion.seccion_id===id;})||null;}
+  function buscarBloque(id){
+    for(const seccion of estado.wizard.estructura.secciones){
+      const bloque=(seccion.bloques||[]).find(function(actual){return actual.bloque_id===id;});
+      if(bloque)return {seccion:seccion,bloque:bloque};
+    }
+    return null;
+  }
+  function validarSeleccionEstructura(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion)return;
+    if(seleccion.tipo==="seccion"&&!buscarSeccion(seleccion.id))estado.wizard.estructura.seleccion=null;
+    if(seleccion.tipo==="bloque"&&!buscarBloque(seleccion.id))estado.wizard.estructura.seleccion=null;
+  }
+  function seleccionarEstructura(tipo,id){estado.wizard.estructura.seleccion={tipo:tipo,id:id};renderConstructorEstructura();}
+  function cambiarEstadoEstructura(texto,error){
+    const nodo=byId("tplStructureState");if(!nodo)return;nodo.textContent=texto;
+    nodo.classList.toggle("saving",texto==="Guardando..."||texto==="Cargando...");nodo.classList.toggle("error",!!error);
+  }
+
+  function manejarSeleccionSeccion(evento){const item=evento.target.closest("[data-seccion-id]");if(item)seleccionarEstructura("seccion",item.dataset.seccionId);}
+  function manejarSeleccionCanvas(evento){
+    const bloque=evento.target.closest("[data-bloque-id]");if(bloque){seleccionarEstructura("bloque",bloque.dataset.bloqueId);return;}
+    const seccion=evento.target.closest(".tpl-canvas-section[data-seccion-id]");if(seccion)seleccionarEstructura("seccion",seccion.dataset.seccionId);
+  }
+  function agregarBloqueDesdePaleta(evento){
+    const item=evento.target.closest("[data-tipo-bloque]");if(!item)return;
+    const seleccion=estado.wizard.estructura.seleccion;let seccion=null,columna=0;
+    if(seleccion&&seleccion.tipo==="seccion")seccion=buscarSeccion(seleccion.id);
+    if(seleccion&&seleccion.tipo==="bloque"){
+      const resultado=buscarBloque(seleccion.id);if(resultado){seccion=resultado.seccion;columna=columnaNormalizada(resultado.seccion,resultado.bloque.columna);}
+    }
+    if(!seccion){toast("Seleccione una sección antes de agregar el bloque.");return;}
+    crearBloque(item.dataset.tipoBloque,seccion.seccion_id,columna);
+  }
+
+  async function crearSeccion(){
+    if(!estado.wizard.plantillaId){toast("Guarde primero los datos básicos de la plantilla.");return;}
+    const numero=estado.wizard.estructura.secciones.length+1;
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/secciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nombre:"Sección "+numero,titulo:"Sección "+numero,mostrar_titulo:true,visibilidad:"SIEMPRE",diseno_bloques:"UNA",mostrar_web:true,mostrar_pdf:true})});
+      await cargarEstructura({seleccion:{tipo:"seccion",id:data.seccion_id},guardado:true});toast(data.mensaje||"Sección creada.");
+    }catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible crear la sección.");}
+  }
+
+  async function crearBloque(tipo,seccionID,columna){
+    const seccion=buscarSeccion(seccionID);if(!seccion)return;
+    const titulo=etiquetaTipoBloque(tipo);const nombre=String(tipo||"bloque").toLowerCase()+"_"+Date.now().toString(36);
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(seccionID)+"/bloques",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tipo_bloque:tipo,nombre_interno:nombre,titulo:titulo,columna:columna,mostrar_web:true,mostrar_pdf:true})});
+      await cargarEstructura({seleccion:{tipo:"bloque",id:data.bloque_id},guardado:true});toast(data.mensaje||"Bloque creado.");
+    }catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible crear el bloque.");}
+  }
+
+  function programarGuardadoSeccion(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="seccion")return;
+    const seccion=buscarSeccion(seleccion.id);if(!seccion)return;
+    const payload={nombre:byId("tplPropSectionName").value.trim(),titulo:byId("tplPropSectionTitle").value.trim(),mostrar_titulo:byId("tplPropSectionShowTitle").checked,visibilidad:byId("tplPropSectionVisibility").value,diseno_bloques:byId("tplPropSectionLayout").value,mostrar_web:byId("tplPropSectionWeb").checked,mostrar_pdf:byId("tplPropSectionPdf").checked};
+    programarAutoguardado("seccion:"+seccion.seccion_id,function(){guardarPropiedadesSeccion(seccion.seccion_id,payload);});
+  }
+  async function guardarPropiedadesSeccion(seccionID,payload){
+    const seleccion={tipo:"seccion",id:seccionID};const seccion=buscarSeccion(seccionID);if(!seccion)return;
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(seccion.seccion_id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const limite=numeroColumnas(payload.diseno_bloques)-1;
+      const fuera=(seccion.bloques||[]).filter(function(bloque){return Number(bloque.columna)>limite;});
+      if(fuera.length)await Promise.all(fuera.map(function(bloque){return solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloque.bloque_id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({columna:limite})});}));
+      await cargarEstructura({seleccion:seleccion,guardado:true});
+    }catch(error){await cargarEstructura({seleccion:seleccion});cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible actualizar la sección.");}
+  }
+
+  function programarGuardadoBloque(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="bloque")return;
+    const resultado=buscarBloque(seleccion.id);if(!resultado)return;
+    const payload={nombre_interno:byId("tplPropBlockName").value.trim(),titulo:byId("tplPropBlockTitle").value.trim(),contenido:byId("tplPropBlockPlaceholder").value.trim(),columna:Number(byId("tplPropBlockColumn").value)||0,mostrar_web:byId("tplPropBlockWeb").checked,mostrar_pdf:byId("tplPropBlockPdf").checked};
+    programarAutoguardado("bloque:"+resultado.bloque.bloque_id,function(){guardarPropiedadesBloque(resultado.bloque.bloque_id,payload);});
+  }
+  async function guardarPropiedadesBloque(bloqueID,payload){
+    const seleccion={tipo:"bloque",id:bloqueID};const resultado=buscarBloque(bloqueID);if(!resultado)return;
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(resultado.bloque.bloque_id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      await cargarEstructura({seleccion:seleccion,guardado:true});
+    }catch(error){await cargarEstructura({seleccion:seleccion});cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible actualizar el bloque.");}
+  }
+  function programarAutoguardado(clave,accion){
+    const timers=estado.wizard.estructura.timers;clearTimeout(timers[clave]);
+    timers[clave]=setTimeout(function(){delete timers[clave];accion();},250);
+  }
+  function cancelarAutoguardado(clave){
+    const timers=estado.wizard.estructura.timers;clearTimeout(timers[clave]);delete timers[clave];
+  }
+
+  async function eliminarSeccionSeleccionada(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="seccion")return;
+    const seccion=buscarSeccion(seleccion.id);if(!seccion||!window.confirm('¿Eliminar la sección "'+seccion.nombre+'" y todos sus bloques?'))return;
+    cancelarAutoguardado("seccion:"+seccion.seccion_id);cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(seccion.seccion_id),{method:"DELETE"});estado.wizard.estructura.seleccion=null;await cargarEstructura({guardado:true});toast(data.mensaje||"Sección eliminada.");}
+    catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible eliminar la sección.");}
+  }
+
+  async function eliminarBloqueSeleccionado(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="bloque")return;
+    const resultado=buscarBloque(seleccion.id);if(!resultado||!window.confirm('¿Eliminar el bloque "'+(resultado.bloque.titulo||resultado.bloque.nombre_interno)+'"?'))return;
+    cancelarAutoguardado("bloque:"+resultado.bloque.bloque_id);cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(resultado.bloque.bloque_id),{method:"DELETE"});await cargarEstructura({seleccion:{tipo:"seccion",id:resultado.seccion.seccion_id},guardado:true});toast(data.mensaje||"Bloque eliminado.");}
+    catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible eliminar el bloque.");}
+  }
+
+  function iniciarArrastreSeccion(evento){
+    const item=evento.target.closest("[data-seccion-id]");if(!item)return;
+    prepararArrastre(evento,{tipo:"seccion",id:item.dataset.seccionId});item.classList.add("dragging");
+  }
+  function iniciarArrastreTipoBloque(evento){
+    const item=evento.target.closest("[data-tipo-bloque]");if(!item)return;
+    prepararArrastre(evento,{tipo:"paleta",tipoBloque:item.dataset.tipoBloque});item.classList.add("dragging");
+  }
+  function iniciarArrastreBloque(evento){
+    const item=evento.target.closest("[data-bloque-id]");if(!item)return;
+    prepararArrastre(evento,{tipo:"bloque",id:item.dataset.bloqueId,seccionID:item.dataset.seccionId,columna:Number(item.dataset.columna)});item.classList.add("dragging");
+  }
+  function prepararArrastre(evento,datos){
+    estado.wizard.estructura.arrastre=datos;
+    if(evento.dataTransfer){evento.dataTransfer.effectAllowed="move";evento.dataTransfer.setData("text/plain",JSON.stringify(datos));}
+  }
+  function permitirSoltarSeccion(evento){
+    const arrastre=estado.wizard.estructura.arrastre;if(!arrastre||arrastre.tipo!=="seccion")return;
+    evento.preventDefault();limpiarIndicadoresSoltar();
+    const item=evento.target.closest("[data-seccion-id]");
+    if(item&&item.dataset.seccionId!==arrastre.id){const despues=evento.clientY>item.getBoundingClientRect().top+item.getBoundingClientRect().height/2;item.classList.add(despues?"drop-after":"drop-before");}
+    else if(!item&&byId("tplSectionList"))byId("tplSectionList").classList.add("drop-end");
+  }
+  function soltarSeccion(evento){
+    const arrastre=estado.wizard.estructura.arrastre;if(!arrastre||arrastre.tipo!=="seccion")return;
+    evento.preventDefault();const item=evento.target.closest("[data-seccion-id]");const destino=item&&item.dataset.seccionId;
+    const despues=!!(item&&item.classList.contains("drop-after"));limpiarIndicadoresSoltar();if(destino===arrastre.id)return;
+    const ids=estado.wizard.estructura.secciones.map(function(seccion){return seccion.seccion_id;});
+    const origen=ids.indexOf(arrastre.id);if(origen<0)return;ids.splice(origen,1);
+    let posicion=destino?ids.indexOf(destino):ids.length;if(posicion<0)posicion=ids.length;if(despues)posicion++;
+    ids.splice(posicion,0,arrastre.id);guardarOrdenSecciones(arrastre.id,ids);
+  }
+  function manejarTecladoSeccion(evento){
+    if(!evento.altKey||(evento.key!=="ArrowUp"&&evento.key!=="ArrowDown"))return;
+    const item=evento.target.closest("[data-seccion-id]");if(!item)return;evento.preventDefault();
+    const ids=estado.wizard.estructura.secciones.map(function(seccion){return seccion.seccion_id;});const indice=ids.indexOf(item.dataset.seccionId);const destino=indice+(evento.key==="ArrowUp"?-1:1);
+    if(indice<0||destino<0||destino>=ids.length)return;const temporal=ids[indice];ids[indice]=ids[destino];ids[destino]=temporal;guardarOrdenSecciones(item.dataset.seccionId,ids);
+  }
+  async function guardarOrdenSecciones(anclaID,ids){
+    cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(anclaID)+"/orden",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({seccion_ids:ids})});await cargarEstructura({seleccion:{tipo:"seccion",id:anclaID},guardado:true});if(data.mensaje)toast(data.mensaje);}
+    catch(error){await cargarEstructura();cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible reordenar las secciones.");}
+  }
+
+  function permitirSoltarEnColumna(evento){
+    const arrastre=estado.wizard.estructura.arrastre;const columna=evento.target.closest(".tpl-structure-column");if(!arrastre||!columna)return;
+    if(arrastre.tipo==="bloque"&&(arrastre.seccionID!==columna.dataset.seccionId||arrastre.columna!==Number(columna.dataset.columna)))return;
+    if(arrastre.tipo!=="bloque"&&arrastre.tipo!=="paleta")return;
+    evento.preventDefault();limpiarIndicadoresSoltar();columna.classList.add("drop-target");
+    const bloque=evento.target.closest("[data-bloque-id]");if(bloque&&arrastre.tipo==="bloque"&&bloque.dataset.bloqueId!==arrastre.id){const despues=evento.clientY>bloque.getBoundingClientRect().top+bloque.getBoundingClientRect().height/2;bloque.classList.add(despues?"drop-after":"drop-before");}
+  }
+  function limpiarZonaSoltar(evento){const columna=evento.target.closest(".tpl-structure-column");if(columna&&evento.relatedTarget&&columna.contains(evento.relatedTarget))return;limpiarIndicadoresSoltar();}
+  function soltarEnColumna(evento){
+    const arrastre=estado.wizard.estructura.arrastre;const columna=evento.target.closest(".tpl-structure-column");if(!arrastre||!columna)return;
+    evento.preventDefault();const seccionID=columna.dataset.seccionId,columnaNumero=Number(columna.dataset.columna);const objetivo=evento.target.closest("[data-bloque-id]");const objetivoID=objetivo&&objetivo.dataset.bloqueId;const despues=!!(objetivo&&objetivo.classList.contains("drop-after"));limpiarIndicadoresSoltar();
+    if(arrastre.tipo==="paleta"){crearBloque(arrastre.tipoBloque,seccionID,columnaNumero);return;}
+    if(arrastre.tipo==="bloque"&&arrastre.seccionID===seccionID&&arrastre.columna===columnaNumero)reordenarBloque(arrastre.id,seccionID,columnaNumero,objetivoID,despues);
+  }
+  function reordenarBloque(bloqueID,seccionID,columna,objetivoID,despues){
+    const seccion=buscarSeccion(seccionID);if(!seccion||bloqueID===objetivoID)return;
+    const cantidad=numeroColumnas(seccion.diseno_bloques),grupos=[];for(let i=0;i<cantidad;i++)grupos.push([]);
+    (seccion.bloques||[]).forEach(function(bloque){grupos[columnaNormalizada(seccion,bloque.columna)].push(bloque.bloque_id);});
+    const grupo=grupos[columna],origen=grupo.indexOf(bloqueID);if(origen<0)return;grupo.splice(origen,1);
+    let posicion=objetivoID?grupo.indexOf(objetivoID):grupo.length;if(posicion<0)posicion=grupo.length;if(despues)posicion++;
+    grupo.splice(posicion,0,bloqueID);guardarOrdenBloques(bloqueID,[].concat.apply([],grupos));
+  }
+  function manejarTecladoBloque(evento){
+    if(!evento.altKey||(evento.key!=="ArrowUp"&&evento.key!=="ArrowDown"))return;
+    const item=evento.target.closest("[data-bloque-id]");if(!item)return;evento.preventDefault();
+    const seccion=buscarSeccion(item.dataset.seccionId);if(!seccion)return;const cantidad=numeroColumnas(seccion.diseno_bloques),grupos=[];for(let i=0;i<cantidad;i++)grupos.push([]);
+    (seccion.bloques||[]).forEach(function(bloque){grupos[columnaNormalizada(seccion,bloque.columna)].push(bloque.bloque_id);});
+    const grupo=grupos[Number(item.dataset.columna)],indice=grupo.indexOf(item.dataset.bloqueId),destino=indice+(evento.key==="ArrowUp"?-1:1);
+    if(indice<0||destino<0||destino>=grupo.length)return;const temporal=grupo[indice];grupo[indice]=grupo[destino];grupo[destino]=temporal;guardarOrdenBloques(item.dataset.bloqueId,[].concat.apply([],grupos));
+  }
+  async function guardarOrdenBloques(anclaID,ids){
+    cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(anclaID)+"/orden",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bloque_ids:ids})});await cargarEstructura({seleccion:{tipo:"bloque",id:anclaID},guardado:true});if(data.mensaje)toast(data.mensaje);}
+    catch(error){await cargarEstructura();cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible reordenar los bloques.");}
+  }
+  function limpiarIndicadoresSoltar(){document.querySelectorAll("#section-plantillas .drop-before,#section-plantillas .drop-after,#section-plantillas .drop-target,#section-plantillas .drop-end").forEach(function(nodo){nodo.classList.remove("drop-before","drop-after","drop-target","drop-end");});}
+  function terminarArrastreEstructura(){limpiarIndicadoresSoltar();document.querySelectorAll("#section-plantillas .dragging").forEach(function(nodo){nodo.classList.remove("dragging");});estado.wizard.estructura.arrastre=null;}
+
+  async function abrirWizardNuevo(baseID,detalleConocido){
+    mostrarCargando(true);
+    try{
+      await cargarOpciones(false);
+      let base=detalleConocido||null;
+      if(baseID&&!base)base=await obtenerDetalle(baseID);
+      limpiarWizard();
+      estado.wizard.crearDesde=baseID||"";
+      if(base){
+        if(byId("tplNombre"))byId("tplNombre").value="Copia de "+(base.nombre||"plantilla");
+        if(byId("tplDescripcion"))byId("tplDescripcion").value=base.descripcion||"";
+        seleccionarValores(byId("tplCotizadores"),base.calculadora_ids||[]);
+        seleccionarValores(byId("tplTiposPropuesta"),base.tipos_propuesta||[]);
+        if(byId("tplOrganizacion"))byId("tplOrganizacion").value=base.organizacion_id||"";
+        if(byId("tplDisponible"))byId("tplDisponible").checked=base.disponible_nuevas_propuestas!==false;
+        if(byId("tplPermiteDuplicar"))byId("tplPermiteDuplicar").checked=base.permite_duplicar!==false;
+      }
+      sincronizarCamposWizard();
+      mostrarWizard();
+      await mostrarPaso(1);
+    }catch(error){toast(error&&error.message?error.message:"No fue posible preparar la nueva plantilla.");}
+    finally{mostrarCargando(false);}
+  }
+
+  async function abrirWizardEdicion(id){
+    mostrarCargando(true);
+    try{
+      const resultados=await Promise.all([cargarOpciones(false),obtenerDetalle(id)]);
+      const detalle=resultados[1];limpiarWizard();
+      estado.wizard.plantillaId=detalle.plantilla_id||id;
+      estado.wizard.detalle=detalle;
+      if(byId("tplNombre"))byId("tplNombre").value=detalle.nombre||"";
+      if(byId("tplDescripcion"))byId("tplDescripcion").value=detalle.descripcion||"";
+      if(byId("tplCodigo"))byId("tplCodigo").value=detalle.codigo||"";
+      if(byId("tplEstado"))byId("tplEstado").value=detalle.estado||"Borrador";
+      if(byId("tplDisponible"))byId("tplDisponible").checked=detalle.disponible_nuevas_propuestas!==false;
+      if(byId("tplPermiteDuplicar"))byId("tplPermiteDuplicar").checked=detalle.permite_duplicar!==false;
+      seleccionarValores(byId("tplCotizadores"),detalle.calculadora_ids||[]);
+      seleccionarValores(byId("tplTiposPropuesta"),detalle.tipos_propuesta||[]);
+      if(byId("tplOrganizacion"))byId("tplOrganizacion").value=detalle.organizacion_id||"";
+      sincronizarCamposWizard();mostrarWizard();await mostrarPaso(1);
+    }catch(error){toast(error&&error.message?error.message:"No fue posible abrir la plantilla.");}
+    finally{mostrarCargando(false);}
+  }
+
+  function limpiarWizard(){
+    Object.keys((estado.wizard.estructura&&estado.wizard.estructura.timers)||{}).forEach(function(clave){clearTimeout(estado.wizard.estructura.timers[clave]);});
+    estado.wizard={plantillaId:"",crearDesde:"",paso:1,sucio:false,guardando:false,detalle:null,estructura:nuevoEstadoEstructura()};
+    if(byId("tplNombre"))byId("tplNombre").value="";
+    if(byId("tplDescripcion"))byId("tplDescripcion").value="";
+    if(byId("tplCodigo"))byId("tplCodigo").value="";
+    if(byId("tplEstado"))byId("tplEstado").value="Borrador";
+    if(byId("tplDisponible"))byId("tplDisponible").checked=true;
+    if(byId("tplPermiteDuplicar"))byId("tplPermiteDuplicar").checked=true;
+    seleccionarValores(byId("tplCotizadores"),[]);seleccionarValores(byId("tplTiposPropuesta"),[]);
+    if(byId("tplOrganizacion"))byId("tplOrganizacion").value="";
+  }
+  function sincronizarCamposWizard(){
+    if(byId("tplPlantillaId"))byId("tplPlantillaId").value=estado.wizard.plantillaId;
+    if(byId("tplPlantillaBaseId"))byId("tplPlantillaBaseId").value=estado.wizard.crearDesde;
+    setTexto("tplWizardNombreCabecera",byId("tplNombre")&&byId("tplNombre").value.trim()||"Nueva plantilla");
+    const editando=!!estado.wizard.plantillaId;
+    const titulo=document.querySelector("#tplWizardView .tpl-title-line h1");if(titulo)titulo.textContent=editando?"Editar plantilla de propuesta":"Crear plantilla de propuesta";
+    const botonPreview=byId("tplBtnVistaPreviaWizard");if(botonPreview)botonPreview.classList.toggle("hidden",!editando);
+    actualizarContadorDescripcion();renderBasesPublicadas();estado.wizard.sucio=false;
+  }
+  function mostrarWizard(){
+    const galeria=byId("tplGalleryView"),wizard=byId("tplWizardView");
+    if(galeria)galeria.classList.add("hidden");if(wizard)wizard.classList.remove("hidden");
+  }
+  async function volverGaleria(){
+    cerrarPreview();const galeria=byId("tplGalleryView"),wizard=byId("tplWizardView");
+    if(wizard)wizard.classList.add("hidden");if(galeria)galeria.classList.remove("hidden");
+    await cargarGaleria();
+  }
+  function actualizarContadorDescripcion(){const largo=byId("tplDescripcion")?byId("tplDescripcion").value.length:0;setTexto("tplDescripcionContador",largo+" / 500");}
+
+  function renderBasesPublicadas(){
+    const contenedor=byId("tplBaseOptions");if(!contenedor)return;
+    const seleccion=estado.wizard.crearDesde||"";const editando=!!estado.wizard.plantillaId;
+    const vacia='<button class="tpl-base-option '+(!seleccion?'selected':'')+'" data-base-id="" type="button" '+(editando?'disabled':'')+'><strong>Plantilla vacía</strong><span>Comenzar sin estructura previa</span></button>';
+    contenedor.innerHTML=vacia+(estado.publicadas||[]).map(function(item){
+      return '<button class="tpl-base-option '+(seleccion===item.plantilla_id?'selected':'')+'" data-base-id="'+escapar(item.plantilla_id)+'" type="button" '+(editando?'disabled':'')+'><strong>'+escapar(item.nombre||"Plantilla")+'</strong><span>'+escapar(item.descripcion||"Versión publicada")+'</span></button>';
+    }).join("");
+  }
+  function manejarSeleccionBase(evento){
+    const boton=evento.target.closest("[data-base-id]");if(!boton||boton.disabled)return;
+    estado.wizard.crearDesde=boton.dataset.baseId||"";estado.wizard.sucio=true;
+    if(byId("tplPlantillaBaseId"))byId("tplPlantillaBaseId").value=estado.wizard.crearDesde;
+    renderBasesPublicadas();
+  }
+
+  function payloadPasoUno(){
+    return {
+      nombre:byId("tplNombre")?byId("tplNombre").value.trim():"",
+      descripcion:byId("tplDescripcion")?byId("tplDescripcion").value.trim():"",
+      calculadora_ids:valoresSeleccionados(byId("tplCotizadores")),
+      tipos_propuesta:valoresSeleccionados(byId("tplTiposPropuesta")),
+      organizacion_id:byId("tplOrganizacion")?byId("tplOrganizacion").value:"",
+      disponible_nuevas_propuestas:!!(byId("tplDisponible")&&byId("tplDisponible").checked),
+      permite_duplicar:!!(byId("tplPermiteDuplicar")&&byId("tplPermiteDuplicar").checked)
+    };
+  }
+  function validarPasoUno(payload){
+    if(!payload.nombre)throw new Error("Debe indicar el nombre de la plantilla.");
+    if(!payload.calculadora_ids.length)throw new Error("Seleccione al menos un cotizador asociado.");
+    if(!payload.tipos_propuesta.length)throw new Error("Seleccione al menos un tipo de propuesta.");
+    if(estado.organizaciones.length&&!payload.organizacion_id)throw new Error("Seleccione una organización.");
+  }
+  async function guardarPasoUno(){
+    if(estado.wizard.guardando)return false;
+    const payload=payloadPasoUno();
+    try{validarPasoUno(payload);}catch(error){toast(error.message);return false;}
+    estado.wizard.guardando=true;mostrarCargando(true);
+    try{
+      let data;
+      if(estado.wizard.plantillaId){
+        data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      }else{
+        if(estado.wizard.crearDesde)payload.crear_desde=estado.wizard.crearDesde;
+        data=await solicitarJSON("/api/plantillas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+        estado.wizard.plantillaId=data.plantilla_id||"";
+        if(byId("tplCodigo"))byId("tplCodigo").value=data.codigo||"";
+      }
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      estado.wizard.sucio=false;sincronizarCamposWizard();
+      if(byId("tplEstado"))byId("tplEstado").value=estado.wizard.detalle.estado||"Borrador";
+      setTexto("tplWizardEstadoBadge",estado.wizard.detalle.estado||"Borrador");
+      toast(data.mensaje||"Borrador guardado.");return true;
+    }catch(error){toast(error&&error.message?error.message:"No fue posible guardar la plantilla.");return false;}
+    finally{estado.wizard.guardando=false;mostrarCargando(false);}
+  }
+  async function guardarBorrador(){
+    if(estado.wizard.paso===1){await guardarPasoUno();return;}
+    if(!estado.wizard.plantillaId){toast("Guarde primero los datos básicos de la plantilla.");return;}
+    toast("El borrador no tiene cambios pendientes en este paso.");
+  }
+
+  async function irAPaso(paso,guardarActual){
+    if(paso<1||paso>5||paso===estado.wizard.paso)return;
+    if(guardarActual&&estado.wizard.paso===1&&(estado.wizard.sucio||!estado.wizard.plantillaId)){
+      const guardado=await guardarPasoUno();if(!guardado)return;
+    }
+    if(paso>1&&!estado.wizard.plantillaId){toast("Guarde primero los datos básicos de la plantilla.");return;}
+    await mostrarPaso(paso);
+  }
+  async function mostrarPaso(paso){
+    estado.wizard.paso=paso;
+    [1,2,3,4,5].forEach(function(numero){const panel=byId("tplStep"+["","One","Two","Three","Four","Five"][numero]);if(panel)panel.classList.toggle("hidden",numero!==paso);});
+    document.querySelectorAll("#section-plantillas .tpl-step").forEach(function(boton){boton.classList.toggle("active",Number(boton.dataset.tplStep||0)===paso);});
+    const principal=byId("tplBtnGuardarContinuar");
+    if(principal){principal.textContent=["","Guardar y continuar a Estructura →","Continuar a Vincular datos →","Continuar a Estilo visual →","Continuar a Revisar y publicar →","Publicar plantilla"][paso];}
+    if(paso===2)await cargarEstructura();
+    if(paso===5)await cargarResumenRevision();
+  }
+  async function accionPrincipalWizard(){
+    const paso=estado.wizard.paso;
+    if(paso===1){const ok=await guardarPasoUno();if(ok)await mostrarPaso(2);return;}
+    if(paso<5){await mostrarPaso(paso+1);return;}
+    await publicarPlantilla();
+  }
+
+  async function cargarResumenRevision(){
+    if(!estado.wizard.plantillaId)return;
+    mostrarCargando(true);
+    try{
+      const detalle=await obtenerDetalle(estado.wizard.plantillaId);estado.wizard.detalle=detalle;
+      const secciones=detalle.secciones||[];
+      const bloques=secciones.reduce(function(total,seccion){return total+(seccion.bloques||[]).length;},0);
+      const estilo=detalle.estilo&&detalle.estilo.tema?detalle.estilo.tema:"Sin estilo definido";
+      setTexto("tplReviewVersion","Versión "+(detalle.version||1));
+      const resumen=byId("tplReviewSummary");if(resumen)resumen.innerHTML=
+        '<dl><div><dt>Plantilla</dt><dd>'+escapar(detalle.nombre||"—")+'</dd></div><div><dt>Estructura</dt><dd>'+secciones.length+' secciones · '+bloques+' bloques</dd></div><div><dt>Cotizadores</dt><dd>'+escapar(nombresCotizadores(detalle.calculadora_ids))+'</dd></div><div><dt>Tipos de propuesta</dt><dd>'+escapar((detalle.tipos_propuesta||[]).join(", ")||"Sin tipos asociados")+'</dd></div><div><dt>Estilo</dt><dd>'+escapar(estilo)+'</dd></div></dl>';
+      renderEstructuraSimplificada(detalle,byId("tplReviewPreviewPage"));
+      renderValidacionesRevision(detalle,secciones,bloques);
+      setTexto("tplReviewState",detalle.estado==="Publicada"?"Publicada":"Lista para revisión");
+    }catch(error){
+      toast(error&&error.message?error.message:"No fue posible cargar el resumen.");
+    }finally{mostrarCargando(false);}
+  }
+  function renderValidacionesRevision(detalle,secciones,bloques){
+    const validaciones=[
+      {ok:!!detalle.nombre,texto:"Datos básicos completos"},
+      {ok:(detalle.calculadora_ids||[]).length>0,texto:"Cotizadores asociados"},
+      {ok:(detalle.tipos_propuesta||[]).length>0,texto:"Tipos de propuesta asociados"},
+      {ok:secciones.length>0&&bloques>0,texto:"Al menos una sección con un bloque"},
+      {ok:!!detalle.estilo,texto:"Estilo visual configurado"}
+    ];
+    const lista=byId("tplReviewValidationList");if(lista)lista.innerHTML=validaciones.map(function(item){return '<div><strong>'+(item.ok?'✓':'!')+' '+escapar(item.texto)+'</strong><span>'+(item.ok?'Correcto':'Pendiente')+'</span></div>';}).join("");
+    const correctas=validaciones.filter(function(item){return item.ok;}).length;
+    setTexto("tplReviewValidationSummary",correctas+" de "+validaciones.length+" correctas");
+  }
+  async function publicarPlantilla(){
+    if(!estado.wizard.plantillaId){toast("Guarde primero la plantilla.");return;}
+    mostrarCargando(true);
+    try{
+      const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/publicar",{method:"POST"});
+      toast(data.mensaje||"Plantilla publicada.");
+      await cargarOpciones(true);await volverGaleria();
+    }catch(error){
+      const mensaje=error&&error.message?error.message:"No fue posible publicar la plantilla.";
+      toast(mensaje);setTexto("tplReviewState","Requiere ajustes");setTexto("tplReviewValidationSummary","No se pudo publicar");
+      const lista=byId("tplReviewValidationList");if(lista)lista.innerHTML='<div><strong>! No se pudo publicar</strong><span>'+escapar(mensaje)+'</span></div>';
+    }finally{mostrarCargando(false);}
+  }
+  function cambiarCanalRevision(canal){
+    document.querySelectorAll("#section-plantillas [data-preview-channel]").forEach(function(boton){boton.classList.toggle("active",boton.dataset.previewChannel===canal);});
+    const escenario=byId("tplReviewPreviewStage");if(escenario){escenario.classList.toggle("channel-web",canal==="WEB");escenario.classList.toggle("channel-pdf",canal==="PDF");}
+    setTexto("tplReviewPreviewHint","Datos de ejemplo · "+(canal==="PDF"?"PDF":"Propuesta web"));
+  }
+  function nombresCotizadores(ids){
+    const mapa={};estado.calculadoras.forEach(function(calc){mapa[String(calc.calculadora_id||"")]=calc.nombre_calculadora||calc.calculadora_id;});
+    return (ids||[]).map(function(id){return mapa[String(id)]||id;}).join(", ")||"Sin cotizadores asociados";
+  }
+
+  window.CotizaPlantillas={cargarGaleria:cargarGaleria,abrirNueva:abrirWizardNuevo};
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",iniciar);else iniciar();
 })();
 </script>
