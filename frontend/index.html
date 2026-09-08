@@ -724,6 +724,137 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepTwo .tpl-switch-row i { display:none; }
 #tplStepTwo .tpl-btn-danger { width:100%; margin-top:12px; border:1px solid #f0b5b5; background:#fff6f6; color:#a52b2b; font-size:8px; }
 
+/* ---------- Plantillas: paso 3, Vincular datos ---------- */
+#tplStepThree .tpl-mapping-toolbar { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+#tplStepThree .tpl-mapping-toolbar h2 { color:var(--tpl-ink); font-size:15px; font-weight:800; margin:0 0 3px; }
+#tplStepThree .tpl-mapping-toolbar p { color:var(--tpl-muted); font-size:9px; margin:0; }
+#tplStepThree .tpl-mapping-toolbar .field { min-width:220px; margin:0; }
+#tplStepThree .tpl-mapping-toolbar label { color:#1c365b; font-size:8px; font-weight:700; margin-bottom:5px; }
+#tplStepThree .tpl-mapping-toolbar .select { height:35px; padding:7px 10px; border-color:#ced9e7; border-radius:7px; color:#273d5d; font-size:9px; }
+#tplStepThree .tpl-mapping-grid { display:grid; grid-template-columns:250px minmax(320px,1fr) 270px; gap:10px; align-items:start; }
+#tplStepThree .tpl-mapping-left,#tplStepThree .tpl-mapping-right { position:sticky; top:10px; }
+#tplStepThree .tpl-builder-panel { min-width:0; border:1px solid var(--tpl-border); border-radius:10px; background:#fff; box-shadow:0 2px 5px rgba(20,48,84,.04); overflow:hidden; }
+#tplStepThree .tpl-builder-panel-head { min-height:54px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 12px; border-bottom:1px solid #e5ebf3; }
+#tplStepThree .tpl-builder-panel-head h2 { color:var(--tpl-ink); font-size:11px; font-weight:800; margin:0 0 3px; }
+#tplStepThree .tpl-builder-panel-head span { color:#7a899d; font-size:8px; margin:0; }
+#tplStepThree .tpl-save-state { padding:4px 7px; border-radius:999px; background:#edf8f1; color:#1a764b; font-size:7px; font-weight:700; white-space:nowrap; }
+#tplStepThree .tpl-save-state.saving { background:#eaf2ff; color:#1768de; }
+#tplStepThree .tpl-save-state.error { background:#ffebeb; color:#ae2e2e; }
+#tplStepThree .tpl-mapping-block-list { display:flex; flex-direction:column; gap:5px; min-height:80px; max-height:520px; padding:8px; overflow:auto; }
+#tplStepThree .tpl-mapping-block-item { display:grid; grid-template-columns:18px minmax(0,1fr); gap:8px; align-items:center; width:100%; padding:8px 7px; border:1px solid transparent; border-radius:7px; background:#f7f9fc; color:#244162; text-align:left; cursor:pointer; }
+#tplStepThree .tpl-mapping-block-item:hover { border-color:#cbd9ec; background:#f2f6fc; }
+#tplStepThree .tpl-mapping-block-item.selected { border-color:#78a9ed; background:#eaf3ff; box-shadow:inset 3px 0 #1768de; }
+#tplStepThree .tpl-mapping-block-status { display:flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; font-size:8px; font-weight:800; background:#e4e9f0; color:#8894a6; }
+#tplStepThree .tpl-mapping-block-item.linked .tpl-mapping-block-status { background:#dcf8e8; color:#137345; }
+#tplStepThree .tpl-mapping-block-copy { min-width:0; display:flex; flex-direction:column; gap:2px; }
+#tplStepThree .tpl-mapping-block-copy strong { overflow:hidden; color:#18385f; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+#tplStepThree .tpl-mapping-block-copy small { color:#7f8da0; font-size:7px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#tplStepThree .tpl-mapping-empty { padding:26px 14px; color:#7b899d; text-align:center; font-size:9px; line-height:1.5; border:1px dashed #d3d9e3; border-radius:9px; margin:8px; }
+#tplStepThree .tpl-mapping-center .tpl-builder-panel-head { min-height:auto; padding:12px 14px; }
+#tplStepThree .tpl-mapping-center #tplMappingBlockTitle { font-size:12px; }
+#tplStepThree .tpl-property-empty { min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; color:#8b98a9; text-align:center; }
+#tplStepThree .tpl-property-empty > div { font-size:23px; }
+#tplStepThree .tpl-property-empty p { max-width:200px; font-size:9px; line-height:1.45; }
+#tplStepThree .tpl-mapping-fields { padding:16px; }
+#tplStepThree .tpl-mapping-current { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:14px; border:1px solid #d7e1ee; border-radius:9px; background:#f8faff; }
+#tplStepThree .tpl-mapping-current > div { display:flex; flex-direction:column; gap:3px; }
+#tplStepThree .tpl-mapping-current span { color:#7a899d; font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+#tplStepThree .tpl-mapping-current strong { color:#0a294f; font-size:13px; font-weight:800; }
+#tplStepThree .tpl-mapping-current small { color:#78879b; font-size:9px; }
+#tplStepThree .tpl-mapping-current .btn { min-height:32px; padding:6px 12px; font-size:9px; width:auto; margin:0; }
+#tplStepThree .tpl-mapping-current-empty { display:block; padding:18px; text-align:center; }
+#tplStepThree .tpl-mapping-current-empty p { color:#8491a2; font-size:9px; line-height:1.5; }
+#tplStepThree .tpl-source-search { padding:10px 12px; border-bottom:1px solid #e5ebf3; }
+#tplStepThree .tpl-source-search .input { height:33px; padding:6px 10px; border-radius:7px; font-size:9px; }
+#tplStepThree .tpl-available-sources { display:flex; flex-direction:column; gap:12px; min-height:80px; max-height:520px; padding:10px 8px; overflow:auto; }
+#tplStepThree .tpl-source-group h3 { color:#6f7f94; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; margin:0 0 6px; padding:0 4px; }
+#tplStepThree .tpl-source-item { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; margin-bottom:4px; padding:8px 9px; border:1px solid #dbe4ef; border-radius:7px; background:#fff; color:#244162; text-align:left; cursor:pointer; }
+#tplStepThree .tpl-source-item:hover { border-color:#8eb4e9; background:#f5f9ff; }
+#tplStepThree .tpl-source-item.selected { border-color:#1a764b; background:#f0fbf5; }
+#tplStepThree .tpl-source-copy { min-width:0; display:flex; flex-direction:column; gap:2px; }
+#tplStepThree .tpl-source-copy strong { overflow:hidden; color:#18385f; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+#tplStepThree .tpl-source-copy small { color:#8491a2; font-size:7px; }
+#tplStepThree .tpl-source-check { flex-shrink:0; color:#1a764b; font-size:11px; font-weight:800; }
+#tplStepThree .tpl-source-empty { padding:26px 14px; color:#7b899d; text-align:center; font-size:9px; line-height:1.5; }
+
+/* ---------- Plantillas: paso 4, Estilo visual ---------- */
+#tplStepFour .tpl-style-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+#tplStepFour .tpl-style-toolbar h2 { color:var(--tpl-ink); font-size:15px; font-weight:800; margin:0 0 3px; }
+#tplStepFour .tpl-style-toolbar p { color:var(--tpl-muted); font-size:9px; margin:0; }
+#tplStepFour .tpl-save-state { padding:4px 7px; border-radius:999px; background:#edf8f1; color:#1a764b; font-size:7px; font-weight:700; white-space:nowrap; }
+#tplStepFour .tpl-save-state.saving { background:#eaf2ff; color:#1768de; }
+#tplStepFour .tpl-save-state.error { background:#ffebeb; color:#ae2e2e; }
+#tplStepFour .tpl-style-grid { display:grid; grid-template-columns:250px minmax(340px,1fr) 280px; gap:10px; align-items:start; }
+#tplStepFour .tpl-style-left,#tplStepFour .tpl-style-right { position:sticky; top:10px; }
+#tplStepFour .tpl-builder-panel { min-width:0; border:1px solid var(--tpl-border); border-radius:10px; background:#fff; box-shadow:0 2px 5px rgba(20,48,84,.04); overflow:hidden; }
+#tplStepFour .tpl-builder-panel-head { min-height:54px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 12px; border-bottom:1px solid #e5ebf3; }
+#tplStepFour .tpl-builder-panel-head h2 { color:var(--tpl-ink); font-size:11px; font-weight:800; margin:0 0 3px; }
+#tplStepFour .tpl-builder-panel-head span { color:#7a899d; font-size:8px; margin:0; }
+#tplStepFour .tpl-style-left { padding:12px; }
+#tplStepFour .tpl-style-themes { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; margin-bottom:16px; }
+#tplStepFour .tpl-style-theme-card { display:flex; flex-direction:column; gap:7px; padding:9px; border:1px solid #dbe4ef; border-radius:8px; background:#fff; cursor:pointer; }
+#tplStepFour .tpl-style-theme-card:hover { border-color:#8eb4e9; }
+#tplStepFour .tpl-style-theme-card.selected { border-color:#1768de; box-shadow:0 0 0 2px rgba(23,104,222,.12); }
+#tplStepFour .tpl-style-theme-swatch { display:flex; gap:3px; height:16px; border-radius:5px; overflow:hidden; }
+#tplStepFour .tpl-style-theme-swatch i { flex:1; display:block; }
+#tplStepFour .tpl-style-theme-card strong { color:#18385f; font-size:9px; font-weight:700; }
+#tplStepFour .tpl-style-panel-section { padding-top:12px; border-top:1px solid #edf1f5; }
+#tplStepFour .tpl-style-panel-section h3 { color:#294666; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; margin:0 0 10px; }
+#tplStepFour .tpl-style-left .field { margin-bottom:10px; }
+#tplStepFour .tpl-style-left label { color:#294666; font-size:8px; font-weight:700; }
+#tplStepFour .tpl-style-control.select,#tplStepFour select.tpl-style-control { min-height:33px; padding:7px 8px; border-radius:7px; font-size:8px; }
+#tplStepFour .tpl-style-center { background:#f4f7fb; padding:16px; display:flex; flex-direction:column; }
+#tplStepFour .tpl-style-format-badge { padding:4px 8px; border-radius:999px; background:#eaf2ff; color:#1768de; font-size:7px; font-weight:800; letter-spacing:.03em; }
+#tplStepFour .tpl-style-preview-stage { display:flex; justify-content:center; padding:14px 0 4px; }
+#tplStepFour .tpl-style-preview-page { display:flex; flex-direction:column; width:100%; max-width:400px; min-height:520px; background:#fff; box-shadow:0 6px 20px rgba(15,42,74,.14); border-radius:2px; overflow:hidden; font-size:9px; color:#33455e; transition:max-width .15s ease,padding .15s ease; }
+#tplStepFour .tpl-style-preview-page.format-a4 { max-width:378px; min-height:534px; }
+#tplStepFour .tpl-style-preview-content { display:flex; flex-direction:column; gap:12px; flex:1; padding:16px 20px; }
+#tplStepFour .tpl-style-preview-page.margin-compacto .tpl-style-preview-content { padding:10px 14px; gap:8px; }
+#tplStepFour .tpl-style-preview-page.margin-amplio .tpl-style-preview-content { padding:24px 30px; gap:16px; }
+#tplStepFour .tpl-style-preview-content h2 { color:#0f2a4a; font-size:10px; font-weight:800; margin:0 0 4px; }
+#tplStepFour .tpl-style-preview-content p { color:#5b6b81; font-size:8px; line-height:1.5; margin:0; }
+#tplStepFour .tpl-style-preview-content ul { margin:0; padding-left:14px; color:#5b6b81; font-size:8px; line-height:1.6; }
+#tplStepFour .tpl-style-preview-cover { padding:20px; color:#fff; background:linear-gradient(135deg,#0b2f63,#1f6fff); }
+#tplStepFour .tpl-style-preview-brand { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+#tplStepFour .tpl-style-preview-brand img { height:20px; width:auto; }
+#tplStepFour .tpl-style-preview-brand strong { font-size:9px; font-weight:800; letter-spacing:.02em; }
+#tplStepFour .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { display:block; color:rgba(255,255,255,.72); font-size:7px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px; }
+#tplStepFour .tpl-style-preview-cover h1 { font-size:16px; font-weight:800; line-height:1.2; margin:0 0 6px; }
+#tplStepFour .tpl-style-preview-cover p { color:rgba(255,255,255,.85); font-size:9px; margin:0; }
+#tplStepFour .tpl-style-preview-page.cover-lateral { flex-direction:row; }
+#tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-cover { flex:0 0 34%; display:flex; flex-direction:column; justify-content:center; }
+#tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-content { flex:1 1 auto; }
+#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover { background:#fff; color:#0f2a4a; border-bottom:2px solid #e5ebf3; }
+#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover p,#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { color:#7a899d; }
+#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-brand strong { color:#0f2a4a; }
+#tplStepFour .tpl-style-preview-page.cover-bloque .tpl-style-preview-cover { margin:16px 20px 0; border-radius:12px; background:linear-gradient(135deg,#0b2f63,#20b8cd); }
+#tplStepFour .tpl-style-preview-page.cover-bloque .tpl-style-preview-content { padding-top:8px; }
+#tplStepFour .tpl-style-preview-table { display:flex; flex-direction:column; border:1px solid #e5ebf3; border-radius:6px; overflow:hidden; }
+#tplStepFour .tpl-style-preview-row { display:flex; justify-content:space-between; padding:7px 10px; font-size:8px; border-bottom:1px solid #edf1f5; }
+#tplStepFour .tpl-style-preview-row:last-child { border-bottom:0; }
+#tplStepFour .tpl-style-preview-row.head { background:#f6f8fc; color:#607087; font-weight:800; text-transform:uppercase; font-size:7px; letter-spacing:.04em; }
+#tplStepFour .tpl-style-preview-row.total { background:#f8faff; color:#0a294f; font-weight:800; }
+#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-table { border:0; gap:4px; background:transparent; }
+#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row { border:0; border-radius:6px; background:#f6f8fc; }
+#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row.head { background:transparent; padding-bottom:2px; }
+#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row.total { background:#eaf6ef; color:#137345; }
+#tplStepFour .tpl-style-preview-page.table-tarjetas .tpl-style-preview-table { border:0; gap:6px; background:transparent; }
+#tplStepFour .tpl-style-preview-page.table-tarjetas .tpl-style-preview-row { border:1px solid #e5ebf3; border-radius:8px; box-shadow:0 1px 3px rgba(15,42,74,.06); }
+#tplStepFour .tpl-style-preview-page.table-tarjetas .tpl-style-preview-row.total { border-color:#bfe6cc; background:#f0fbf5; color:#137345; }
+#tplStepFour .tpl-style-preview-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 20px; border-top:1px solid #edf1f5; color:#8993a3; font-size:7px; }
+#tplStepFour .tpl-style-right { padding:14px; }
+#tplStepFour .tpl-style-settings h3 { color:#294666; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; margin:14px 0 10px; }
+#tplStepFour .tpl-style-settings h3:first-child { margin-top:0; }
+#tplStepFour .tpl-color-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(80px,1fr)); gap:8px 10px; margin-bottom:6px; }
+#tplStepFour .tpl-color-grid label { display:flex; flex-direction:column; gap:5px; color:#294666; font-size:8px; font-weight:700; }
+#tplStepFour .tpl-color-grid input[type="color"] { width:100%; height:28px; padding:0; border:1px solid #dbe4ef; border-radius:6px; background:#fff; }
+#tplStepFour .tpl-style-settings .field { margin-bottom:10px; }
+#tplStepFour .tpl-style-settings label { color:#294666; font-size:8px; font-weight:700; }
+#tplStepFour .tpl-style-settings .input,#tplStepFour .tpl-style-settings select { min-height:33px; padding:7px 8px; border-radius:7px; font-size:8px; }
+#tplStepFour .tpl-style-settings .tpl-switch-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid #edf1f5; cursor:pointer; }
+#tplStepFour .tpl-style-settings .tpl-switch-row input { width:15px; height:15px; accent-color:#1768de; }
+#tplStepFour .tpl-style-settings .tpl-switch-row i { display:none; }
+
 @media (max-width:1100px) {
   .tpl-filter-card { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .tpl-search-wrap { grid-column:1/-1; }
@@ -731,6 +862,10 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .tpl-card-grid { grid-template-columns:1fr; }
   #tplStepTwo .tpl-builder-grid { grid-template-columns:210px minmax(0,1fr); }
   #tplStepTwo .tpl-builder-right { position:static; grid-column:1/-1; }
+  #tplStepThree .tpl-mapping-grid { grid-template-columns:210px minmax(0,1fr); }
+  #tplStepThree .tpl-mapping-right { position:static; grid-column:1/-1; }
+  #tplStepFour .tpl-style-grid { grid-template-columns:210px minmax(0,1fr); }
+  #tplStepFour .tpl-style-right { position:static; grid-column:1/-1; }
 }
 @media (max-width:700px) {
   .tpl-page-head { align-items:flex-start; }
@@ -743,6 +878,10 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   #tplStepTwo .tpl-builder-left,#tplStepTwo .tpl-builder-right { position:static; }
   #tplStepTwo .tpl-builder-right { grid-column:auto; }
   #tplStepTwo .tpl-canvas-columns { grid-template-columns:1fr!important; }
+  #tplStepThree .tpl-mapping-grid,#tplStepFour .tpl-style-grid { grid-template-columns:1fr; }
+  #tplStepThree .tpl-mapping-left,#tplStepThree .tpl-mapping-right,#tplStepFour .tpl-style-left,#tplStepFour .tpl-style-right { position:static; grid-column:auto; }
+  #tplStepFour .tpl-style-preview-page.cover-lateral { flex-direction:column; }
+  #tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-cover { flex:0 0 auto; }
 }
 
 .table-wrap { background: #fff; border-radius: 12px; overflow-x: auto; box-shadow: 0 1px 3px rgba(15,42,74,0.08); }
@@ -5015,12 +5154,16 @@ table tr:last-child td { border-bottom: none; }
       sucio:false,
       guardando:false,
       detalle:null,
-      estructura:nuevoEstadoEstructura()
+      estructura:nuevoEstadoEstructura(),
+      mapeo:nuevoEstadoMapeo()
     }
   };
 
   function nuevoEstadoEstructura(){
     return {secciones:[],seleccion:null,arrastre:null,timers:{}};
+  }
+  function nuevoEstadoMapeo(){
+    return {calculadoraID:"",bloqueId:"",busqueda:"",campos:[],datosCotizacion:[]};
   }
 
   function core(){ return window.__cotizaCore || null; }
@@ -5134,6 +5277,24 @@ table tr:last-child td { border-bottom: none; }
     });
     ["tplPropBlockName","tplPropBlockTitle","tplPropBlockPlaceholder","tplPropBlockColumn","tplPropBlockWeb","tplPropBlockPdf"].forEach(function(id){
       bind(id,"change",programarGuardadoBloque);
+    });
+
+    bind("tplMappingCotizador","change",function(){ cambiarCotizadorMapeo(this.value); });
+    let timerBusquedaFuente=null;
+    bind("tplMappingSourceSearch","input",function(){
+      estado.wizard.mapeo.busqueda=this.value;
+      clearTimeout(timerBusquedaFuente);
+      timerBusquedaFuente=setTimeout(renderAvailableSources,150);
+    });
+    const listaMapeo=byId("tplMappingBlockList");
+    if(listaMapeo) listaMapeo.addEventListener("click",manejarSeleccionBloqueMapeo);
+    const fuentesLista=byId("tplAvailableSources");
+    if(fuentesLista) fuentesLista.addEventListener("click",manejarClickFuente);
+
+    const temasLista=byId("tplStyleThemes");
+    if(temasLista) temasLista.addEventListener("click",manejarClickTema);
+    ["tplStylePageFormat","tplStyleMargin","tplStyleCover","tplStyleTable"].forEach(function(id){
+      bind(id,"change",programarGuardadoEstilo);
     });
   }
 
@@ -5605,6 +5766,318 @@ table tr:last-child td { border-bottom: none; }
   function limpiarIndicadoresSoltar(){document.querySelectorAll("#section-plantillas .drop-before,#section-plantillas .drop-after,#section-plantillas .drop-target,#section-plantillas .drop-end").forEach(function(nodo){nodo.classList.remove("drop-before","drop-after","drop-target","drop-end");});}
   function terminarArrastreEstructura(){limpiarIndicadoresSoltar();document.querySelectorAll("#section-plantillas .dragging").forEach(function(nodo){nodo.classList.remove("dragging");});estado.wizard.estructura.arrastre=null;}
 
+  // ---------- Paso 3: Vincular datos ----------
+  // El backend guarda una vinculación por (bloque_id, calculadora_id): un
+  // bloque puede apuntar a una fuente distinta según el cotizador elegido
+  // acá arriba. Por eso el detalle completo de la plantilla (que ya trae
+  // TODAS las vinculaciones de TODOS los cotizadores en cada bloque) se
+  // filtra en el cliente por el cotizador seleccionado en vez de pedirlo
+  // de nuevo al servidor cada vez que cambia el selector.
+  //
+  // Solo CAMPO_VINCULADO y TABLA_INVERSION representan un dato puntual
+  // del cotizador (según quedaron definidos en el paso 2): CAMPO_VINCULADO
+  // existe justamente para mostrar un valor, y TABLA_INVERSION puede
+  // anclarse al total de la oferta (fuente COTIZACION_BASE
+  // "total_precio"). TEXTO, LISTA, CONDICIONES e IMAGEN son contenido
+  // libre que ya se escribe directamente en el bloque (paso 2, campo
+  // "contenido") y no tienen un destino 1 a 1 en el modelo de vinculación
+  // del backend (una vinculación es exactamente una fuente por bloque).
+  const tiposBloqueVinculable=["CAMPO_VINCULADO","TABLA_INVERSION"];
+
+  function bloquesVinculables(){
+    const resultado=[];
+    ((estado.wizard.detalle&&estado.wizard.detalle.secciones)||[]).forEach(function(seccion){
+      (seccion.bloques||[]).forEach(function(bloque){
+        if(tiposBloqueVinculable.indexOf(bloque.tipo_bloque)>=0){
+          resultado.push({bloque:bloque,seccionNombre:seccion.titulo||seccion.nombre||"Sección"});
+        }
+      });
+    });
+    return resultado;
+  }
+  function vinculacionParaCotizador(bloque,calculadoraID){
+    if(!calculadoraID)return null;
+    return (bloque.vinculaciones||[]).find(function(v){return v.calculadora_id===calculadoraID;})||null;
+  }
+
+  async function cargarMapeo(){
+    if(!estado.wizard.plantillaId)return;
+    cambiarEstadoMapeo("Cargando...");
+    try{
+      const detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      estado.wizard.detalle=detalle;
+      poblarSelectorMappingCotizador(detalle);
+      const items=bloquesVinculables();
+      if(estado.wizard.mapeo.bloqueId&&!items.some(function(item){return item.bloque.bloque_id===estado.wizard.mapeo.bloqueId;})){
+        estado.wizard.mapeo.bloqueId="";
+      }
+      renderMappingBlockList();
+      renderMappingFields();
+      await cargarFuentesCalculadora();
+      cambiarEstadoMapeo("Sin cambios");
+    }catch(error){
+      cambiarEstadoMapeo("Error al cargar",true);
+      toast(error&&error.message?error.message:"No fue posible cargar la vinculación de datos.");
+    }
+  }
+  function poblarSelectorMappingCotizador(detalle){
+    const select=byId("tplMappingCotizador");if(!select)return;
+    const ids=(detalle&&detalle.calculadora_ids)||[];
+    const anterior=estado.wizard.mapeo.calculadoraID;
+    select.innerHTML=ids.map(function(id){
+      const calc=estado.calculadoras.find(function(c){return c.calculadora_id===id;});
+      return '<option value="'+escapar(id)+'">'+escapar(calc?calc.nombre_calculadora:id)+'</option>';
+    }).join("");
+    const actual=(anterior&&ids.indexOf(anterior)>=0)?anterior:(ids[0]||"");
+    estado.wizard.mapeo.calculadoraID=actual;
+    select.value=actual;
+  }
+  async function cambiarCotizadorMapeo(nuevoID){
+    estado.wizard.mapeo.calculadoraID=nuevoID;
+    renderMappingBlockList();
+    renderMappingFields();
+    await cargarFuentesCalculadora();
+  }
+  async function cargarFuentesCalculadora(){
+    const calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!calculadoraID||!estado.wizard.plantillaId){
+      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.datosCotizacion=[];renderAvailableSources();return;
+    }
+    try{
+      const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/fuentes?calculadora_id="+encodeURIComponent(calculadoraID));
+      estado.wizard.mapeo.campos=data.campos||[];
+      estado.wizard.mapeo.datosCotizacion=data.datos_cotizacion||[];
+    }catch(error){
+      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.datosCotizacion=[];
+      toast(error&&error.message?error.message:"No fue posible cargar las fuentes disponibles.");
+    }
+    renderAvailableSources();
+  }
+  function renderMappingBlockList(){
+    const lista=byId("tplMappingBlockList");if(!lista)return;
+    const items=bloquesVinculables();
+    const calculadoraID=estado.wizard.mapeo.calculadoraID;
+    const vinculados=items.filter(function(item){return !!vinculacionParaCotizador(item.bloque,calculadoraID);}).length;
+    setTexto("tplMappingSummary",vinculados+" de "+items.length+" vinculados");
+    if(!items.length){
+      lista.innerHTML='<div class="tpl-mapping-empty">Esta plantilla todavía no tiene bloques de tipo Campo vinculado o Tabla de inversión. Agréguelos en el paso 2.</div>';
+      return;
+    }
+    lista.innerHTML=items.map(function(item){
+      const vinculado=!!vinculacionParaCotizador(item.bloque,calculadoraID);
+      const activo=estado.wizard.mapeo.bloqueId===item.bloque.bloque_id;
+      return '<button class="tpl-mapping-block-item '+(activo?'selected':'')+' '+(vinculado?'linked':'unlinked')+'" type="button" data-bloque-id="'+escapar(item.bloque.bloque_id)+'">'+
+        '<span class="tpl-mapping-block-status">'+(vinculado?'✓':'○')+'</span>'+
+        '<span class="tpl-mapping-block-copy"><strong>'+escapar(item.bloque.titulo||item.bloque.nombre_interno||"Bloque")+'</strong><small>'+escapar(item.seccionNombre)+' · '+escapar(etiquetaTipoBloque(item.bloque.tipo_bloque))+'</small></span>'+
+      '</button>';
+    }).join("");
+  }
+  function manejarSeleccionBloqueMapeo(evento){
+    const item=evento.target.closest("[data-bloque-id]");if(!item)return;
+    estado.wizard.mapeo.bloqueId=item.dataset.bloqueId;
+    renderMappingBlockList();renderMappingFields();renderAvailableSources();
+  }
+  function renderMappingFields(){
+    const vacio=byId("tplMappingEmpty"),campo=byId("tplMappingFields");
+    const items=bloquesVinculables();
+    const seleccionado=items.find(function(item){return item.bloque.bloque_id===estado.wizard.mapeo.bloqueId;});
+    if(!seleccionado){
+      if(vacio)vacio.classList.remove("hidden");
+      if(campo){campo.classList.add("hidden");campo.innerHTML="";}
+      setTexto("tplMappingBlockTitle","Seleccione un bloque");
+      setTexto("tplMappingBlockType","Configure sus campos de destino");
+      return;
+    }
+    if(vacio)vacio.classList.add("hidden");
+    if(campo)campo.classList.remove("hidden");
+    setTexto("tplMappingBlockTitle",seleccionado.bloque.titulo||seleccionado.bloque.nombre_interno||"Bloque");
+    setTexto("tplMappingBlockType",etiquetaTipoBloque(seleccionado.bloque.tipo_bloque)+" · "+seleccionado.seccionNombre);
+    if(!campo)return;
+    const vinculacion=vinculacionParaCotizador(seleccionado.bloque,estado.wizard.mapeo.calculadoraID);
+    if(vinculacion){
+      const nombre=nombreFuente(vinculacion.fuente_tipo,vinculacion.fuente_id);
+      campo.innerHTML='<div class="tpl-mapping-current"><div><span>Vinculado a</span><strong>'+escapar(nombre)+'</strong><small>'+(vinculacion.fuente_tipo==="CAMPO"?"Campo del cotizador":"Dato de la cotización")+'</small></div><button id="tplBtnQuitarVinculacion" class="btn tpl-btn-danger" type="button">Quitar vinculación</button></div>';
+      const boton=byId("tplBtnQuitarVinculacion");if(boton)boton.addEventListener("click",quitarVinculacionActual);
+    }else{
+      campo.innerHTML='<div class="tpl-mapping-current tpl-mapping-current-empty"><p>Este bloque todavía no está vinculado. Elija una fuente en el panel derecho.</p></div>';
+    }
+  }
+  function nombreFuente(fuenteTipo,fuenteID){
+    const lista=fuenteTipo==="CAMPO"?estado.wizard.mapeo.campos:estado.wizard.mapeo.datosCotizacion;
+    const item=(lista||[]).find(function(f){return f.fuente_id===fuenteID;});
+    return item?item.nombre:fuenteID;
+  }
+  function normalizarBusquedaFuente(valor){
+    const c=core();
+    if(c&&typeof c.normalizarTextoBusquedaParam_==="function")return c.normalizarTextoBusquedaParam_(valor);
+    return String(valor||"").toLowerCase().trim();
+  }
+  function vinculacionSeleccionActual(){
+    const items=bloquesVinculables();
+    const seleccionado=items.find(function(item){return item.bloque.bloque_id===estado.wizard.mapeo.bloqueId;});
+    if(!seleccionado)return null;
+    return vinculacionParaCotizador(seleccionado.bloque,estado.wizard.mapeo.calculadoraID);
+  }
+  function renderAvailableSources(){
+    const contenedor=byId("tplAvailableSources");if(!contenedor)return;
+    if(!estado.wizard.mapeo.bloqueId){
+      contenedor.innerHTML='<div class="tpl-source-empty">Seleccione un bloque a la izquierda para vincular una fuente.</div>';
+      return;
+    }
+    const termino=normalizarBusquedaFuente(estado.wizard.mapeo.busqueda);
+    const filtrar=function(lista){
+      return (lista||[]).filter(function(f){
+        return !termino||normalizarBusquedaFuente(f.nombre).indexOf(termino)>=0||normalizarBusquedaFuente(f.tab_nombre||"").indexOf(termino)>=0;
+      });
+    };
+    const campos=filtrar(estado.wizard.mapeo.campos);
+    const datos=filtrar(estado.wizard.mapeo.datosCotizacion);
+    if(!campos.length&&!datos.length){
+      contenedor.innerHTML='<div class="tpl-source-empty">Ninguna fuente coincide con la búsqueda.</div>';
+      return;
+    }
+    contenedor.innerHTML=
+      (campos.length?'<div class="tpl-source-group"><h3>Campos del cotizador</h3>'+campos.map(filaFuente).join("")+'</div>':'')+
+      (datos.length?'<div class="tpl-source-group"><h3>Datos de la cotización</h3>'+datos.map(filaFuente).join("")+'</div>':'');
+  }
+  function filaFuente(fuente){
+    const actual=vinculacionSeleccionActual();
+    const activa=!!(actual&&actual.fuente_tipo===fuente.fuente_tipo&&actual.fuente_id===fuente.fuente_id);
+    return '<button class="tpl-source-item '+(activa?'selected':'')+'" type="button" data-fuente-tipo="'+escapar(fuente.fuente_tipo)+'" data-fuente-id="'+escapar(fuente.fuente_id)+'">'+
+      '<span class="tpl-source-copy"><strong>'+escapar(fuente.nombre)+'</strong>'+(fuente.tab_nombre?'<small>'+escapar(fuente.tab_nombre)+'</small>':'')+'</span>'+
+      (activa?'<span class="tpl-source-check">✓</span>':'')+
+    '</button>';
+  }
+  function manejarClickFuente(evento){
+    const item=evento.target.closest("[data-fuente-tipo]");if(!item)return;
+    if(!estado.wizard.mapeo.bloqueId){toast("Seleccione primero un bloque.");return;}
+    guardarVinculacion(item.dataset.fuenteTipo,item.dataset.fuenteId);
+  }
+  async function guardarVinculacion(fuenteTipo,fuenteID){
+    const bloqueID=estado.wizard.mapeo.bloqueId,calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!bloqueID||!calculadoraID)return;
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID)+"/vinculacion",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({calculadora_id:calculadoraID,fuente_tipo:fuenteTipo,fuente_id:fuenteID})});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingBlockList();renderMappingFields();renderAvailableSources();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Vinculación guardada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible guardar la vinculación.");
+    }
+  }
+  async function quitarVinculacionActual(){
+    const bloqueID=estado.wizard.mapeo.bloqueId,calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!bloqueID||!calculadoraID)return;
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID)+"/vinculacion?calculadora_id="+encodeURIComponent(calculadoraID),{method:"DELETE"});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingBlockList();renderMappingFields();renderAvailableSources();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Vinculación eliminada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible quitar la vinculación.");
+    }
+  }
+  function cambiarEstadoMapeo(texto,error){
+    const nodo=byId("tplMappingState");if(!nodo)return;nodo.textContent=texto;
+    nodo.classList.toggle("saving",texto==="Guardando..."||texto==="Cargando...");nodo.classList.toggle("error",!!error);
+  }
+
+  // ---------- Paso 4: Estilo visual ----------
+  // Solo tema/formato_pagina/margenes/diseno_portada/estilo_tablas existen
+  // en plantilla_estilos (ver PlantillaEstiloHandler) — colores, tipografía,
+  // logo, encabezado/pie y numeración de página no tienen columna en el
+  // backend todavía, así que esos controles del panel derecho quedan sin
+  // conectar a propósito (no se inventa persistencia para ellos acá).
+  const temasEstiloPredefinidos=[
+    {clave:"PROFESIONAL",nombre:"Profesional",colores:["#0B2F63","#1F6FFF","#20B8CD"]},
+    {clave:"MODERNO",nombre:"Moderno",colores:["#0F2A4A","#185FA5","#25BCD2"]},
+    {clave:"EJECUTIVO",nombre:"Ejecutivo",colores:["#1C2B3A","#3D5A80","#E0B354"]},
+    {clave:"MINIMALISTA",nombre:"Minimalista",colores:["#111827","#4B5563","#9CA3AF"]}
+  ];
+  // Los temas son solo un punto de partida visual: no hay tabla de temas
+  // en el backend, así que elegir uno solo guarda el campo "tema" (texto
+  // libre) de plantilla_estilos. Los colores de cada tarjeta son valores
+  // fijos de este archivo, no datos vinculados a ninguna otra tabla.
+
+  async function cargarEstilo(){
+    if(!estado.wizard.plantillaId)return;
+    cambiarEstadoEstilo("Cargando...");
+    try{
+      const detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      estado.wizard.detalle=detalle;
+      const estilo=detalle.estilo||{tema:"PROFESIONAL",formato_pagina:"CARTA",margenes:"NORMAL",diseno_portada:"BANDA_SUPERIOR",estilo_tablas:"LINEAS"};
+      if(byId("tplStylePageFormat"))byId("tplStylePageFormat").value=estilo.formato_pagina||"CARTA";
+      if(byId("tplStyleMargin"))byId("tplStyleMargin").value=estilo.margenes||"NORMAL";
+      if(byId("tplStyleCover"))byId("tplStyleCover").value=estilo.diseno_portada||"BANDA_SUPERIOR";
+      if(byId("tplStyleTable"))byId("tplStyleTable").value=estilo.estilo_tablas||"LINEAS";
+      renderTemasEstilo(estilo.tema||"PROFESIONAL");
+      aplicarClasesPreview();
+      cambiarEstadoEstilo("Sin cambios");
+    }catch(error){
+      cambiarEstadoEstilo("Error al cargar",true);
+      toast(error&&error.message?error.message:"No fue posible cargar el estilo.");
+    }
+  }
+  function renderTemasEstilo(temaActual){
+    const contenedor=byId("tplStyleThemes");if(!contenedor)return;
+    contenedor.innerHTML=temasEstiloPredefinidos.map(function(tema){
+      const activo=String(temaActual||"").toUpperCase()===tema.clave;
+      return '<button class="tpl-style-theme-card '+(activo?'selected':'')+'" type="button" data-tema="'+tema.clave+'">'+
+        '<span class="tpl-style-theme-swatch">'+tema.colores.map(function(color){return '<i style="background:'+color+'"></i>';}).join("")+'</span>'+
+        '<strong>'+escapar(tema.nombre)+'</strong>'+
+      '</button>';
+    }).join("");
+  }
+  function manejarClickTema(evento){
+    const item=evento.target.closest("[data-tema]");if(!item)return;
+    renderTemasEstilo(item.dataset.tema);
+    guardarEstilo({tema:item.dataset.tema});
+  }
+  function programarGuardadoEstilo(){
+    aplicarClasesPreview();
+    const payload={
+      formato_pagina:byId("tplStylePageFormat")?byId("tplStylePageFormat").value:"CARTA",
+      margenes:byId("tplStyleMargin")?byId("tplStyleMargin").value:"NORMAL",
+      diseno_portada:byId("tplStyleCover")?byId("tplStyleCover").value:"BANDA_SUPERIOR",
+      estilo_tablas:byId("tplStyleTable")?byId("tplStyleTable").value:"LINEAS"
+    };
+    programarAutoguardado("estilo",function(){guardarEstilo(payload);});
+  }
+  async function guardarEstilo(payload){
+    if(!estado.wizard.plantillaId)return;
+    cambiarEstadoEstilo("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/estilo",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      cambiarEstadoEstilo("Guardado");
+    }catch(error){
+      cambiarEstadoEstilo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible actualizar el estilo.");
+    }
+  }
+  function cambiarEstadoEstilo(texto,error){
+    const nodo=byId("tplStyleState");if(!nodo)return;nodo.textContent=texto;
+    nodo.classList.toggle("saving",texto==="Guardando..."||texto==="Cargando...");nodo.classList.toggle("error",!!error);
+  }
+  function aplicarClasesPreview(){
+    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
+    const formato=(byId("tplStylePageFormat")?byId("tplStylePageFormat").value:"CARTA").toLowerCase();
+    const margen=(byId("tplStyleMargin")?byId("tplStyleMargin").value:"NORMAL").toLowerCase();
+    const portada=(byId("tplStyleCover")?byId("tplStyleCover").value:"BANDA_SUPERIOR").toLowerCase();
+    const tabla=(byId("tplStyleTable")?byId("tplStyleTable").value:"LINEAS").toLowerCase();
+    Array.prototype.slice.call(pagina.classList).forEach(function(clase){
+      if(/^(format|margin|cover|table)-/.test(clase))pagina.classList.remove(clase);
+    });
+    pagina.classList.add("format-"+formato,"margin-"+margen,"cover-"+portada,"table-"+tabla);
+    setTexto("tplStylePreviewFormat",formato.toUpperCase());
+  }
+
   async function abrirWizardNuevo(baseID,detalleConocido){
     mostrarCargando(true);
     try{
@@ -5652,7 +6125,7 @@ table tr:last-child td { border-bottom: none; }
 
   function limpiarWizard(){
     Object.keys((estado.wizard.estructura&&estado.wizard.estructura.timers)||{}).forEach(function(clave){clearTimeout(estado.wizard.estructura.timers[clave]);});
-    estado.wizard={plantillaId:"",crearDesde:"",paso:1,sucio:false,guardando:false,detalle:null,estructura:nuevoEstadoEstructura()};
+    estado.wizard={plantillaId:"",crearDesde:"",paso:1,sucio:false,guardando:false,detalle:null,estructura:nuevoEstadoEstructura(),mapeo:nuevoEstadoMapeo()};
     if(byId("tplNombre"))byId("tplNombre").value="";
     if(byId("tplDescripcion"))byId("tplDescripcion").value="";
     if(byId("tplCodigo"))byId("tplCodigo").value="";
@@ -5758,6 +6231,8 @@ table tr:last-child td { border-bottom: none; }
     const principal=byId("tplBtnGuardarContinuar");
     if(principal){principal.textContent=["","Guardar y continuar a Estructura →","Continuar a Vincular datos →","Continuar a Estilo visual →","Continuar a Revisar y publicar →","Publicar plantilla"][paso];}
     if(paso===2)await cargarEstructura();
+    if(paso===3)await cargarMapeo();
+    if(paso===4)await cargarEstilo();
     if(paso===5)await cargarResumenRevision();
   }
   async function accionPrincipalWizard(){
