@@ -533,7 +533,10 @@
         const esPreview = st.modoVista === "preview";
         if(byId("btnDesignerModoDisenoCotizador")) byId("btnDesignerModoDisenoCotizador").classList.toggle("active", !esPreview);
         if(byId("btnDesignerModoPreviewCotizador")) byId("btnDesignerModoPreviewCotizador").classList.toggle("active", esPreview);
-        if(byId("btnDesignerNuevoComponenteCotizador")) byId("btnDesignerNuevoComponenteCotizador").classList.toggle("hidden", esPreview);
+        if(byId("btnDesignerNuevoComponenteCotizador")){
+          byId("btnDesignerNuevoComponenteCotizador").classList.toggle("hidden", esPreview);
+          byId("btnDesignerNuevoComponenteCotizador").disabled = esPreview || !getTabActualCotizadorFase1_();
+        }
       }
 
       function renderComponentesCotizadorFase1_(){
@@ -737,6 +740,7 @@
         const st = getCotizadorFase1State_();
         st.props = "seccion";
         if(byId("designerCotizadorPropsTipoChip")){ byId("designerCotizadorPropsTipoChip").textContent = "Sección"; byId("designerCotizadorPropsTipoChip").className = "designer-chip chip-gray"; }
+        if(byId("designerCotizadorPropsVacio")) byId("designerCotizadorPropsVacio").classList.add("hidden");
         if(byId("designerCotizadorPropsSeccion")) byId("designerCotizadorPropsSeccion").classList.remove("hidden");
         if(byId("designerCotizadorPropsComponente")) byId("designerCotizadorPropsComponente").classList.add("hidden");
         cargarPropsSeccionCotizadorFase1_();
@@ -747,11 +751,16 @@
         if(byId("designerCotizadorTabAlcance")) byId("designerCotizadorTabAlcance").value = "PROPIO";
         if(byId("designerCotizadorTabActivo")) byId("designerCotizadorTabActivo").checked = true;
         if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.add("hidden");
+        if(byId("designerCotizadorPropsTipoChip")) byId("designerCotizadorPropsTipoChip").textContent = "Sin selección";
+        if(byId("designerCotizadorPropsVacio")) byId("designerCotizadorPropsVacio").classList.remove("hidden");
+        if(byId("designerCotizadorPropsSeccion")) byId("designerCotizadorPropsSeccion").classList.add("hidden");
       }
 
       function cargarPropsSeccionCotizadorFase1_(){
         const tab = getTabActualCotizadorFase1_();
         if(!tab){ limpiarPropsSeccionCotizadorFase1_(); return; }
+        if(byId("designerCotizadorPropsVacio")) byId("designerCotizadorPropsVacio").classList.add("hidden");
+        if(byId("designerCotizadorPropsSeccion")) byId("designerCotizadorPropsSeccion").classList.remove("hidden");
         if(byId("designerCotizadorTabIdOriginal")) byId("designerCotizadorTabIdOriginal").value = String(tab.tab_id || "").trim().toUpperCase();
         if(byId("designerCotizadorTabId")) byId("designerCotizadorTabId").value = String(tab.tab_id || "").trim().toUpperCase();
         if(byId("designerCotizadorTabNombre")) byId("designerCotizadorTabNombre").value = String(tab.nombre_tab || "").trim();
@@ -769,6 +778,9 @@
         st.elementoId = "";
         mostrarPropsSeccionCotizadorFase1_();
         limpiarPropsSeccionCotizadorFase1_();
+        if(byId("designerCotizadorPropsTipoChip")) byId("designerCotizadorPropsTipoChip").textContent = "Nueva sección";
+        if(byId("designerCotizadorPropsVacio")) byId("designerCotizadorPropsVacio").classList.add("hidden");
+        if(byId("designerCotizadorPropsSeccion")) byId("designerCotizadorPropsSeccion").classList.remove("hidden");
         const total = tabsActivosCotizadorFase1_().length + 1;
         if(byId("designerCotizadorTabId")) byId("designerCotizadorTabId").value = "TAB-" + String(st.cotizadorId || "COT") + "-" + String(total).padStart(3,"0");
         if(byId("designerCotizadorTabOrden")) byId("designerCotizadorTabOrden").value = total;
@@ -1524,7 +1536,11 @@
         state.disenadorCotiza = d;
         ["catalogos","cotizador","reglas"].forEach(function(p){
           const step = byId("designerStep" + (p === "catalogos" ? "Catalogos" : p === "cotizador" ? "Cotizador" : "Reglas"));
-          if(step) step.classList.toggle("active", p === pantalla);
+          if(step){
+            step.classList.toggle("active", p === pantalla);
+            if(p === pantalla) step.setAttribute("aria-current", "step");
+            else step.removeAttribute("aria-current");
+          }
         });
         if(byId("designerCatalogosView")) byId("designerCatalogosView").classList.toggle("hidden", pantalla !== "catalogos");
         if(byId("designerCotizadorView")) byId("designerCotizadorView").classList.toggle("hidden", pantalla !== "cotizador");

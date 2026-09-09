@@ -89,12 +89,13 @@
   <div id="tplWizardView" class="hidden">
     <div class="tpl-wizard-head">
       <div>
-        <button id="tplBtnVolverGaleria" class="tpl-link-button" type="button">Plantillas / Nueva plantilla</button>
+        <button id="tplBtnVolverGaleria" class="tpl-link-button" type="button"><span aria-hidden="true">←</span> Volver a Plantillas</button>
+        <span class="tpl-eyebrow">CONSTRUCTOR DE PROPUESTAS</span>
         <div class="tpl-title-line">
           <h1>Crear plantilla de propuesta</h1>
           <span id="tplWizardEstadoBadge" class="tpl-badge tpl-badge-draft">Borrador</span>
         </div>
-        <p>Defina la información general y las asociaciones de la plantilla.</p>
+        <p id="tplWizardDescripcionCabecera">Defina la información general y las asociaciones de la plantilla.</p>
       </div>
       <div class="tpl-wizard-head-actions">
         <button id="tplBtnVistaPreviaWizard" class="btn btn-ghost hidden" type="button">◉ Vista previa</button>
@@ -1508,6 +1509,8 @@
     const editando=!!estado.wizard.plantillaId;
     const titulo=document.querySelector("#tplWizardView .tpl-title-line h1");if(titulo)titulo.textContent=editando?"Editar plantilla de propuesta":"Crear plantilla de propuesta";
     const botonPreview=byId("tplBtnVistaPreviaWizard");if(botonPreview)botonPreview.classList.toggle("hidden",!editando);
+    const badge=byId("tplWizardEstadoBadge");const estadoActual=(byId("tplEstado")&&byId("tplEstado").value)||"Borrador";
+    if(badge){badge.textContent=estadoActual;badge.classList.toggle("tpl-badge-published",estadoActual==="Publicada");badge.classList.toggle("tpl-badge-draft",estadoActual!=="Publicada");}
     actualizarContadorDescripcion();renderBasesPublicadas();estado.wizard.sucio=false;
   }
   function mostrarWizard(){
@@ -1593,7 +1596,15 @@
   async function mostrarPaso(paso){
     estado.wizard.paso=paso;
     [1,2,3,4,5].forEach(function(numero){const panel=byId("tplStep"+["","One","Two","Three","Four","Five"][numero]);if(panel)panel.classList.toggle("hidden",numero!==paso);});
-    document.querySelectorAll("#section-plantillas .tpl-step").forEach(function(boton){boton.classList.toggle("active",Number(boton.dataset.tplStep||0)===paso);});
+    document.querySelectorAll("#section-plantillas .tpl-step").forEach(function(boton){
+      const numero=Number(boton.dataset.tplStep||0);
+      boton.classList.toggle("active",numero===paso);
+      boton.classList.toggle("completed",numero<paso);
+      if(numero===paso)boton.setAttribute("aria-current","step");else boton.removeAttribute("aria-current");
+    });
+    const descripciones=["","Defina la información general y las asociaciones de la plantilla.","Organice secciones, columnas y bloques de contenido.","Conecte los bloques con datos reales de cada cotizador.","Aplique la identidad visual y configure la salida web y PDF.","Compruebe la configuración completa antes de publicar."];
+    setTexto("tplWizardDescripcionCabecera",descripciones[paso]);
+    window.scrollTo({top:0,left:0,behavior:"auto"});
     const principal=byId("tplBtnGuardarContinuar");
     if(principal){principal.textContent=["","Guardar y continuar a Estructura →","Continuar a Vincular datos →","Continuar a Estilo visual →","Continuar a Revisar y publicar →","Publicar plantilla"][paso];}
     if(paso===2)await cargarEstructura();

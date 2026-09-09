@@ -7,6 +7,7 @@
         <div class="designer-shell">
           <div class="designer-page-head">
             <div>
+              <span class="designer-eyebrow">CONFIGURACIÓN DEL SISTEMA</span>
               <h1 id="designerTituloModulo">Catálogos</h1>
               <p id="designerSubtituloModulo">Defina y relacione los catálogos del cotizador.</p>
             </div>
@@ -24,19 +25,20 @@
 
           <div id="designerInlineStatus" class="designer-inline-status"></div>
 
-          <div class="card designer-stepper">            <div id="designerStepCatalogos" class="designer-step active" data-designer-step="catalogos">
+          <nav class="card designer-stepper" aria-label="Etapas de configuración del cotizador">
+            <button id="designerStepCatalogos" class="designer-step active" data-designer-step="catalogos" type="button" aria-current="step">
               <div class="designer-step-number">1</div>
               <div><h3>Catálogos</h3><p>Defina y gestione catálogos</p></div>
-            </div>
-            <div id="designerStepCotizador" class="designer-step" data-designer-step="cotizador">
+            </button>
+            <button id="designerStepCotizador" class="designer-step" data-designer-step="cotizador" type="button">
               <div class="designer-step-number">2</div>
               <div><h3>Cotizador</h3><p>Diseñe la estructura y campos</p></div>
-            </div>
-            <div id="designerStepReglas" class="designer-step" data-designer-step="reglas">
+            </button>
+            <button id="designerStepReglas" class="designer-step" data-designer-step="reglas" type="button">
               <div class="designer-step-number">3</div>
               <div><h3>Reglas</h3><p>Configure reglas y cálculos</p></div>
-            </div>
-          </div>
+            </button>
+          </nav>
 
           <div id="designerCatalogosView">
             <div class="card designer-filter-bar">
@@ -55,7 +57,7 @@
                 </div>
                 <div class="designer-tools">
                   <input id="designerBuscarCatalogo" class="input" type="text" placeholder="Buscar catálogo...">
-                  <button id="btnDesignerFiltrosCatalogo" class="btn btn-ghost" type="button">Filtros</button>
+                  <button id="btnDesignerFiltrosCatalogo" class="btn btn-ghost" type="button">Ayuda</button>
                 </div>
                 <div id="designerCatalogosLista" class="designer-catalog-list">
                   <div class="designer-empty">Cargando catálogos...</div>
@@ -2009,6 +2011,12 @@
                         <button id="btnDesignerCerrarPropsCotizador" class="cotizador-panel-close" type="button" title="Ocultar panel">»</button>
                       </div>
                     </div>
+
+                  <div id="designerCotizadorPropsVacio" class="designer-selection-empty hidden">
+                    <span aria-hidden="true">⌁</span>
+                    <strong>Seleccione una sección</strong>
+                    <p>Elija una sección de la lista o cree una nueva para editar sus propiedades.</p>
+                  </div>
 
                   <div id="designerCotizadorPropsSeccion" class="designer-props-form">
                     <input id="designerCotizadorTabIdOriginal" type="hidden">

@@ -1700,6 +1700,7 @@ window.CotizaApp = (function(){
 
         const active = byId("section-" + section);
         if(active) active.classList.add("active");
+        window.scrollTo({top:0,left:0,behavior:"auto"});
 
         if(section === "cotizaciones" && !omitirCarga) mostrarListadoCotizacionesV2();
         if(section === "solicitudes" && window.CotizaSolicitudes) window.CotizaSolicitudes.mostrarListado();
@@ -5846,6 +5847,9 @@ window.CotizaApp = (function(){
         const activo = byId("designerCatalogoActivo");
 
         if(!cat){
+          if(byId("designerPropsTitulo")) byId("designerPropsTitulo").textContent = "Nuevo catálogo";
+          if(byId("btnDesignerGuardarCatalogoPanel")) byId("btnDesignerGuardarCatalogoPanel").textContent = "Crear catálogo";
+          if(byId("btnDesignerNuevoValor")) byId("btnDesignerNuevoValor").disabled = true;
           if(original) original.value = "";
           if(id) { id.value = ""; id.readOnly = false; }
           if(nombre) nombre.value = "";
@@ -5861,6 +5865,9 @@ window.CotizaApp = (function(){
         }
 
         const catId = String(cat.catalogo_id || "").toUpperCase();
+        if(byId("designerPropsTitulo")) byId("designerPropsTitulo").textContent = "Propiedades del catálogo";
+        if(byId("btnDesignerGuardarCatalogoPanel")) byId("btnDesignerGuardarCatalogoPanel").textContent = "Guardar cambios";
+        if(byId("btnDesignerNuevoValor")) byId("btnDesignerNuevoValor").disabled = false;
         if(original) original.value = catId;
         if(id) { id.value = catId; id.readOnly = true; }
         if(nombre) nombre.value = cat.nombre_catalogo || cat.catalogo || catId;
@@ -6004,7 +6011,7 @@ window.CotizaApp = (function(){
         const valPanel = byId("designerValorPropsForm");
         if(catPanel) catPanel.classList.remove("hidden");
         if(valPanel) valPanel.classList.add("hidden");
-        if(byId("designerPropsTitulo")) byId("designerPropsTitulo").textContent = "Propiedades del Catálogo";
+        if(byId("designerPropsTitulo")) byId("designerPropsTitulo").textContent = obtenerDesignerCatalogoSeleccionado() ? "Propiedades del catálogo" : "Nuevo catálogo";
         renderDesignerValoresCatalogo();
       }
 
