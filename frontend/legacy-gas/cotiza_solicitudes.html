@@ -8,10 +8,10 @@
     </div>
     <div class="sol-kpis">
       <div><span>Total visible</span><strong id="solKpiTotal">0</strong></div>
-      <div><span>Backlog</span><strong id="solKpiBacklog">0</strong></div>
-      <div><span>En proceso</span><strong id="solKpiProceso">0</strong></div>
-      <div><span>En espera</span><strong id="solKpiEspera">0</strong></div>
-      <div><span>Entregadas</span><strong id="solKpiEntregadas">0</strong></div>
+      <div><span>Nuevas</span><strong id="solKpiBacklog">0</strong></div>
+      <div><span>En revisión</span><strong id="solKpiProceso">0</strong></div>
+      <div><span>Descartadas</span><strong id="solKpiEspera">0</strong></div>
+      <div><span>Convertidas</span><strong id="solKpiEntregadas">0</strong></div>
     </div>
     <div class="card sol-card">
       <div class="sol-filters">
@@ -54,3 +54,328 @@
     <div id="solicitudDetalleContenido"><div class="card">Cargando solicitud...</div></div>
   </div>
 </section>
+
+<script>
+(function(){
+  "use strict";
+
+  const ESTADOS = ["Nueva", "En revisión", "Descartada", "Convertida"];
+  const PRIORIDADES = ["Baja", "Media", "Alta", "Urgente"];
+  const estado = { solicitudes:[], calculadoras:[], usuarios:[], detalle:null, cargandoBase:null };
+
+  function core(){ return window.__cotizaCore || {}; }
+  function porId(id){ return document.getElementById(id); }
+  function escapar(valor){
+    const fn = core().escapeHtml;
+    return fn ? fn(String(valor == null ? "" : valor)) : String(valor == null ? "" : valor);
+  }
+  function toast(mensaje){ if(core().mostrarToast) core().mostrarToast(mensaje); }
+
+  async function solicitar(url, opciones){
+    const fetchSeguro = core().fetchAutenticado;
+    if(!fetchSeguro) throw new Error("La sesión todavía no está disponible.");
+    const resp = await fetchSeguro(url, opciones || {});
+    let data = null;
+    try{ data = await resp.json(); }catch(error){ data = null; }
+    if(!resp.ok || !data || !data.ok){
+      throw new Error((data && data.error) || "No fue posible completar la solicitud.");
+    }
+    return data;
+  }
+
+  function mostrarPanel(nombre){
+    ["solicitudesListaPanel", "solicitudFormularioPanel", "solicitudDetallePanel"].forEach(function(id){
+      const el = porId(id);
+      if(el) el.classList.toggle("hidden", id !== nombre);
+    });
+  }
+
+  function opcionesSelect(items, valor, etiqueta){
+    return items.map(function(item){
+      return '<option value="'+escapar(item[valor] || "")+'">'+escapar(item[etiqueta] || item[valor] || "")+'</option>';
+    }).join("");
+  }
+
+  function llenarCombos(){
+    const etapa = porId("solFiltroEtapa");
+    const prioridadFiltro = porId("solFiltroPrioridad");
+    const prioridadForm = porId("solPrioridad");
+    if(etapa) etapa.innerHTML = '<option value="">Todas</option>' + ESTADOS.map(function(item){ return '<option>'+escapar(item)+'</option>'; }).join("");
+    if(prioridadFiltro) prioridadFiltro.innerHTML = '<option value="">Todas</option>' + PRIORIDADES.map(function(item){ return '<option>'+escapar(item)+'</option>'; }).join("");
+    if(prioridadForm) prioridadForm.innerHTML = PRIORIDADES.map(function(item){ return '<option'+(item === "Media" ? ' selected' : '')+'>'+escapar(item)+'</option>'; }).join("");
+
+    const calculadoras = opcionesSelect(estado.calculadoras, "calculadora_id", "nombre_calculadora");
+    const usuarios = estado.usuarios.filter(function(item){ return item.estado === "Activo"; });
+    const usuariosHTML = opcionesSelect(usuarios, "usuario_id", "nombre");
+    if(porId("solCotizador")) porId("solCotizador").innerHTML = '<option value="">Seleccione</option>' + calculadoras;
+    if(porId("solFiltroResponsable")) porId("solFiltroResponsable").innerHTML = '<option value="">Todos</option>' + usuariosHTML;
+    if(porId("solVendedor")) porId("solVendedor").innerHTML = '<option value="">Seleccione</option>' + usuariosHTML;
+    if(porId("solAnalista")) porId("solAnalista").innerHTML = '<option value="">Sin asignar</option>' + usuariosHTML;
+    if(porId("solLider")) porId("solLider").innerHTML = '<option value="">Sin asignar</option>' + usuariosHTML;
+  }
+
+  async function cargarCombos(){
+    if(estado.cargandoBase) return estado.cargandoBase;
+    estado.cargandoBase = (async function(){
+      const datosCore = core().state || {};
+      estado.calculadoras = (datosCore.calculadoras || []).slice();
+      estado.usuarios = (datosCore.usuarios || []).slice();
+      const pedidos = [];
+      if(!estado.calculadoras.length){
+        pedidos.push(solicitar("/api/calculadoras").then(function(data){ estado.calculadoras = data.calculadoras || []; }));
+      }
+      if(!estado.usuarios.length){
+        pedidos.push(solicitar("/api/usuarios").then(function(data){ estado.usuarios = data.usuarios || []; }));
+      }
+      await Promise.all(pedidos);
+      llenarCombos();
+    })();
+    try{ await estado.cargandoBase; }finally{ estado.cargandoBase = null; }
+  }
+
+  function parametrosFiltros(){
+    const params = new URLSearchParams();
+    const valores = {
+      busqueda: porId("solFiltroBusqueda") ? porId("solFiltroBusqueda").value.trim() : "",
+      estado: porId("solFiltroEtapa") ? porId("solFiltroEtapa").value : "",
+      prioridad: porId("solFiltroPrioridad") ? porId("solFiltroPrioridad").value : "",
+      responsable_id: porId("solFiltroResponsable") ? porId("solFiltroResponsable").value : ""
+    };
+    Object.keys(valores).forEach(function(clave){ if(valores[clave]) params.set(clave, valores[clave]); });
+    const query = params.toString();
+    return query ? "?" + query : "";
+  }
+
+  function claseEstado(valor){
+    return {"Nueva":"badge-backlog", "En revisión":"badge-en-proceso", "Descartada":"badge-descartada", "Convertida":"badge-entregada"}[valor] || "badge-normal";
+  }
+  function clasePrioridad(valor){ return "prioridad-" + String(valor || "Media").toLowerCase(); }
+  function fecha(valor, soloFecha){
+    if(!valor) return "—";
+    const fechaValor = soloFecha ? new Date(valor + "T12:00:00") : new Date(valor);
+    if(Number.isNaN(fechaValor.getTime())) return valor;
+    return fechaValor.toLocaleDateString("es-CR", soloFecha ? {} : {year:"numeric", month:"short", day:"numeric"});
+  }
+  function codigoCorto(item){
+    return item.crm_id || ("SOL-" + String(item.solicitud_id || "").slice(0, 8).toUpperCase());
+  }
+  function tituloSolicitud(item){ return item.titulo || ("Solicitud de " + (item.cliente_nombre || "cliente")); }
+  function responsables(item){
+    const valores = [];
+    if(item.vendedor_nombre) valores.push("Vendedor: " + item.vendedor_nombre);
+    if(item.analista_nombre) valores.push("Analista: " + item.analista_nombre);
+    if(item.lider_producto_nombre) valores.push("Líder: " + item.lider_producto_nombre);
+    return valores.length ? valores : ["Sin asignar"];
+  }
+
+  function actualizarKpis(){
+    const conteos = {"Nueva":0, "En revisión":0, "Descartada":0, "Convertida":0};
+    estado.solicitudes.forEach(function(item){ if(conteos[item.estado] != null) conteos[item.estado]++; });
+    if(porId("solKpiTotal")) porId("solKpiTotal").textContent = String(estado.solicitudes.length);
+    if(porId("solKpiBacklog")) porId("solKpiBacklog").textContent = String(conteos["Nueva"]);
+    if(porId("solKpiProceso")) porId("solKpiProceso").textContent = String(conteos["En revisión"]);
+    if(porId("solKpiEspera")) porId("solKpiEspera").textContent = String(conteos["Descartada"]);
+    if(porId("solKpiEntregadas")) porId("solKpiEntregadas").textContent = String(conteos["Convertida"]);
+  }
+
+  function renderListado(){
+    const tbody = porId("solicitudesBody");
+    if(!tbody) return;
+    actualizarKpis();
+    if(!estado.solicitudes.length){
+      tbody.innerHTML = '<tr><td colspan="9"><div class="sol-empty">No hay solicitudes que coincidan con los filtros.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = estado.solicitudes.map(function(item){
+      const listaResponsables = responsables(item);
+      return '<tr class="sol-row" data-solicitud-id="'+escapar(item.solicitud_id)+'" tabindex="0">' +
+        '<td><strong>'+escapar(tituloSolicitud(item))+'</strong><br><small>'+escapar(codigoCorto(item))+' · '+escapar(item.origen === "MANUAL" ? "Manual" : (item.integracion_nombre || "API externa"))+'</small></td>' +
+        '<td><strong>'+escapar(item.cliente_nombre)+'</strong><br><small>'+escapar(item.contacto_nombre || item.contacto_correo || "Sin contacto")+'</small></td>' +
+        '<td>'+escapar(item.calculadora_nombre || item.calculadora_id || "Por definir")+'</td>' +
+        '<td><span class="badge '+claseEstado(item.estado)+'">'+escapar(item.estado)+'</span></td>' +
+        '<td><span class="badge '+clasePrioridad(item.prioridad)+'">'+escapar(item.prioridad || "Media")+'</span></td>' +
+        '<td><strong>'+escapar(listaResponsables[0])+'</strong>'+(listaResponsables.slice(1).map(function(valor){ return '<br><small>'+escapar(valor)+'</small>'; }).join(""))+'</td>' +
+        '<td>'+(item.cotizacion_id_generada ? '<button class="mini mini-primary" type="button" data-sol-cotizacion="'+escapar(item.cotizacion_id_generada)+'">Ver cotización</button>' : '<span>—</span>')+'</td>' +
+        '<td>'+escapar(fecha(item.fecha_actualizacion, false))+'</td>' +
+        '<td><button class="mini" type="button" data-sol-ver="'+escapar(item.solicitud_id)+'">Ver</button></td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  async function cargarListado(){
+    mostrarPanel("solicitudesListaPanel");
+    const tbody = porId("solicitudesBody");
+    if(tbody) tbody.innerHTML = '<tr><td colspan="9">Cargando solicitudes...</td></tr>';
+    try{
+      await cargarCombos();
+      const data = await solicitar("/api/solicitudes" + parametrosFiltros());
+      estado.solicitudes = data.solicitudes || [];
+      renderListado();
+    }catch(error){
+      if(tbody) tbody.innerHTML = '<tr><td colspan="9">'+escapar(error.message)+'</td></tr>';
+      toast(error.message);
+    }
+  }
+
+  function abrirFormulario(){
+    const form = porId("formSolicitud");
+    if(form) form.reset();
+    if(porId("solSolicitudId")) porId("solSolicitudId").value = "";
+    llenarCombos();
+    if(porId("solPrioridad")) porId("solPrioridad").value = "Media";
+    const usuario = (core().state || {}).usuario;
+    if(usuario && porId("solVendedor")) porId("solVendedor").value = usuario.usuario_id || "";
+    mostrarPanel("solicitudFormularioPanel");
+  }
+
+  async function guardarSolicitud(evento){
+    if(evento) evento.preventDefault();
+    const boton = porId("btnGuardarSolicitud");
+    const body = {
+      titulo: porId("solTitulo").value.trim(),
+      crm_id: porId("solCrmId").value.trim(),
+      cliente_nombre: porId("solEmpresa").value.trim(),
+      contacto_nombre: porId("solContactoNombre").value.trim(),
+      contacto_correo: porId("solContactoCorreo").value.trim(),
+      contacto_telefono: porId("solContactoTelefono").value.trim(),
+      calculadora_id: porId("solCotizador").value,
+      prioridad: porId("solPrioridad").value,
+      fecha_requerida: porId("solFechaRequerida").value,
+      vendedor_id: porId("solVendedor").value,
+      analista_id: porId("solAnalista").value,
+      lider_producto_id: porId("solLider").value,
+      descripcion: porId("solDescripcion").value.trim()
+    };
+    if(boton){ boton.disabled = true; boton.textContent = "Creando..."; }
+    try{
+      const data = await solicitar("/api/solicitudes", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+      toast(data.mensaje || "Solicitud creada.");
+      await cargarListado();
+      await abrirDetalle(data.solicitud_id);
+    }catch(error){ toast(error.message); }
+    finally{ if(boton){ boton.disabled = false; boton.textContent = "Crear solicitud"; } }
+  }
+
+  function valorDetalle(etiqueta, valor){
+    return '<div class="sol-detail-item"><span>'+escapar(etiqueta)+'</span><strong>'+escapar(valor || "—")+'</strong></div>';
+  }
+  function opcionesCalculadora(valor){
+    return '<option value="">Seleccione un cotizador</option>' + estado.calculadoras.map(function(item){
+      return '<option value="'+escapar(item.calculadora_id)+'"'+(item.calculadora_id === valor ? ' selected' : '')+'>'+escapar(item.nombre_calculadora || item.calculadora_id)+'</option>';
+    }).join("");
+  }
+
+  function renderDetalle(){
+    const item = estado.detalle;
+    const contenido = porId("solicitudDetalleContenido");
+    if(!item || !contenido) return;
+    if(porId("solDetalleCodigo")) porId("solDetalleCodigo").textContent = codigoCorto(item);
+    if(porId("solDetalleSubtitulo")) porId("solDetalleSubtitulo").textContent = tituloSolicitud(item) + " · " + item.estado;
+    const activa = item.estado !== "Convertida" && item.estado !== "Descartada";
+    let acciones = "";
+    if(activa){
+      const selector = item.calculadora_id ? "" : '<label class="sol-convert-select">Cotizador para convertir<select id="solDetalleCalculadora" class="select">'+opcionesCalculadora("")+'</select></label>';
+      acciones = '<div class="sol-detail-actions">'+selector+
+        (item.estado !== "En revisión" ? '<button class="btn btn-light" type="button" data-sol-accion="revision">Marcar en revisión</button>' : '')+
+        '<button class="btn btn-light sol-danger" type="button" data-sol-accion="descartar">Descartar</button>'+
+        '<button class="btn btn-primary" type="button" data-sol-accion="convertir">Convertir en cotización</button></div>';
+    }else if(item.cotizacion_id_generada){
+      acciones = '<div class="sol-detail-actions"><button class="btn btn-primary" type="button" data-sol-cotizacion="'+escapar(item.cotizacion_id_generada)+'">Ir a la cotización</button></div>';
+    }
+    contenido.innerHTML = '<div class="card sol-detail-card">' +
+      '<div class="sol-detail-heading"><div><span class="sol-eyebrow">'+escapar(item.origen === "MANUAL" ? "SOLICITUD MANUAL" : "SOLICITUD DE INTEGRACIÓN")+'</span><h2>'+escapar(tituloSolicitud(item))+'</h2></div><span class="badge '+claseEstado(item.estado)+'">'+escapar(item.estado)+'</span></div>' +
+      '<div class="sol-detail-grid">'+
+        valorDetalle("Empresa / cliente", item.cliente_nombre)+valorDetalle("Oportunidad CRM", item.crm_id)+
+        valorDetalle("Cotizador", item.calculadora_nombre || item.calculadora_id || "Por definir")+valorDetalle("Prioridad", item.prioridad)+
+        valorDetalle("Fecha requerida", fecha(item.fecha_requerida, true))+valorDetalle("Creada", fecha(item.fecha_creacion, false))+
+        valorDetalle("Contacto", item.contacto_nombre)+valorDetalle("Correo", item.contacto_correo)+valorDetalle("Teléfono", item.contacto_telefono)+
+        valorDetalle("Vendedor", item.vendedor_nombre)+valorDetalle("Analista", item.analista_nombre)+valorDetalle("Líder de producto", item.lider_producto_nombre)+
+      '</div><div class="sol-detail-description"><span>Descripción / alcance</span><p>'+escapar(item.descripcion || "Sin descripción")+'</p></div>'+acciones+'</div>';
+  }
+
+  async function abrirDetalle(solicitudID){
+    mostrarPanel("solicitudDetallePanel");
+    if(porId("solicitudDetalleContenido")) porId("solicitudDetalleContenido").innerHTML = '<div class="card">Cargando solicitud...</div>';
+    try{
+      await cargarCombos();
+      const data = await solicitar("/api/solicitudes/" + encodeURIComponent(solicitudID));
+      estado.detalle = data.solicitud;
+      renderDetalle();
+    }catch(error){
+      if(porId("solicitudDetalleContenido")) porId("solicitudDetalleContenido").innerHTML = '<div class="card">'+escapar(error.message)+'</div>';
+      toast(error.message);
+    }
+  }
+
+  async function cambiarEstado(nuevoEstado){
+    if(!estado.detalle) return;
+    try{
+      const data = await solicitar("/api/solicitudes/"+encodeURIComponent(estado.detalle.solicitud_id), {
+        method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({estado:nuevoEstado})
+      });
+      toast(data.mensaje || "Solicitud actualizada.");
+      await abrirDetalle(estado.detalle.solicitud_id);
+      cargarListadoSilencioso();
+    }catch(error){ toast(error.message); }
+  }
+
+  async function convertir(){
+    if(!estado.detalle) return;
+    const selector = porId("solDetalleCalculadora");
+    const calculadoraID = estado.detalle.calculadora_id || (selector ? selector.value : "");
+    if(!calculadoraID){ toast("Seleccione un cotizador antes de convertir la solicitud."); return; }
+    try{
+      const data = await solicitar("/api/solicitudes/"+encodeURIComponent(estado.detalle.solicitud_id)+"/convertir", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({calculadora_id:calculadoraID})
+      });
+      toast(data.mensaje || "Solicitud convertida en cotización.");
+      if(window.CotizaApp && window.CotizaApp.abrirCotizacionSolicitud){
+        window.CotizaApp.abrirCotizacionSolicitud(data.cotizacion_id, "1");
+      }
+    }catch(error){ toast(error.message); }
+  }
+
+  async function cargarListadoSilencioso(){
+    try{
+      const data = await solicitar("/api/solicitudes" + parametrosFiltros());
+      estado.solicitudes = data.solicitudes || [];
+    }catch(error){}
+  }
+
+  function irCotizacion(cotizacionID){
+    if(window.CotizaApp && window.CotizaApp.abrirCotizacionSolicitud){
+      window.CotizaApp.abrirCotizacionSolicitud(cotizacionID, "1");
+    }
+  }
+
+  function enlazar(){
+    if(porId("btnNuevaSolicitud")) porId("btnNuevaSolicitud").addEventListener("click", function(){ cargarCombos().then(abrirFormulario).catch(function(error){ toast(error.message); }); });
+    if(porId("btnCancelarSolicitud")) porId("btnCancelarSolicitud").addEventListener("click", cargarListado);
+    if(porId("btnVolverSolicitudes")) porId("btnVolverSolicitudes").addEventListener("click", cargarListado);
+    if(porId("formSolicitud")) porId("formSolicitud").addEventListener("submit", guardarSolicitud);
+    if(porId("btnBuscarSolicitudes")) porId("btnBuscarSolicitudes").addEventListener("click", cargarListado);
+    ["solFiltroEtapa", "solFiltroPrioridad", "solFiltroResponsable"].forEach(function(id){ if(porId(id)) porId(id).addEventListener("change", cargarListado); });
+    let temporizador = null;
+    if(porId("solFiltroBusqueda")) porId("solFiltroBusqueda").addEventListener("input", function(){ clearTimeout(temporizador); temporizador = setTimeout(cargarListado, 350); });
+    if(porId("solicitudesBody")) porId("solicitudesBody").addEventListener("click", function(evento){
+      const cotizacion = evento.target.closest("[data-sol-cotizacion]");
+      if(cotizacion){ evento.stopPropagation(); irCotizacion(cotizacion.dataset.solCotizacion); return; }
+      const ver = evento.target.closest("[data-sol-ver]");
+      const fila = evento.target.closest("[data-solicitud-id]");
+      if(ver || fila) abrirDetalle((ver && ver.dataset.solVer) || fila.dataset.solicitudId);
+    });
+    if(porId("solicitudDetalleContenido")) porId("solicitudDetalleContenido").addEventListener("click", function(evento){
+      const cotizacion = evento.target.closest("[data-sol-cotizacion]");
+      if(cotizacion){ irCotizacion(cotizacion.dataset.solCotizacion); return; }
+      const accion = evento.target.closest("[data-sol-accion]");
+      if(!accion) return;
+      if(accion.dataset.solAccion === "revision") cambiarEstado("En revisión");
+      if(accion.dataset.solAccion === "descartar" && window.confirm("¿Descartar esta solicitud? Esta acción la retira del flujo activo.")) cambiarEstado("Descartada");
+      if(accion.dataset.solAccion === "convertir") convertir();
+    });
+  }
+
+  enlazar();
+  window.CotizaSolicitudes = { mostrarListado:cargarListado, abrirDetalle:abrirDetalle };
+})();
+</script>

@@ -96,6 +96,151 @@ func postConvertirSolicitud(t *testing.T, handler *SolicitudesHandler, actorID, 
 	return rec, res
 }
 
+func postSolicitudManual(t *testing.T, handler *SolicitudesHandler, actorID string, body map[string]any) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("no se pudo serializar el body: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/solicitudes", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	req = conActor(req, actorID)
+	rec := httptest.NewRecorder()
+	handler.Crear(rec, req)
+
+	var res map[string]any
+	assertJSON(t, rec.Body.Bytes(), &res)
+	return rec, res
+}
+
+func getDetalleSolicitud(t *testing.T, handler *SolicitudesHandler, solicitudID string) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
+	router := chi.NewRouter()
+	router.Get("/api/solicitudes/{id}", handler.Detalle)
+	req := httptest.NewRequest(http.MethodGet, "/api/solicitudes/"+solicitudID, nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	var res map[string]any
+	assertJSON(t, rec.Body.Bytes(), &res)
+	return rec, res
+}
+
+func TestSolicitudesCrearManual_GuardaCamposYActorDeSesion(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &SolicitudesHandler{DB: pool}
+	actor := crearAdminActorPrueba(t, pool)
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
+
+	rec, res := postSolicitudManual(t, handler, actor, map[string]any{
+		"titulo":            "Renovación de soporte 2027",
+		"crm_id":            "CRM-45871",
+		"cliente_nombre":    "Cliente solicitud manual",
+		"contacto_nombre":   "Ana Cliente",
+		"contacto_correo":   "ana@cliente.example",
+		"contacto_telefono": "2222-3344",
+		"calculadora_id":    calculadoraID,
+		"prioridad":         "Alta",
+		"fecha_requerida":   "2027-02-15",
+		"vendedor_id":       actor,
+		"analista_id":       actor,
+		"lider_producto_id": actor,
+		"descripcion":       "Renovar el servicio y ampliar la cobertura.",
+	})
+	if rec.Code != http.StatusCreated || res["ok"] != true {
+		t.Fatalf("esperaba 201/ok, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	solicitudID, _ := res["solicitud_id"].(string)
+	limpiarSolicitud(t, pool, solicitudID)
+
+	var origen, titulo, crmID, prioridad, fechaRequerida, vendedorID, creadoPor string
+	err := pool.QueryRow(context.Background(), `
+		SELECT origen, titulo, crm_id, prioridad, fecha_requerida::text, vendedor_id, creado_por
+		  FROM solicitudes WHERE solicitud_id::text = $1`, solicitudID,
+	).Scan(&origen, &titulo, &crmID, &prioridad, &fechaRequerida, &vendedorID, &creadoPor)
+	if err != nil {
+		t.Fatalf("no se pudo releer la solicitud manual: %v", err)
+	}
+	if origen != "MANUAL" || titulo != "Renovación de soporte 2027" || crmID != "CRM-45871" || prioridad != "Alta" {
+		t.Fatalf("campos principales inesperados: origen=%q titulo=%q crm=%q prioridad=%q", origen, titulo, crmID, prioridad)
+	}
+	if fechaRequerida != "2027-02-15" || vendedorID != actor || creadoPor != actor {
+		t.Fatalf("auditoría/responsable inesperados: fecha=%q vendedor=%q creado_por=%q", fechaRequerida, vendedorID, creadoPor)
+	}
+}
+
+func TestSolicitudesCrearManual_RechazaResponsableInexistente(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &SolicitudesHandler{DB: pool}
+	actor := crearAdminActorPrueba(t, pool)
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
+
+	rec, res := postSolicitudManual(t, handler, actor, map[string]any{
+		"titulo": "Solicitud inválida", "crm_id": "CRM-X", "cliente_nombre": "Cliente X",
+		"calculadora_id": calculadoraID, "prioridad": "Media", "vendedor_id": "usuario-inexistente",
+		"descripcion": "No debe guardarse.",
+	})
+	if rec.Code != http.StatusBadRequest || res["ok"] != false {
+		t.Fatalf("esperaba 400/ok:false, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSolicitudesDetalle_DevuelveCamposEnriquecidos(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &SolicitudesHandler{DB: pool}
+	actor := crearAdminActorPrueba(t, pool)
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
+	_, creada := postSolicitudManual(t, handler, actor, map[string]any{
+		"titulo": "Detalle completo", "crm_id": "CRM-DETALLE", "cliente_nombre": "Cliente detalle",
+		"calculadora_id": calculadoraID, "prioridad": "Urgente", "vendedor_id": actor,
+		"descripcion": "Información completa para el detalle.",
+	})
+	solicitudID, _ := creada["solicitud_id"].(string)
+	limpiarSolicitud(t, pool, solicitudID)
+
+	rec, res := getDetalleSolicitud(t, handler, solicitudID)
+	if rec.Code != http.StatusOK || res["ok"] != true {
+		t.Fatalf("esperaba 200/ok, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	detalle, _ := res["solicitud"].(map[string]any)
+	if detalle["titulo"] != "Detalle completo" || detalle["crm_id"] != "CRM-DETALLE" || detalle["prioridad"] != "Urgente" {
+		t.Fatalf("detalle incompleto: %#v", detalle)
+	}
+	if detalle["calculadora_nombre"] == "" || detalle["vendedor_nombre"] == "" {
+		t.Fatalf("el detalle debe traer nombres relacionados: %#v", detalle)
+	}
+}
+
+func TestSolicitudesListar_FiltraBusquedaPrioridadYResponsable(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &SolicitudesHandler{DB: pool}
+	actor := crearAdminActorPrueba(t, pool)
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
+	_, creada := postSolicitudManual(t, handler, actor, map[string]any{
+		"titulo": "Implementación Nébula", "crm_id": "CRM-NEBULA", "cliente_nombre": "Cliente filtros",
+		"calculadora_id": calculadoraID, "prioridad": "Alta", "vendedor_id": actor,
+		"descripcion": "Caso único para filtros.",
+	})
+	solicitudID, _ := creada["solicitud_id"].(string)
+	limpiarSolicitud(t, pool, solicitudID)
+
+	rec, res := getSolicitudes(t, handler, "?busqueda=N%C3%A9bula&prioridad=Alta&responsable_id="+actor)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	solicitudes, _ := res["solicitudes"].([]any)
+	encontrada := false
+	for _, raw := range solicitudes {
+		fila, _ := raw.(map[string]any)
+		if fila["solicitud_id"] == solicitudID {
+			encontrada = true
+		}
+	}
+	if !encontrada {
+		t.Fatal("la solicitud debió coincidir con búsqueda, prioridad y responsable")
+	}
+}
+
 func TestSolicitudesListar_FiltraPorEstado(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &SolicitudesHandler{DB: pool}

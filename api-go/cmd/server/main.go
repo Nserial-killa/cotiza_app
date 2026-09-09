@@ -166,6 +166,8 @@ func main() {
 			})
 			r.Route("/solicitudes", func(r chi.Router) {
 				r.Get("/", solicitudes.Listar)
+				r.Post("/", solicitudes.Crear)
+				r.Get("/{id}", solicitudes.Detalle)
 				r.Patch("/{id}", solicitudes.CambiarEstado)
 				r.Post("/{id}/convertir", solicitudes.Convertir)
 			})

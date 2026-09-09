@@ -464,9 +464,13 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .badge-entregado,.badge-entregada { background:#dcf8e8; color:#137345; }
 .badge-backlog { background:#e8edf3; color:#42546b; }
 .badge-en-espera { background:#fff1d7; color:#9a5d07; }
+.badge-descartada { background:#f1f3f6; color:#69778a; }
 .badge-alta,.prioridad-alta { background:#fee4e8; color:#c3264a; }
-.badge-normal,.prioridad-normal { background:#edf1f5; color:#42546b; }
+.badge-normal,.prioridad-normal,.prioridad-media { background:#edf1f5; color:#42546b; }
 .badge-baja,.prioridad-baja { background:#e7f6ff; color:#176b98; }
+.prioridad-urgente { background:#f8dce4; color:#9e173a; }
+.sol-row { cursor:pointer; }
+.sol-empty { padding:20px; color:var(--request-muted); text-align:center; }
 .sol-detail-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; }
 .sol-detail-bar > div { display:flex; flex-direction:column; gap:4px; }
 .sol-detail-bar strong { color:var(--request-ink); font-size:16px; }
@@ -479,6 +483,35 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .sol-span-2 { grid-column:span 2; }
 .sol-textarea { min-height:100px; resize:vertical; }
 .sol-form-actions { display:flex; justify-content:flex-end; margin-top:12px; }
+.sol-detail-card { border:1px solid var(--request-border); padding:22px; }
+.sol-detail-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding-bottom:16px; border-bottom:1px solid #e2e8f0; }
+.sol-detail-heading h2 { color:var(--request-ink); font-size:20px; }
+.sol-detail-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; padding:18px 0; }
+.sol-detail-item { min-width:0; padding:11px 12px; border:1px solid #e0e7f0; border-radius:8px; background:#f9fbfd; }
+.sol-detail-item span,.sol-detail-description > span { display:block; color:var(--request-muted); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.045em; margin-bottom:5px; }
+.sol-detail-item strong { display:block; color:#183556; font-size:11px; overflow-wrap:anywhere; }
+.sol-detail-description { padding:15px; border:1px solid #dfe7f1; border-radius:8px; }
+.sol-detail-description p { color:#40536d; font-size:11px; line-height:1.55; white-space:pre-wrap; }
+.sol-detail-actions { display:flex; align-items:flex-end; justify-content:flex-end; flex-wrap:wrap; gap:9px; margin-top:18px; }
+.sol-convert-select { display:flex; flex-direction:column; gap:5px; color:#344a68; font-size:9px; font-weight:700; min-width:230px; margin-right:auto; }
+.sol-convert-select select { height:36px; }
+.sol-danger { color:#b4233f; border-color:#edc5cf; }
+
+/* ---------- Configuración: Integraciones API ---------- */
+.config-api-card { padding:0; overflow:hidden; }
+.config-api-head { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; padding:20px 22px; }
+.config-api-head h2 { color:#0f2a4a; font-size:20px; margin-bottom:5px; }
+.config-api-head p { color:#718097; font-size:11px; }
+.config-api-table { min-width:760px; }
+.config-api-table th:nth-child(1){width:34%}.config-api-table th:nth-child(2){width:13%}.config-api-table th:nth-child(3){width:20%}.config-api-table th:nth-child(4){width:20%}.config-api-table th:nth-child(5){width:13%}
+.config-api-table td strong { color:#153353; }
+.config-api-table td small { color:#8591a2; font-size:9px; }
+.config-api-empty { padding:20px; text-align:center; color:#7b899d; }
+.config-api-modal { max-width:540px; }
+.config-api-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:9px; margin-top:18px; }
+.config-api-warning { color:#b4233f !important; font-weight:700; }
+.config-api-key { min-height:72px; padding:14px; border:1px solid #cbd7e6; border-radius:8px; background:#f5f8fc; color:#163250; font:600 11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; overflow-wrap:anywhere; user-select:all; }
+.config-api-revoke { color:#b4233f; border-color:#edc5cf; }
 
 @media (max-width:1100px) {
   .sol-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); }
@@ -486,6 +519,7 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .sol-search { grid-column:span 2; }
   .sol-filter-button { width:100%; }
   .sol-form-grid { grid-template-columns:1fr 1fr; }
+  .sol-detail-grid { grid-template-columns:1fr 1fr; }
 }
 @media (max-width:700px) {
   .solicitudes-page .sol-topbar { align-items:flex-start; }
@@ -493,6 +527,10 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .sol-kpis { grid-template-columns:1fr 1fr; }
   .sol-filters,.sol-form-grid { grid-template-columns:1fr; }
   .sol-search,.sol-span-2 { grid-column:auto; }
+  .sol-detail-grid { grid-template-columns:1fr; }
+  .sol-detail-actions,.config-api-actions { align-items:stretch; flex-direction:column; }
+  .sol-convert-select { width:100%; min-width:0; }
+  .config-api-head { flex-direction:column; }
 }
 
 /* ---------- Diseñador de Catálogos ---------- */

@@ -1710,6 +1710,7 @@ window.CotizaApp = (function(){
         }
         if(section === "usuarios") cargarUsuariosAdmin();
         if(section === "plantillas" && window.CotizaPlantillas) window.CotizaPlantillas.cargarGaleria();
+        if(section === "configuracion" && window.CotizaIntegraciones) window.CotizaIntegraciones.cargar();
       }
 
 

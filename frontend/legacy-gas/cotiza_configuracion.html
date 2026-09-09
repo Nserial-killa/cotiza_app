@@ -1,13 +1,183 @@
 
-<section id="section-configuracion" class="section">
-        <div class="topbar">
-          <div>
-            <h1>Configuración</h1>
-            <p>Configuraciones generales de Cotiza.</p>
-          </div>
-        </div>
-        <div class="placeholder">
-          <h2>Configuración</h2>
-          <p>Sección preparada para ajustes generales del sistema.</p>
-        </div>
-      </section>
+<section id="section-configuracion" class="section configuracion-page">
+  <div class="topbar">
+    <div>
+      <h1>Configuración</h1>
+      <p>Ajustes generales y accesos externos de Cotiza.</p>
+    </div>
+  </div>
+
+  <div id="configGeneralPlaceholder" class="placeholder">
+    <h2>Configuración</h2>
+    <p>Las integraciones API están disponibles únicamente para Administradores.</p>
+  </div>
+
+  <div id="configIntegracionesApi" class="hidden">
+    <div class="card config-api-card">
+      <div class="config-api-head">
+        <div><span class="sol-eyebrow">ACCESO EXTERNO</span><h2>Integraciones API</h2><p>Administre las credenciales que permiten registrar solicitudes desde sistemas externos.</p></div>
+        <button id="btnNuevaIntegracion" class="btn btn-primary" type="button">+ Nueva integración</button>
+      </div>
+      <div class="table-wrap">
+        <table class="config-api-table">
+          <thead><tr><th>Nombre</th><th>Estado</th><th>Creación</th><th>Último uso</th><th></th></tr></thead>
+          <tbody id="integracionesBody"><tr><td colspan="5">Cargando integraciones...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalNuevaIntegracion" class="modal" role="dialog" aria-modal="true" aria-labelledby="tituloNuevaIntegracion">
+    <div class="modal-card config-api-modal">
+      <div class="modal-head"><div><h2 id="tituloNuevaIntegracion">Nueva integración</h2><p>Use un nombre que identifique claramente al sistema externo.</p></div><button id="btnCerrarNuevaIntegracion" class="modal-close" type="button" aria-label="Cerrar">×</button></div>
+      <form id="formNuevaIntegracion">
+        <div class="field"><label for="configIntegracionNombre">Nombre *</label><input id="configIntegracionNombre" class="input" maxlength="160" required placeholder="Ejemplo: Bitrix24 Producción"></div>
+        <div class="config-api-actions"><button id="btnCancelarNuevaIntegracion" class="btn btn-light" type="button">Cancelar</button><button id="btnCrearIntegracion" class="btn btn-primary" type="submit">Generar clave</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modalClaveIntegracion" class="modal" role="dialog" aria-modal="true" aria-labelledby="tituloClaveIntegracion">
+    <div class="modal-card config-api-modal">
+      <div class="modal-head"><div><h2 id="tituloClaveIntegracion">Clave generada</h2><p class="config-api-warning">Copiá esta clave ahora, no se puede volver a ver.</p></div></div>
+      <pre id="configIntegracionClave" class="config-api-key" tabindex="0"></pre>
+      <div class="config-api-actions"><button id="btnCopiarClaveIntegracion" class="btn btn-primary" type="button">Copiar</button><button id="btnCerrarClaveIntegracion" class="btn btn-light" type="button">Ya la copié, cerrar</button></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  "use strict";
+  const estado = { clave:"", integraciones:[] };
+  function core(){ return window.__cotizaCore || {}; }
+  function porId(id){ return document.getElementById(id); }
+  function escapar(valor){ return core().escapeHtml ? core().escapeHtml(String(valor == null ? "" : valor)) : String(valor == null ? "" : valor); }
+  function toast(mensaje){ if(core().mostrarToast) core().mostrarToast(mensaje); }
+
+  async function solicitar(url, opciones){
+    if(!core().fetchAutenticado) throw new Error("La sesión todavía no está disponible.");
+    const resp = await core().fetchAutenticado(url, opciones || {});
+    let data = null;
+    try{ data = await resp.json(); }catch(error){ data = null; }
+    if(!resp.ok || !data || !data.ok) throw new Error((data && data.error) || "No fue posible completar la solicitud.");
+    return data;
+  }
+
+  function esAdministrador(){
+    const usuario = (core().state || {}).usuario;
+    return !!usuario && usuario.rol === "Administrador";
+  }
+  function fecha(valor){
+    if(!valor) return "Nunca";
+    const fechaValor = new Date(valor);
+    return Number.isNaN(fechaValor.getTime()) ? valor : fechaValor.toLocaleString("es-CR", {dateStyle:"medium", timeStyle:"short"});
+  }
+  function abrirModal(id){ if(porId(id)) porId(id).classList.add("open"); }
+  function cerrarModal(id){ if(porId(id)) porId(id).classList.remove("open"); }
+
+  function render(){
+    const tbody = porId("integracionesBody");
+    if(!tbody) return;
+    if(!estado.integraciones.length){
+      tbody.innerHTML = '<tr><td colspan="5"><div class="config-api-empty">No hay integraciones creadas.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = estado.integraciones.map(function(item){
+      return '<tr><td><strong>'+escapar(item.nombre)+'</strong><br><small>'+escapar(item.integracion_id)+'</small></td>'+
+        '<td><span class="badge '+(item.estado === "Activo" ? "badge-entregado" : "badge-normal")+'">'+escapar(item.estado)+'</span></td>'+
+        '<td>'+escapar(fecha(item.fecha_creacion))+'</td><td>'+escapar(fecha(item.ultima_uso))+'</td><td>'+
+        (item.estado === "Activo" ? '<button class="mini config-api-revoke" type="button" data-revocar-integracion="'+escapar(item.integracion_id)+'" data-integracion-nombre="'+escapar(item.nombre)+'">Revocar</button>' : '')+
+        '</td></tr>';
+    }).join("");
+  }
+
+  async function cargar(){
+    const permitido = esAdministrador();
+    if(porId("configIntegracionesApi")) porId("configIntegracionesApi").classList.toggle("hidden", !permitido);
+    if(porId("configGeneralPlaceholder")) porId("configGeneralPlaceholder").classList.toggle("hidden", permitido);
+    if(!permitido) return;
+    const tbody = porId("integracionesBody");
+    if(tbody) tbody.innerHTML = '<tr><td colspan="5">Cargando integraciones...</td></tr>';
+    try{
+      const data = await solicitar("/api/integraciones");
+      estado.integraciones = data.integraciones || [];
+      render();
+    }catch(error){
+      if(tbody) tbody.innerHTML = '<tr><td colspan="5">'+escapar(error.message)+'</td></tr>';
+      toast(error.message);
+    }
+  }
+
+  function mostrarNueva(){
+    if(!esAdministrador()) return;
+    const form = porId("formNuevaIntegracion");
+    if(form) form.reset();
+    abrirModal("modalNuevaIntegracion");
+    setTimeout(function(){ if(porId("configIntegracionNombre")) porId("configIntegracionNombre").focus(); }, 0);
+  }
+
+  async function crear(evento){
+    evento.preventDefault();
+    const nombre = porId("configIntegracionNombre") ? porId("configIntegracionNombre").value.trim() : "";
+    if(!nombre) return;
+    const boton = porId("btnCrearIntegracion");
+    if(boton){ boton.disabled = true; boton.textContent = "Generando..."; }
+    try{
+      const data = await solicitar("/api/integraciones", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre:nombre})});
+      cerrarModal("modalNuevaIntegracion");
+      estado.clave = data.api_key || "";
+      if(porId("configIntegracionClave")) porId("configIntegracionClave").textContent = estado.clave;
+      abrirModal("modalClaveIntegracion");
+      await cargar();
+    }catch(error){ toast(error.message); }
+    finally{ if(boton){ boton.disabled = false; boton.textContent = "Generar clave"; } }
+  }
+
+  async function copiarClave(){
+    if(!estado.clave) return;
+    try{
+      await navigator.clipboard.writeText(estado.clave);
+      toast("Clave copiada.");
+    }catch(error){
+      const temporal = document.createElement("textarea");
+      temporal.value = estado.clave;
+      temporal.style.position = "fixed";
+      temporal.style.opacity = "0";
+      document.body.appendChild(temporal);
+      temporal.select();
+      const copiada = document.execCommand("copy");
+      document.body.removeChild(temporal);
+      toast(copiada ? "Clave copiada." : "No fue posible copiar la clave.");
+    }
+  }
+
+  function cerrarClave(){
+    cerrarModal("modalClaveIntegracion");
+    estado.clave = "";
+    if(porId("configIntegracionClave")) porId("configIntegracionClave").textContent = "";
+  }
+
+  async function revocar(integracionID, nombre){
+    if(!window.confirm('¿Revocar la integración "'+nombre+'"? El sistema externo perderá acceso inmediatamente.')) return;
+    try{
+      const data = await solicitar("/api/integraciones/"+encodeURIComponent(integracionID), {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({estado:"Inactivo"})});
+      toast(data.mensaje || "Integración revocada.");
+      await cargar();
+    }catch(error){ toast(error.message); }
+  }
+
+  if(porId("btnNuevaIntegracion")) porId("btnNuevaIntegracion").addEventListener("click", mostrarNueva);
+  if(porId("formNuevaIntegracion")) porId("formNuevaIntegracion").addEventListener("submit", crear);
+  ["btnCerrarNuevaIntegracion", "btnCancelarNuevaIntegracion"].forEach(function(id){ if(porId(id)) porId(id).addEventListener("click", function(){ cerrarModal("modalNuevaIntegracion"); }); });
+  if(porId("btnCopiarClaveIntegracion")) porId("btnCopiarClaveIntegracion").addEventListener("click", copiarClave);
+  if(porId("btnCerrarClaveIntegracion")) porId("btnCerrarClaveIntegracion").addEventListener("click", cerrarClave);
+  if(porId("integracionesBody")) porId("integracionesBody").addEventListener("click", function(evento){
+    const boton = evento.target.closest("[data-revocar-integracion]");
+    if(boton) revocar(boton.dataset.revocarIntegracion, boton.dataset.integracionNombre || "esta integración");
+  });
+  ["modalNuevaIntegracion"].forEach(function(id){ if(porId(id)) porId(id).addEventListener("click", function(evento){ if(evento.target === porId(id)) cerrarModal(id); }); });
+
+  window.CotizaIntegraciones = { cargar:cargar };
+})();
+</script>
