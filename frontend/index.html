@@ -858,33 +858,52 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepFour .tpl-style-format-badge { padding:4px 8px; border-radius:999px; background:#eaf2ff; color:#1768de; font-size:7px; font-weight:800; letter-spacing:.03em; }
 #tplStepFour .tpl-style-preview-stage { display:flex; justify-content:center; padding:14px 0 4px; }
 #tplStepFour .tpl-style-preview-page { display:flex; flex-direction:column; width:100%; max-width:400px; min-height:520px; background:#fff; box-shadow:0 6px 20px rgba(15,42,74,.14); border-radius:2px; overflow:hidden; font-size:9px; color:#33455e; transition:max-width .15s ease,padding .15s ease; }
+/* Formato de página: carta es el valor por defecto — se deja explícito
+   para que no dependa de que ninguna otra clase format- esté ausente. */
+#tplStepFour .tpl-style-preview-page.format-carta { max-width:400px; min-height:520px; }
 #tplStepFour .tpl-style-preview-page.format-a4 { max-width:378px; min-height:534px; }
 #tplStepFour .tpl-style-preview-content { display:flex; flex-direction:column; gap:12px; flex:1; padding:16px 20px; }
+/* Márgenes: normal es el valor por defecto, explícito por el mismo motivo. */
+#tplStepFour .tpl-style-preview-page.margin-normal .tpl-style-preview-content { padding:16px 20px; gap:12px; }
 #tplStepFour .tpl-style-preview-page.margin-compacto .tpl-style-preview-content { padding:10px 14px; gap:8px; }
 #tplStepFour .tpl-style-preview-page.margin-amplio .tpl-style-preview-content { padding:24px 30px; gap:16px; }
 #tplStepFour .tpl-style-preview-content h2 { color:#0f2a4a; font-size:10px; font-weight:800; margin:0 0 4px; }
 #tplStepFour .tpl-style-preview-content p { color:#5b6b81; font-size:8px; line-height:1.5; margin:0; }
 #tplStepFour .tpl-style-preview-content ul { margin:0; padding-left:14px; color:#5b6b81; font-size:8px; line-height:1.6; }
-#tplStepFour .tpl-style-preview-cover { padding:20px; color:#fff; background:linear-gradient(135deg,#0b2f63,#1f6fff); }
+/* --tpl-preview-primary/secondary/accent los fija aplicarTemaPreview() en
+   plantillas_app.html según el tema elegido; los valores por defecto acá
+   son los del tema "Profesional" para que sin JS/tema se vea igual que
+   antes. */
+#tplStepFour .tpl-style-preview-cover { padding:20px; color:#fff; background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-secondary,#1f6fff)); }
 #tplStepFour .tpl-style-preview-brand { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
 #tplStepFour .tpl-style-preview-brand img { height:20px; width:auto; }
 #tplStepFour .tpl-style-preview-brand strong { font-size:9px; font-weight:800; letter-spacing:.02em; }
 #tplStepFour .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { display:block; color:rgba(255,255,255,.72); font-size:7px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px; }
 #tplStepFour .tpl-style-preview-cover h1 { font-size:16px; font-weight:800; line-height:1.2; margin:0 0 6px; }
 #tplStepFour .tpl-style-preview-cover p { color:rgba(255,255,255,.85); font-size:9px; margin:0; }
+/* Portada: banda_superior es el valor por defecto (usa la misma regla
+   de fondo de .tpl-style-preview-cover de arriba), explícita acá para
+   que las 4 opciones queden documentadas juntas y no dependa de que
+   ningún otro cover- esté aplicado. */
+#tplStepFour .tpl-style-preview-page.cover-banda_superior .tpl-style-preview-cover { background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-secondary,#1f6fff)); }
 #tplStepFour .tpl-style-preview-page.cover-lateral { flex-direction:row; }
 #tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-cover { flex:0 0 34%; display:flex; flex-direction:column; justify-content:center; }
 #tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-content { flex:1 1 auto; }
 #tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover { background:#fff; color:#0f2a4a; border-bottom:2px solid #e5ebf3; }
 #tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover p,#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { color:#7a899d; }
 #tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-brand strong { color:#0f2a4a; }
-#tplStepFour .tpl-style-preview-page.cover-bloque .tpl-style-preview-cover { margin:16px 20px 0; border-radius:12px; background:linear-gradient(135deg,#0b2f63,#20b8cd); }
+#tplStepFour .tpl-style-preview-page.cover-bloque .tpl-style-preview-cover { margin:16px 20px 0; border-radius:12px; background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-accent,#20b8cd)); }
 #tplStepFour .tpl-style-preview-page.cover-bloque .tpl-style-preview-content { padding-top:8px; }
 #tplStepFour .tpl-style-preview-table { display:flex; flex-direction:column; border:1px solid #e5ebf3; border-radius:6px; overflow:hidden; }
 #tplStepFour .tpl-style-preview-row { display:flex; justify-content:space-between; padding:7px 10px; font-size:8px; border-bottom:1px solid #edf1f5; }
 #tplStepFour .tpl-style-preview-row:last-child { border-bottom:0; }
 #tplStepFour .tpl-style-preview-row.head { background:#f6f8fc; color:#607087; font-weight:800; text-transform:uppercase; font-size:7px; letter-spacing:.04em; }
 #tplStepFour .tpl-style-preview-row.total { background:#f8faff; color:#0a294f; font-weight:800; }
+/* Tablas: líneas es el valor por defecto, explícito por el mismo motivo. */
+#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-table { border:1px solid #e5ebf3; border-radius:6px; background:#fff; }
+#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-row { border-bottom:1px solid #edf1f5; background:transparent; }
+#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-row.head { background:#f6f8fc; }
+#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-row.total { background:#f8faff; }
 #tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-table { border:0; gap:4px; background:transparent; }
 #tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row { border:0; border-radius:6px; background:#f6f8fc; }
 #tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row.head { background:transparent; padding-bottom:2px; }
@@ -6307,7 +6326,7 @@ table tr:last-child td { border-bottom: none; }
             <span id="tplStylePreviewFormat" class="tpl-style-format-badge">CARTA</span>
           </div>
           <div class="tpl-style-preview-stage">
-            <article id="tplStylePreviewPage" class="tpl-style-preview-page cover-banda_superior table-lineas margin-normal">
+            <article id="tplStylePreviewPage" class="tpl-style-preview-page format-carta cover-banda_superior table-lineas margin-normal">
               <header class="tpl-style-preview-cover">
                 <div class="tpl-style-preview-brand">
                   <img id="tplStylePreviewLogo" class="hidden" alt="Logo de la organización">
@@ -7350,6 +7369,19 @@ table tr:last-child td { border-bottom: none; }
         '<strong>'+escapar(tema.nombre)+'</strong>'+
       '</button>';
     }).join("");
+    aplicarTemaPreview(temaActual);
+  }
+  // Los temas no tienen columnas propias en plantilla_estilos (solo el
+  // texto libre "tema"): lo único que puede reflejar visualmente un tema
+  // en la vista previa son estas 3 variables CSS, que el CSS usa como
+  // color de la portada (ver cotiza_base.css, .tpl-style-preview-cover).
+  function aplicarTemaPreview(temaActual){
+    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
+    const clave=String(temaActual||"").toUpperCase();
+    const tema=temasEstiloPredefinidos.find(function(t){return t.clave===clave;})||temasEstiloPredefinidos[0];
+    pagina.style.setProperty("--tpl-preview-primary",tema.colores[0]);
+    pagina.style.setProperty("--tpl-preview-secondary",tema.colores[1]);
+    pagina.style.setProperty("--tpl-preview-accent",tema.colores[2]);
   }
   function manejarClickTema(evento){
     const item=evento.target.closest("[data-tema]");if(!item)return;

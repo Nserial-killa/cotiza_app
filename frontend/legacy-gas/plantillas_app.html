@@ -357,7 +357,7 @@
             <span id="tplStylePreviewFormat" class="tpl-style-format-badge">CARTA</span>
           </div>
           <div class="tpl-style-preview-stage">
-            <article id="tplStylePreviewPage" class="tpl-style-preview-page cover-banda_superior table-lineas margin-normal">
+            <article id="tplStylePreviewPage" class="tpl-style-preview-page format-carta cover-banda_superior table-lineas margin-normal">
               <header class="tpl-style-preview-cover">
                 <div class="tpl-style-preview-brand">
                   <img id="tplStylePreviewLogo" class="hidden" alt="Logo de la organización">
@@ -1400,6 +1400,19 @@
         '<strong>'+escapar(tema.nombre)+'</strong>'+
       '</button>';
     }).join("");
+    aplicarTemaPreview(temaActual);
+  }
+  // Los temas no tienen columnas propias en plantilla_estilos (solo el
+  // texto libre "tema"): lo único que puede reflejar visualmente un tema
+  // en la vista previa son estas 3 variables CSS, que el CSS usa como
+  // color de la portada (ver cotiza_base.css, .tpl-style-preview-cover).
+  function aplicarTemaPreview(temaActual){
+    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
+    const clave=String(temaActual||"").toUpperCase();
+    const tema=temasEstiloPredefinidos.find(function(t){return t.clave===clave;})||temasEstiloPredefinidos[0];
+    pagina.style.setProperty("--tpl-preview-primary",tema.colores[0]);
+    pagina.style.setProperty("--tpl-preview-secondary",tema.colores[1]);
+    pagina.style.setProperty("--tpl-preview-accent",tema.colores[2]);
   }
   function manejarClickTema(evento){
     const item=evento.target.closest("[data-tema]");if(!item)return;
