@@ -54,6 +54,7 @@ type solicitudListado struct {
 	CRMID                *string   `json:"crm_id,omitempty"`
 	ClienteID            *string   `json:"cliente_id,omitempty"`
 	ClienteNombre        string    `json:"cliente_nombre"`
+	ClienteRazonSocial   *string   `json:"cliente_razon_social,omitempty"`
 	ContactoNombre       *string   `json:"contacto_nombre,omitempty"`
 	ContactoCorreo       *string   `json:"contacto_correo,omitempty"`
 	ContactoTelefono     *string   `json:"contacto_telefono,omitempty"`
@@ -77,19 +78,20 @@ type solicitudListado struct {
 }
 
 type crearSolicitudManualRequest struct {
-	Titulo           string `json:"titulo"`
-	CRMID            string `json:"crm_id"`
-	ClienteNombre    string `json:"cliente_nombre"`
-	ContactoNombre   string `json:"contacto_nombre"`
-	ContactoCorreo   string `json:"contacto_correo"`
-	ContactoTelefono string `json:"contacto_telefono"`
-	CalculadoraID    string `json:"calculadora_id"`
-	Prioridad        string `json:"prioridad"`
-	FechaRequerida   string `json:"fecha_requerida"`
-	VendedorID       string `json:"vendedor_id"`
-	AnalistaID       string `json:"analista_id"`
-	LiderProductoID  string `json:"lider_producto_id"`
-	Descripcion      string `json:"descripcion"`
+	Titulo             string `json:"titulo"`
+	CRMID              string `json:"crm_id"`
+	ClienteNombre      string `json:"cliente_nombre"`
+	ClienteRazonSocial string `json:"cliente_razon_social"`
+	ContactoNombre     string `json:"contacto_nombre"`
+	ContactoCorreo     string `json:"contacto_correo"`
+	ContactoTelefono   string `json:"contacto_telefono"`
+	CalculadoraID      string `json:"calculadora_id"`
+	Prioridad          string `json:"prioridad"`
+	FechaRequerida     string `json:"fecha_requerida"`
+	VendedorID         string `json:"vendedor_id"`
+	AnalistaID         string `json:"analista_id"`
+	LiderProductoID    string `json:"lider_producto_id"`
+	Descripcion        string `json:"descripcion"`
 }
 
 type cambiarEstadoSolicitudRequest struct {
@@ -102,7 +104,7 @@ type convertirSolicitudRequest struct {
 
 const consultaSolicitudes = `
 	SELECT s.solicitud_id::text, s.origen, s.integracion_id::text, i.nombre,
-	       s.titulo, s.crm_id, s.cliente_id, s.cliente_nombre,
+	       s.titulo, s.crm_id, s.cliente_id, s.cliente_nombre, s.cliente_razon_social,
 	       s.contacto_nombre, s.contacto_correo, s.contacto_telefono,
 	       s.calculadora_id, c.nombre_calculadora, s.descripcion,
 	       s.prioridad, to_char(s.fecha_requerida, 'YYYY-MM-DD'),
@@ -124,7 +126,7 @@ type escanerSolicitud interface {
 func leerSolicitud(escaner escanerSolicitud, item *solicitudListado) error {
 	return escaner.Scan(
 		&item.SolicitudID, &item.Origen, &item.IntegracionID, &item.IntegracionNombre,
-		&item.Titulo, &item.CRMID, &item.ClienteID, &item.ClienteNombre,
+		&item.Titulo, &item.CRMID, &item.ClienteID, &item.ClienteNombre, &item.ClienteRazonSocial,
 		&item.ContactoNombre, &item.ContactoCorreo, &item.ContactoTelefono,
 		&item.CalculadoraID, &item.CalculadoraNombre, &item.Descripcion,
 		&item.Prioridad, &item.FechaRequerida, &item.VendedorID, &item.VendedorNombre,
@@ -152,6 +154,7 @@ func (h *SolicitudesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	req.Titulo = strings.TrimSpace(req.Titulo)
 	req.CRMID = strings.TrimSpace(req.CRMID)
 	req.ClienteNombre = strings.TrimSpace(req.ClienteNombre)
+	req.ClienteRazonSocial = strings.TrimSpace(req.ClienteRazonSocial)
 	req.ContactoNombre = strings.TrimSpace(req.ContactoNombre)
 	req.ContactoCorreo = strings.TrimSpace(req.ContactoCorreo)
 	req.ContactoTelefono = strings.TrimSpace(req.ContactoTelefono)
@@ -232,14 +235,14 @@ func (h *SolicitudesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	var solicitudID string
 	err := h.DB.QueryRow(ctx, `
 		INSERT INTO solicitudes
-			(origen, titulo, crm_id, cliente_nombre, contacto_nombre, contacto_correo,
+			(origen, titulo, crm_id, cliente_nombre, cliente_razon_social, contacto_nombre, contacto_correo,
 			 contacto_telefono, calculadora_id, prioridad, fecha_requerida, vendedor_id,
 			 analista_id, lider_producto_id, descripcion, creado_por, estado)
-		VALUES ('MANUAL', $1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''),
-		        $7, $8, NULLIF($9, '')::date, $10, NULLIF($11, ''), NULLIF($12, ''),
-		        $13, $14, 'Nueva')
+		VALUES ('MANUAL', $1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''),
+		        $8, $9, NULLIF($10, '')::date, $11, NULLIF($12, ''), NULLIF($13, ''),
+		        $14, $15, 'Nueva')
 		RETURNING solicitud_id::text`,
-		req.Titulo, req.CRMID, req.ClienteNombre, req.ContactoNombre, req.ContactoCorreo,
+		req.Titulo, req.CRMID, req.ClienteNombre, req.ClienteRazonSocial, req.ContactoNombre, req.ContactoCorreo,
 		req.ContactoTelefono, req.CalculadoraID, req.Prioridad, req.FechaRequerida,
 		req.VendedorID, req.AnalistaID, req.LiderProductoID, req.Descripcion, usuarioID,
 	).Scan(&solicitudID)
@@ -414,15 +417,16 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var (
-		clienteID     *string
-		clienteNombre string
-		calculadoraID *string
-		estadoActual  string
+		clienteID          *string
+		clienteNombre      string
+		clienteRazonSocial *string
+		calculadoraID      *string
+		estadoActual       string
 	)
 	err := h.DB.QueryRow(ctx, `
-		SELECT cliente_id, cliente_nombre, calculadora_id, estado
+		SELECT cliente_id, cliente_nombre, cliente_razon_social, calculadora_id, estado
 		  FROM solicitudes WHERE solicitud_id::text = $1`, id,
-	).Scan(&clienteID, &clienteNombre, &calculadoraID, &estadoActual)
+	).Scan(&clienteID, &clienteNombre, &clienteRazonSocial, &calculadoraID, &estadoActual)
 	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Solicitud no encontrada."})
 		return
@@ -451,6 +455,9 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entrada := crearCotizacionEntrada{CalculadoraID: calculadoraIDResuelta, ClienteNombreNuevo: clienteNombre}
+	if clienteRazonSocial != nil {
+		entrada.ClienteRazonSocialNueva = *clienteRazonSocial
+	}
 	if clienteID != nil {
 		entrada.ClienteID = *clienteID
 	}

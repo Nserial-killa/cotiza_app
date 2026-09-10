@@ -94,7 +94,22 @@ func (h *ReportesHandler) Exportar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="reporte_cotizaciones.csv"`)
 	w.WriteHeader(http.StatusOK)
 
+	// BOM UTF-8: sin esto Excel abre el archivo con una codificación por
+	// defecto que rompe los acentos (Pérez, cotización, etc.).
+	if _, err := w.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		log.Printf("reportes: error escribiendo BOM del CSV: %v", err)
+		return
+	}
+
 	escritor := csv.NewWriter(w)
+	// Separador ';' en vez de ',': en configuración regional
+	// latinoamericana (es-CR) el separador de listas del sistema es ';'
+	// porque ',' está reservado como separador decimal — con ',' como
+	// separador de columnas, Excel no las separaba al abrir el archivo.
+	// Como consecuencia, los montos se formatean con ',' decimal (ver
+	// formatoMontoCSV) para que Excel los reconozca como número y no
+	// como texto en esa misma configuración regional.
+	escritor.Comma = ';'
 	encabezados := []string{"Código de oferta", "Cliente", "Empresa", "Cotizador", "Estado", "Total precio", "Moneda", "Vendedor", "Fecha de creación"}
 	if puedeVerPrice {
 		encabezados = append(encabezados, "Margen total")
@@ -111,7 +126,7 @@ func (h *ReportesHandler) Exportar(w http.ResponseWriter, r *http.Request) {
 			textoReporte(fila.Empresa),
 			fila.CalculadoraNombre,
 			fila.Estado,
-			strconv.FormatFloat(fila.TotalPrecio, 'f', 2, 64),
+			formatoMontoCSV(fila.TotalPrecio),
 			fila.Moneda,
 			textoReporte(fila.Vendedor),
 			fila.FechaCreacion.Format(time.RFC3339),
@@ -119,7 +134,7 @@ func (h *ReportesHandler) Exportar(w http.ResponseWriter, r *http.Request) {
 		if puedeVerPrice {
 			margen := ""
 			if fila.MargenTotal != nil {
-				margen = strconv.FormatFloat(*fila.MargenTotal, 'f', 2, 64)
+				margen = formatoMontoCSV(*fila.MargenTotal)
 			}
 			registro = append(registro, margen)
 		}
@@ -202,4 +217,12 @@ func textoReporte(valor *string) string {
 		return ""
 	}
 	return *valor
+}
+
+// formatoMontoCSV usa ',' como separador decimal, a juego con el ';'
+// como separador de columnas del CSV (ver Exportar) — así Excel en
+// configuración regional latinoamericana reconoce el valor como
+// número en vez de texto.
+func formatoMontoCSV(valor float64) string {
+	return strings.Replace(strconv.FormatFloat(valor, 'f', 2, 64), ".", ",", 1)
 }

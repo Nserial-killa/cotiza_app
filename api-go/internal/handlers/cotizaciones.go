@@ -33,10 +33,11 @@ type clienteSelector struct {
 }
 
 type crearCotizacionEntrada struct {
-	ClienteID          string `json:"cliente_id"`
-	ClienteNombreNuevo string `json:"cliente_nombre_nuevo"`
-	CalculadoraID      string `json:"calculadora_id"`
-	TipoPropuesta      string `json:"tipo_propuesta"`
+	ClienteID               string `json:"cliente_id"`
+	ClienteNombreNuevo      string `json:"cliente_nombre_nuevo"`
+	ClienteRazonSocialNueva string `json:"cliente_razon_social_nueva"`
+	CalculadoraID           string `json:"calculadora_id"`
+	TipoPropuesta           string `json:"tipo_propuesta"`
 }
 
 // ListarClientes responde GET /api/clientes para el selector del alta.
@@ -85,6 +86,7 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	}
 	entrada.ClienteID = strings.TrimSpace(entrada.ClienteID)
 	entrada.ClienteNombreNuevo = strings.TrimSpace(entrada.ClienteNombreNuevo)
+	entrada.ClienteRazonSocialNueva = strings.TrimSpace(entrada.ClienteRazonSocialNueva)
 	entrada.CalculadoraID = strings.TrimSpace(entrada.CalculadoraID)
 	entrada.TipoPropuesta = strings.TrimSpace(entrada.TipoPropuesta)
 	if entrada.ClienteID == "" && entrada.ClienteNombreNuevo == "" {
@@ -150,7 +152,11 @@ func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx con
 	if clienteID == "" {
 		clienteID, err = generarIDDisponible(ctx, tx, "cli", "clientes", "cliente_id")
 		if err == nil {
-			_, err = tx.Exec(ctx, `INSERT INTO clientes (cliente_id, origen, nombre_comercial, razon_social, estado, usuario_creador_id) VALUES ($1, 'COTIZA', $2, $2, 'Activo', $3)`, clienteID, entrada.ClienteNombreNuevo, usuarioID)
+			razonSocial := entrada.ClienteRazonSocialNueva
+			if razonSocial == "" {
+				razonSocial = entrada.ClienteNombreNuevo
+			}
+			_, err = tx.Exec(ctx, `INSERT INTO clientes (cliente_id, origen, nombre_comercial, razon_social, estado, usuario_creador_id) VALUES ($1, 'COTIZA', $2, $3, 'Activo', $4)`, clienteID, entrada.ClienteNombreNuevo, razonSocial, usuarioID)
 		}
 	} else {
 		var clienteExiste bool
@@ -224,7 +230,16 @@ func generarCodigoOferta(ctx context.Context, tx pgx.Tx) (string, error) {
 	return "", errors.New("se agotaron los códigos disponibles")
 }
 
-func generarIDDisponible(ctx context.Context, tx pgx.Tx, prefijo, tabla, columna string) (string, error) {
+// consultorFila lo satisfacen tanto pgx.Tx como *pgxpool.Pool (ambos
+// exponen QueryRow con esta firma) — deja llamar a generarIDDisponible
+// tanto dentro de una transacción (cotizaciones.go, solicitudes.go)
+// como directo contra el pool (clientes.go, que no necesita abrir una
+// transacción para un único INSERT).
+type consultorFila interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func generarIDDisponible(ctx context.Context, db consultorFila, prefijo, tabla, columna string) (string, error) {
 	consultas := map[string]string{
 		"clientes.cliente_id":        `SELECT EXISTS(SELECT 1 FROM clientes WHERE cliente_id=$1)`,
 		"cotizaciones.cotizacion_id": `SELECT EXISTS(SELECT 1 FROM cotizaciones WHERE cotizacion_id=$1)`,
@@ -240,7 +255,7 @@ func generarIDDisponible(ctx context.Context, tx pgx.Tx, prefijo, tabla, columna
 		}
 		id := prefijo + "-" + fechaLocalCotiza().Format("20060102") + "-" + hex.EncodeToString(sufijo)
 		var existe bool
-		if err := tx.QueryRow(ctx, consulta, id).Scan(&existe); err != nil {
+		if err := db.QueryRow(ctx, consulta, id).Scan(&existe); err != nil {
 			return "", err
 		}
 		if !existe {

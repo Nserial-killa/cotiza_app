@@ -106,13 +106,21 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		log.Printf("enlaces_publicos: error iniciando generación de enlace para %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
+		return
+	}
+	defer tx.Rollback(ctx)
+
 	// ON CONFLICT ... DO UPDATE (no-op) ... RETURNING es el truco
 	// estándar para "insertar o traer el existente" en una sola vuelta:
 	// si (cotizacion_id, version) ya tenía un enlace, el UPDATE no
 	// cambia nada de verdad y el RETURNING trae el token que ya existía,
 	// no el que se acaba de generar acá.
 	var token string
-	err = h.DB.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO cotizacion_enlaces_publicos (token, cotizacion_id, version, creado_por)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (cotizacion_id, version) DO UPDATE SET cotizacion_id = EXCLUDED.cotizacion_id
@@ -121,6 +129,23 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 	).Scan(&token)
 	if err != nil {
 		log.Printf("enlaces_publicos: error guardando enlace de %s v%d: %v", cotizacionID, version, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
+		return
+	}
+
+	// token == nuevoToken solo cuando el INSERT realmente creó la fila
+	// (no hubo conflicto); si se reutilizó un enlace existente, no se
+	// vuelve a registrar en el historial.
+	if token == nuevoToken {
+		if err := insertarHistorial(ctx, tx, cotizacionID, &version, "ENLACE_GENERADO", nil, nil, "Enlace público generado.", usuarioID); err != nil {
+			log.Printf("enlaces_publicos: error registrando historial de enlace de %s: %v", cotizacionID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
+			return
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("enlaces_publicos: error confirmando enlace de %s: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
 		return
 	}

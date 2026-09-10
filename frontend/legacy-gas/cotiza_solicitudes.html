@@ -34,6 +34,7 @@
         <div class="field sol-span-2"><label>Título *</label><input id="solTitulo" class="input" maxlength="180" required placeholder="Ejemplo: Renovación de soporte SoftExpert 2027"></div>
         <div class="field"><label>ID oportunidad CRM *</label><input id="solCrmId" class="input" maxlength="100" required placeholder="Ejemplo: 45871"></div>
         <div class="field"><label>Empresa / cliente *</label><input id="solEmpresa" class="input" maxlength="160" required></div>
+        <div class="field"><label>Razón social</label><input id="solRazonSocial" class="input" maxlength="160"></div>
         <div class="field"><label>Contacto</label><input id="solContactoNombre" class="input" maxlength="140"></div>
         <div class="field"><label>Correo del contacto</label><input id="solContactoCorreo" class="input" type="email"></div>
         <div class="field"><label>Teléfono</label><input id="solContactoTelefono" class="input" maxlength="40"></div>
@@ -235,6 +236,7 @@
       titulo: porId("solTitulo").value.trim(),
       crm_id: porId("solCrmId").value.trim(),
       cliente_nombre: porId("solEmpresa").value.trim(),
+      cliente_razon_social: porId("solRazonSocial").value.trim(),
       contacto_nombre: porId("solContactoNombre").value.trim(),
       contacto_correo: porId("solContactoCorreo").value.trim(),
       contacto_telefono: porId("solContactoTelefono").value.trim(),

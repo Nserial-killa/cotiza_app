@@ -169,6 +169,10 @@
           <input id="nuevaCotizacionClienteNuevo" class="input" type="text" placeholder="Nombre comercial del cliente">
           <p class="card-sub" style="margin:4px 0 0;">Si escribe un nombre, se creará y se usará en lugar del cliente seleccionado.</p>
         </div>
+        <div class="field full" id="nuevaCotizacionRazonSocialWrap">
+          <label for="nuevaCotizacionRazonSocial">Empresa / Razón social <span class="card-sub">(opcional)</span></label>
+          <input id="nuevaCotizacionRazonSocial" class="input" type="text" placeholder="Razón social legal, si es distinta del nombre comercial">
+        </div>
         <div class="field full">
           <label for="nuevaCotizacionCalculadora">Cotizador</label>
           <select id="nuevaCotizacionCalculadora" class="select"><option value="">Seleccione un cotizador</option></select>
@@ -337,6 +341,45 @@
       <div class="param-modal-actions">
         <button id="btnCancelarUsuario" class="btn btn-ghost" type="button">Cancelar</button>
         <button id="btnGuardarUsuario" class="btn btn-primary" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalCliente" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalClienteTitulo">Nuevo cliente</h2>
+          <p>Complete los datos del cliente.</p>
+        </div>
+        <button id="btnCerrarModalCliente" class="modal-close" type="button">×</button>
+      </div>
+
+      <input id="clienteIdOriginal" type="hidden">
+
+      <div class="field">
+        <label for="clienteNombreComercial">Nombre comercial</label>
+        <input id="clienteNombreComercial" class="input" type="text" placeholder="Nombre comercial">
+      </div>
+
+      <div class="field">
+        <label for="clienteRazonSocial">Razón social <span class="card-sub">(opcional)</span></label>
+        <input id="clienteRazonSocial" class="input" type="text" placeholder="Razón social legal">
+      </div>
+
+      <div class="field">
+        <label for="clienteEstado">Estado</label>
+        <select id="clienteEstado" class="select">
+          <option value="Activo">Activo</option>
+          <option value="Inactivo">Inactivo</option>
+        </select>
+      </div>
+
+      <div id="clienteMensaje" class="message"></div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarCliente" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnGuardarCliente" class="btn btn-primary" type="button">Guardar</button>
       </div>
     </div>
   </div>

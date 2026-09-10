@@ -56,6 +56,7 @@ func main() {
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 	reglas := &handlers.ReglasHandler{DB: pool}
 	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
+	clientes := &handlers.ClientesHandler{DB: pool}
 	dashboard := &handlers.DashboardHandler{DB: pool}
 	reportes := &handlers.ReportesHandler{DB: pool}
 	calculadoras := &handlers.CalculadorasHandler{DB: pool}
@@ -145,7 +146,12 @@ func main() {
 			r.Get("/reportes/cotizaciones/exportar", reportes.Exportar)
 			r.Get("/roles", usuarios.ListarRoles)
 			r.Get("/calculadoras", calculadoras.Listar)
-			r.Get("/clientes", cotizaciones.ListarClientes)
+			r.Route("/clientes", func(r chi.Router) {
+				r.Get("/", cotizaciones.ListarClientes)
+				r.Get("/gestion", clientes.Listar)
+				r.Post("/", clientes.Crear)
+				r.Patch("/{id}", clientes.Editar)
+			})
 			r.Route("/usuarios", func(r chi.Router) {
 				r.Get("/", usuarios.Listar)
 				r.Post("/", usuarios.Crear)

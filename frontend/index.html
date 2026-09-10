@@ -235,6 +235,19 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .reportes-table-meta { align-items:flex-start; flex-direction:column; }
 }
 
+/* ---------- Clientes ---------- */
+.cli-page { --cli-border:#d7e1ee; --cli-ink:#082650; --cli-muted:#75849a; }
+.cli-card { padding:0; margin:0; border:1px solid var(--cli-border); border-radius:11px; overflow:hidden; box-shadow:0 2px 6px rgba(20,48,84,.05); }
+.cli-filters { display:grid; grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) auto; align-items:end; gap:9px; padding:14px; }
+.cli-filters .field { min-width:0; margin:0; }
+.cli-filters label { color:#1c365b; font-size:9px; font-weight:700; margin-bottom:6px; }
+.cli-filters input,.cli-filters select { height:36px; padding:7px 10px; border-color:#cdd8e7; border-radius:7px; color:#273d5d; background:#fff; font-size:10px; }
+.cli-filter-button { min-height:36px; padding:7px 12px; border-radius:7px; font-size:9px; white-space:nowrap; }
+
+@media (max-width:700px) {
+  .cli-filters { grid-template-columns:1fr; }
+}
+
 /* ---------- Gestor de Cotizaciones / listados generales ---------- */
 .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
 .gestor-eyebrow, .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #185FA5; text-transform: uppercase; display: block; margin-bottom: 4px; }
@@ -2175,6 +2188,7 @@ table tr:last-child td { border-bottom: none; }
         <div class="field sol-span-2"><label>Título *</label><input id="solTitulo" class="input" maxlength="180" required placeholder="Ejemplo: Renovación de soporte SoftExpert 2027"></div>
         <div class="field"><label>ID oportunidad CRM *</label><input id="solCrmId" class="input" maxlength="100" required placeholder="Ejemplo: 45871"></div>
         <div class="field"><label>Empresa / cliente *</label><input id="solEmpresa" class="input" maxlength="160" required></div>
+        <div class="field"><label>Razón social</label><input id="solRazonSocial" class="input" maxlength="160"></div>
         <div class="field"><label>Contacto</label><input id="solContactoNombre" class="input" maxlength="140"></div>
         <div class="field"><label>Correo del contacto</label><input id="solContactoCorreo" class="input" type="email"></div>
         <div class="field"><label>Teléfono</label><input id="solContactoTelefono" class="input" maxlength="40"></div>
@@ -2376,6 +2390,7 @@ table tr:last-child td { border-bottom: none; }
       titulo: porId("solTitulo").value.trim(),
       crm_id: porId("solCrmId").value.trim(),
       cliente_nombre: porId("solEmpresa").value.trim(),
+      cliente_razon_social: porId("solRazonSocial").value.trim(),
       contacto_nombre: porId("solContactoNombre").value.trim(),
       contacto_correo: porId("solContactoCorreo").value.trim(),
       contacto_telefono: porId("solContactoTelefono").value.trim(),
@@ -2524,19 +2539,177 @@ table tr:last-child td { border-bottom: none; }
 
       
 <!-- === Cotiza_Clientes (cotiza_clientes.html) === -->
-<section id="section-clientes" class="section">
-        <div class="topbar">
-          <div>
-            <h1>Clientes</h1>
-            <p>Base de clientes vinculada a cotizaciones.</p>
-          </div>
-        </div>
-        <div class="placeholder">
-          <h2>Clientes</h2>
-          <p>Sección preparada para una siguiente versión.</p>
-        </div>
-      </section>
+<section id="section-clientes" class="section cli-page">
+  <div class="topbar">
+    <div>
+      <h1>Clientes</h1>
+      <p>Base de clientes vinculada a cotizaciones.</p>
+    </div>
+    <button id="btnNuevoCliente" class="btn btn-primary" type="button">+ Nuevo cliente</button>
+  </div>
 
+  <div class="card cli-card">
+    <div class="cli-filters">
+      <div class="field"><label for="cliFiltroBusqueda">Búsqueda</label><input id="cliFiltroBusqueda" class="input" placeholder="Nombre comercial o razón social"></div>
+      <div class="field"><label for="cliFiltroEstado">Estado</label><select id="cliFiltroEstado" class="select"><option value="">Todos</option><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div>
+      <button id="btnBuscarClientes" class="btn btn-primary cli-filter-button" type="button">Aplicar filtros</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Nombre comercial</th><th>Razón social</th><th>Estado</th><th>Origen</th><th>Cotizaciones</th><th>Creado</th><th></th></tr>
+        </thead>
+        <tbody id="clientesBody"><tr><td colspan="7">Cargando clientes...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  "use strict";
+
+  const estado = { clientes: [] };
+
+  function core(){ return window.__cotizaCore || {}; }
+  function porId(id){ return document.getElementById(id); }
+  function escapar(valor){
+    const fn = core().escapeHtml;
+    return fn ? fn(String(valor == null ? "" : valor)) : String(valor == null ? "" : valor);
+  }
+  function toast(mensaje){ if(core().mostrarToast) core().mostrarToast(mensaje); }
+
+  async function solicitar(url, opciones){
+    const fetchSeguro = core().fetchAutenticado;
+    if(!fetchSeguro) throw new Error("La sesión todavía no está disponible.");
+    const resp = await fetchSeguro(url, opciones || {});
+    let data = null;
+    try{ data = await resp.json(); }catch(error){ data = null; }
+    if(!resp.ok || !data || !data.ok){
+      throw new Error((data && data.error) || "No fue posible completar la solicitud.");
+    }
+    return data;
+  }
+
+  function parametrosFiltros(){
+    const params = new URLSearchParams();
+    const busqueda = porId("cliFiltroBusqueda") ? porId("cliFiltroBusqueda").value.trim() : "";
+    const filtroEstado = porId("cliFiltroEstado") ? porId("cliFiltroEstado").value : "";
+    if(busqueda) params.set("busqueda", busqueda);
+    if(filtroEstado) params.set("estado", filtroEstado);
+    const qs = params.toString();
+    return qs ? "?" + qs : "";
+  }
+
+  function fecha(valor){
+    if(!valor) return "—";
+    const fechaValor = new Date(valor);
+    if(Number.isNaN(fechaValor.getTime())) return String(valor).slice(0, 10);
+    return fechaValor.toLocaleDateString("es-CR", {year:"numeric", month:"short", day:"numeric"});
+  }
+
+  function renderListado(){
+    const tbody = porId("clientesBody");
+    if(!tbody) return;
+    if(!estado.clientes.length){
+      tbody.innerHTML = '<tr><td colspan="7">No hay clientes para los filtros seleccionados.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = estado.clientes.map(function(c){
+      return '<tr>'
+        + '<td>'+escapar(c.nombre_comercial)+'</td>'
+        + '<td>'+escapar(c.razon_social || "—")+'</td>'
+        + '<td>'+escapar(c.estado)+'</td>'
+        + '<td>'+escapar(c.origen || "—")+'</td>'
+        + '<td>'+escapar(c.total_cotizaciones)+'</td>'
+        + '<td>'+escapar(fecha(c.fecha_creacion))+'</td>'
+        + '<td><button class="mini" type="button" data-editar="'+escapar(c.cliente_id)+'">Editar</button></td>'
+        + '</tr>';
+    }).join("");
+    tbody.querySelectorAll("[data-editar]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        abrirModalCliente(estado.clientes.find(function(c){ return c.cliente_id === btn.dataset.editar; }));
+      });
+    });
+  }
+
+  async function cargarListado(){
+    const tbody = porId("clientesBody");
+    if(tbody) tbody.innerHTML = '<tr><td colspan="7">Cargando clientes...</td></tr>';
+    try{
+      const data = await solicitar("/api/clientes/gestion" + parametrosFiltros());
+      estado.clientes = data.clientes || [];
+      renderListado();
+    }catch(error){
+      if(tbody) tbody.innerHTML = '<tr><td colspan="7">'+escapar(error.message)+'</td></tr>';
+      toast(error.message);
+    }
+  }
+
+  function abrirModalCliente(cliente){
+    if(porId("clienteIdOriginal")) porId("clienteIdOriginal").value = cliente ? cliente.cliente_id : "";
+    if(porId("modalClienteTitulo")) porId("modalClienteTitulo").textContent = cliente ? "Editar cliente" : "Nuevo cliente";
+    if(porId("clienteNombreComercial")) porId("clienteNombreComercial").value = cliente ? (cliente.nombre_comercial || "") : "";
+    if(porId("clienteRazonSocial")) porId("clienteRazonSocial").value = cliente ? (cliente.razon_social || "") : "";
+    if(porId("clienteEstado")) porId("clienteEstado").value = cliente ? cliente.estado : "Activo";
+    if(porId("clienteMensaje")) porId("clienteMensaje").textContent = "";
+    if(porId("modalCliente")) porId("modalCliente").classList.add("open");
+  }
+
+  function cerrarModalCliente(){
+    if(porId("modalCliente")) porId("modalCliente").classList.remove("open");
+  }
+
+  async function guardarCliente(){
+    const id = porId("clienteIdOriginal") ? porId("clienteIdOriginal").value : "";
+    const nombreComercial = porId("clienteNombreComercial") ? porId("clienteNombreComercial").value.trim() : "";
+    const razonSocial = porId("clienteRazonSocial") ? porId("clienteRazonSocial").value.trim() : "";
+    const estadoSel = porId("clienteEstado") ? porId("clienteEstado").value : "Activo";
+    if(!nombreComercial){
+      if(porId("clienteMensaje")) porId("clienteMensaje").textContent = "Debe indicar el nombre comercial.";
+      return;
+    }
+    const boton = porId("btnGuardarCliente");
+    if(boton) boton.disabled = true;
+    try{
+      if(id){
+        await solicitar("/api/clientes/"+encodeURIComponent(id), {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({nombre_comercial: nombreComercial, razon_social: razonSocial, estado: estadoSel})});
+      }else{
+        await solicitar("/api/clientes", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({nombre_comercial: nombreComercial, razon_social: razonSocial})});
+      }
+      cerrarModalCliente();
+      toast(id ? "Cliente actualizado." : "Cliente creado.");
+      await cargarListado();
+    }catch(error){
+      if(porId("clienteMensaje")) porId("clienteMensaje").textContent = error.message;
+    }finally{
+      if(boton) boton.disabled = false;
+    }
+  }
+
+  function enlazar(){
+    if(porId("btnNuevoCliente")) porId("btnNuevoCliente").addEventListener("click", function(){ abrirModalCliente(null); });
+    if(porId("btnCerrarModalCliente")) porId("btnCerrarModalCliente").addEventListener("click", cerrarModalCliente);
+    if(porId("btnCancelarCliente")) porId("btnCancelarCliente").addEventListener("click", cerrarModalCliente);
+    if(porId("btnGuardarCliente")) porId("btnGuardarCliente").addEventListener("click", guardarCliente);
+    if(porId("btnBuscarClientes")) porId("btnBuscarClientes").addEventListener("click", cargarListado);
+    let temporizador = null;
+    if(porId("cliFiltroBusqueda")) porId("cliFiltroBusqueda").addEventListener("input", function(){ clearTimeout(temporizador); temporizador = setTimeout(cargarListado, 350); });
+    if(porId("cliFiltroEstado")) porId("cliFiltroEstado").addEventListener("change", cargarListado);
+    const modalEl = porId("modalCliente");
+    if(modalEl) modalEl.addEventListener("click", function(e){ if(e.target && e.target.id === "modalCliente") cerrarModalCliente(); });
+  }
+
+  // Cotiza_Modals se ensambla después de este archivo en index.html, así
+  // que el modal #modalCliente todavía no existe cuando este <script>
+  // corre — a diferencia de Cotiza_Solicitudes (cuyo panel de detalle es
+  // propio, sin depender de otro include posterior), acá hay que esperar
+  // a que el documento completo esté listo antes de enlazar el modal.
+  document.addEventListener("DOMContentLoaded", enlazar);
+
+  window.CotizaClientes = { mostrarListado: cargarListado };
+})();
+</script>
 
 
       
@@ -7818,6 +7991,10 @@ table tr:last-child td { border-bottom: none; }
           <input id="nuevaCotizacionClienteNuevo" class="input" type="text" placeholder="Nombre comercial del cliente">
           <p class="card-sub" style="margin:4px 0 0;">Si escribe un nombre, se creará y se usará en lugar del cliente seleccionado.</p>
         </div>
+        <div class="field full" id="nuevaCotizacionRazonSocialWrap">
+          <label for="nuevaCotizacionRazonSocial">Empresa / Razón social <span class="card-sub">(opcional)</span></label>
+          <input id="nuevaCotizacionRazonSocial" class="input" type="text" placeholder="Razón social legal, si es distinta del nombre comercial">
+        </div>
         <div class="field full">
           <label for="nuevaCotizacionCalculadora">Cotizador</label>
           <select id="nuevaCotizacionCalculadora" class="select"><option value="">Seleccione un cotizador</option></select>
@@ -7986,6 +8163,45 @@ table tr:last-child td { border-bottom: none; }
       <div class="param-modal-actions">
         <button id="btnCancelarUsuario" class="btn btn-ghost" type="button">Cancelar</button>
         <button id="btnGuardarUsuario" class="btn btn-primary" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalCliente" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalClienteTitulo">Nuevo cliente</h2>
+          <p>Complete los datos del cliente.</p>
+        </div>
+        <button id="btnCerrarModalCliente" class="modal-close" type="button">×</button>
+      </div>
+
+      <input id="clienteIdOriginal" type="hidden">
+
+      <div class="field">
+        <label for="clienteNombreComercial">Nombre comercial</label>
+        <input id="clienteNombreComercial" class="input" type="text" placeholder="Nombre comercial">
+      </div>
+
+      <div class="field">
+        <label for="clienteRazonSocial">Razón social <span class="card-sub">(opcional)</span></label>
+        <input id="clienteRazonSocial" class="input" type="text" placeholder="Razón social legal">
+      </div>
+
+      <div class="field">
+        <label for="clienteEstado">Estado</label>
+        <select id="clienteEstado" class="select">
+          <option value="Activo">Activo</option>
+          <option value="Inactivo">Inactivo</option>
+        </select>
+      </div>
+
+      <div id="clienteMensaje" class="message"></div>
+
+      <div class="param-modal-actions">
+        <button id="btnCancelarCliente" class="btn btn-ghost" type="button">Cancelar</button>
+        <button id="btnGuardarCliente" class="btn btn-primary" type="button">Guardar</button>
       </div>
     </div>
   </div>
@@ -9338,6 +9554,7 @@ window.CotizaApp = (function(){
       function abrirModalCalculadoras(){
         if(byId("modalCalculadoras")) byId("modalCalculadoras").classList.add("open");
         if(byId("nuevaCotizacionClienteNuevo")) byId("nuevaCotizacionClienteNuevo").value="";
+        if(byId("nuevaCotizacionRazonSocial")) byId("nuevaCotizacionRazonSocial").value="";
         if(byId("nuevaCotizacionTipo")) byId("nuevaCotizacionTipo").value="";
         setText("nuevaCotizacionMensaje","");
         Promise.all([cargarClientesNuevaCotizacion(), new Promise(function(resolve){cargarCalculadoras(resolve);})])
@@ -9378,6 +9595,7 @@ window.CotizaApp = (function(){
       async function crearNuevaCotizacion(){
         const clienteId=(byId("nuevaCotizacionCliente")?byId("nuevaCotizacionCliente").value:"").trim();
         const clienteNuevo=(byId("nuevaCotizacionClienteNuevo")?byId("nuevaCotizacionClienteNuevo").value:"").trim();
+        const razonSocialNueva=(byId("nuevaCotizacionRazonSocial")?byId("nuevaCotizacionRazonSocial").value:"").trim();
         const calculadoraId=(byId("nuevaCotizacionCalculadora")?byId("nuevaCotizacionCalculadora").value:"").trim();
         const tipo=(byId("nuevaCotizacionTipo")?byId("nuevaCotizacionTipo").value:"").trim();
         if(!clienteId&&!clienteNuevo){setText("nuevaCotizacionMensaje","Seleccione un cliente o escriba uno nuevo.");return;}
@@ -9387,7 +9605,12 @@ window.CotizaApp = (function(){
         setText("nuevaCotizacionMensaje","Creando cotización...");
         try{
           const payload={calculadora_id:calculadoraId,tipo_propuesta:tipo};
-          if(clienteNuevo)payload.cliente_nombre_nuevo=clienteNuevo;else payload.cliente_id=clienteId;
+          if(clienteNuevo){
+            payload.cliente_nombre_nuevo=clienteNuevo;
+            if(razonSocialNueva)payload.cliente_razon_social_nueva=razonSocialNueva;
+          }else{
+            payload.cliente_id=clienteId;
+          }
           const resp=await fetchAutenticado("/api/cotizaciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
           let res=null;try{res=await resp.json();}catch(e){res=null;}
           if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible crear la cotización.");
@@ -9845,6 +10068,7 @@ window.CotizaApp = (function(){
 
         if(section === "cotizaciones" && !omitirCarga) mostrarListadoCotizacionesV2();
         if(section === "solicitudes" && window.CotizaSolicitudes) window.CotizaSolicitudes.mostrarListado();
+        if(section === "clientes" && window.CotizaClientes) window.CotizaClientes.mostrarListado();
         if(section === "dashboard") cargarDashboard();
         if(section === "reportes") cargarReportesCotizaciones();
         if(section === "parametros"){

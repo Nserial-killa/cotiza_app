@@ -227,6 +227,19 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .reportes-table-meta { align-items:flex-start; flex-direction:column; }
 }
 
+/* ---------- Clientes ---------- */
+.cli-page { --cli-border:#d7e1ee; --cli-ink:#082650; --cli-muted:#75849a; }
+.cli-card { padding:0; margin:0; border:1px solid var(--cli-border); border-radius:11px; overflow:hidden; box-shadow:0 2px 6px rgba(20,48,84,.05); }
+.cli-filters { display:grid; grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) auto; align-items:end; gap:9px; padding:14px; }
+.cli-filters .field { min-width:0; margin:0; }
+.cli-filters label { color:#1c365b; font-size:9px; font-weight:700; margin-bottom:6px; }
+.cli-filters input,.cli-filters select { height:36px; padding:7px 10px; border-color:#cdd8e7; border-radius:7px; color:#273d5d; background:#fff; font-size:10px; }
+.cli-filter-button { min-height:36px; padding:7px 12px; border-radius:7px; font-size:9px; white-space:nowrap; }
+
+@media (max-width:700px) {
+  .cli-filters { grid-template-columns:1fr; }
+}
+
 /* ---------- Gestor de Cotizaciones / listados generales ---------- */
 .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
 .gestor-eyebrow, .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #185FA5; text-transform: uppercase; display: block; margin-bottom: 4px; }

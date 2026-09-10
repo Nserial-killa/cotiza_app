@@ -98,6 +98,15 @@ func ejecutarReporteJSON(t *testing.T, handler *ReportesHandler, actor string, p
 	return rec, respuesta
 }
 
+// leerCSVReporteTest quita el BOM UTF-8 que Exportar antepone (ver Fix 1
+// de reportes.go) y lee con ';' como separador, igual que csv.Writer allá.
+func leerCSVReporteTest(cuerpo string) ([][]string, error) {
+	cuerpo = strings.TrimPrefix(cuerpo, "\uFEFF")
+	lector := csv.NewReader(strings.NewReader(cuerpo))
+	lector.Comma = ';'
+	return lector.ReadAll()
+}
+
 func filasReporteTest(t *testing.T, respuesta map[string]any) []map[string]any {
 	t.Helper()
 	raw, ok := respuesta["filas"].([]any)
@@ -201,7 +210,7 @@ func TestReportes_SinPermisoOmiteMargenEnJSONYCSV(t *testing.T) {
 	if recCSV.Code != http.StatusOK {
 		t.Fatalf("CSV respondió %d: %s", recCSV.Code, recCSV.Body.String())
 	}
-	registros, err := csv.NewReader(strings.NewReader(recCSV.Body.String())).ReadAll()
+	registros, err := leerCSVReporteTest(recCSV.Body.String())
 	if err != nil {
 		t.Fatalf("CSV inválido: %v\n%s", err, recCSV.Body.String())
 	}
@@ -235,7 +244,7 @@ func TestReportes_ExportaCSVConEncabezadosYSeparadorCorrectos(t *testing.T) {
 	if got := rec.Header().Get("Content-Disposition"); got != `attachment; filename="reporte_cotizaciones.csv"` {
 		t.Errorf("Content-Disposition inesperado: %q", got)
 	}
-	registros, err := csv.NewReader(strings.NewReader(rec.Body.String())).ReadAll()
+	registros, err := leerCSVReporteTest(rec.Body.String())
 	if err != nil {
 		t.Fatalf("encoding/csv no pudo releer la exportación: %v", err)
 	}
