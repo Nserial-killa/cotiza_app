@@ -244,12 +244,23 @@ ningún costo de bcrypt ni ninguna regla de negocio.
 
 ## Pendientes de decisión (no se cubrieron por diseño, no por olvido)
 
-1. **`GET /api/usuarios` y `GET /api/roles` sin gate de rol.** Un Vendedor
-   puede listar los correos y roles de toda la organización. No se agregó una
-   prueba que "bendiga" el comportamiento actual ni una que exija el 403,
-   porque es una decisión de producto: si el gate debe existir, el arreglo es
-   en el handler y la prueba va después. Queda señalado como riesgo de
-   privacidad, no como bug confirmado.
+1. **`GET /api/usuarios` y `GET /api/roles` sin gate de rol — RESUELTO en
+   Tanda 2.** Ambos exigen ahora rol Administrador, reusando el
+   `obtenerSesion` que ya usaban `Crear`/`Editar` (`usuarios.go`); un
+   Vendedor recibe 403 (`TestUsuariosListar_VendedorRecibe403`,
+   `TestRoles_VendedorRecibe403`). Dos pantallas fuera de "Usuarios y
+   Permisos" dependían de `GET /api/usuarios` para poblar un `<select>` de
+   responsable sin ser Administrador: el filtro de Cotizaciones/Reportes/
+   Dashboard (`cargarUsuariosActivos` en `cotiza_scripts.html`) y los campos
+   Vendedor/Analista/Líder de Solicitudes (`cotiza_solicitudes.html`). Se
+   agregó `GET /api/usuarios/activos` (sin gate de rol, cualquier sesión)
+   devolviendo solo `usuario_id` + `nombre` de usuarios Activos —
+   `TestUsuariosActivos_CualquierSesionPuedeListar` confirma que no expone
+   correo/rol/estado y que un Vendedor puede llamarlo. El botón "Usuarios y
+   Permisos" del sidebar no estaba oculto para no-admins (se confirmó
+   revisando `cambiarSeccion`/el nav): se agregó el ocultamiento en
+   `iniciarApp` como refuerzo cosmético, el 403 del backend es lo que
+   realmente protege el dato.
 2. **Permisos por rol a nivel de endpoint en general.** Sigue pendiente del
    Sprint 3 (ver CLAUDE.md): hoy los gates son ad hoc por handler
    (`integraciones.go`, `usuarios.go`) y no hay una capa común. La auditoría
@@ -372,14 +383,22 @@ sería un estado irrecuperable.
    dos eventos consecutivos pueden compartir timestamp. Se afirma lo
    determinista (que los eventos existen y que la lista viene ordenada
    descendente) en vez de una secuencia que dependería del reloj.
-4. **Los CHECK que el esquema no tiene.** `clientes.estado`, `usuarios.estado`,
+4. **Los CHECK que el esquema no tenía — RESUELTO en Tanda 2
+   (`0014_checks_faltantes.sql`).** `clientes.estado`, `usuarios.estado`,
    `calculadoras.estado`, `crm_conexiones.estado` y `catalogos.alcance` no
-   tienen CHECK (confirmado consultando `pg_constraint`): hoy `clientes.estado`
-   solo lo valida `estadosClienteValidos` en Go, y a nivel de base entra
-   cualquier texto. Es justo lo que habría cerrado la migración `0014` que
-   quedó propuesta y sin aplicar. **No** se escribió una prueba que bendiga esa
-   ausencia, para que el día que se agregue el CHECK no haya que borrar una
-   prueba que afirmaba lo contrario.
+   tenían CHECK (confirmado consultando `pg_constraint`). Antes de escribir la
+   migración se revisó con `SELECT DISTINCT` que los datos sembrados no
+   tuvieran valores fuera de lo esperado (clientes/usuarios: solo 'Activo';
+   calculadoras/crm_conexiones/catalogos: tablas vacías en este ambiente) y se
+   confirmó el conjunto válido de cada columna leyendo el código que la
+   escribe, no solo la muestra de datos: `clientes.estado`/`usuarios.estado`
+   → Activo/Inactivo; `calculadoras.estado` → Activo/Inactivo/Borrador/
+   Publicado (Publicado lo escribe `compilador.Compilar`); `crm_conexiones`
+   → Activo/Inactivo (tabla sembrada en 0001 sin ningún handler que la use
+   todavía); `catalogos.alcance` → GLOBAL/COTIZADOR (nullable, restringido
+   por el `<select>` del frontend aunque el comentario original de 0001
+   sugería un valor libre). Como recordatorio, `integraciones_api.estado` ya
+   tenía su CHECK propio desde 0011 y no forma parte de esta migración.
 
 ### Hallazgos adicionales para el equipo (no se tocó nada)
 
@@ -407,8 +426,10 @@ sería un estado irrecuperable.
 ## Próximos pasos sugeridos (Tandas 2 y 3)
 
 - Rollback de `compilador.Compilar` (costura ya identificada).
-- Decidir el gate de rol de `GET /api/usuarios` y `/api/roles`, y probarlo.
-- Evaluar la migración de CHECK para las 5 columnas de estado sin restricción.
+- ~~Decidir el gate de rol de `GET /api/usuarios` y `/api/roles`, y
+  probarlo.~~ Resuelto en Tanda 2 (ver "Pendientes de decisión" arriba).
+- ~~Evaluar la migración de CHECK para las 5 columnas de estado sin
+  restricción.~~ Resuelto en Tanda 2 (`0014_checks_faltantes.sql`).
 - Extraer el armado del router a una función testeable, para poder verificar
   los 401 endpoint por endpoint en proceso, sin depender del análisis estático
   ni de un servidor levantado.

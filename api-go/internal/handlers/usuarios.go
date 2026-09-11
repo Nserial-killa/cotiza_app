@@ -57,6 +57,16 @@ type rolDisponible struct {
 	Descripcion *string `json:"descripcion,omitempty"`
 }
 
+// usuarioSelector es el shape mínimo para selectores de "responsable"
+// en pantallas que cualquier sesión puede abrir (filtro de
+// Cotizaciones, Reportes y Dashboard; asignación de Vendedor/
+// Analista/Líder en Solicitudes) — a diferencia de usuarioAdmin, no
+// incluye correo, rol ni último acceso.
+type usuarioSelector struct {
+	UsuarioID string `json:"usuario_id"`
+	Nombre    string `json:"nombre"`
+}
+
 type crearUsuarioRequest struct {
 	Nombre string `json:"nombre"`
 	Correo string `json:"correo"`
@@ -78,11 +88,26 @@ type editarUsuarioRequest struct {
 	Pin    *string `json:"pin"` // nil o vacío = no resetear el PIN
 }
 
-// Listar devuelve los usuarios para la tabla de la pantalla. Nunca
-// selecciona pin_hash.
+// Listar devuelve los usuarios para la tabla de la pantalla "Usuarios
+// y Permisos" — correo, rol y último acceso incluidos. Por eso, a
+// diferencia de ListarActivos, exige rol Administrador: cualquier
+// otra pantalla que solo necesite un <select> de responsables debe
+// usar GET /api/usuarios/activos en su lugar. Nunca selecciona
+// pin_hash.
 func (h *UsuariosHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+
+	_, rolSesion, err := h.obtenerSesion(ctx, r)
+	if err != nil {
+		log.Printf("usuarios: error validando la sesión: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return
+	}
+	if rolSesion != "Administrador" {
+		escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo un Administrador puede listar los usuarios."})
+		return
+	}
 
 	rows, err := h.DB.Query(ctx, `
 		SELECT usuario_id, nombre, correo, rol, estado, ultimo_acceso
@@ -114,12 +139,65 @@ func (h *UsuariosHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "usuarios": usuarios})
 }
 
-// ListarRoles alimenta el <select> de rol del formulario de alta/edición.
-// Los roles se siembran en 0001_init_schema.sql; esta pantalla no crea
-// roles nuevos.
+// ListarActivos alimenta selectores de "responsable" en pantallas que
+// cualquier sesión puede abrir (filtro de Cotizaciones, Reportes,
+// Dashboard, asignación en Solicitudes) — a diferencia de Listar, no
+// exige rol Administrador y solo expone usuario_id + nombre de los
+// usuarios Activos, nunca correo, rol ni estado.
+func (h *UsuariosHandler) ListarActivos(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	rows, err := h.DB.Query(ctx, `
+		SELECT usuario_id, nombre
+		  FROM usuarios
+		 WHERE estado = 'Activo'
+		 ORDER BY nombre`)
+	if err != nil {
+		log.Printf("usuarios: error listando activos: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los usuarios."})
+		return
+	}
+	defer rows.Close()
+
+	usuarios := make([]usuarioSelector, 0)
+	for rows.Next() {
+		var item usuarioSelector
+		if err := rows.Scan(&item.UsuarioID, &item.Nombre); err != nil {
+			log.Printf("usuarios: error leyendo usuario activo: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los usuarios."})
+			return
+		}
+		usuarios = append(usuarios, item)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("usuarios: error leyendo usuarios activos: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los usuarios."})
+		return
+	}
+
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "usuarios": usuarios})
+}
+
+// ListarRoles alimenta el <select> de rol del formulario de alta/edición
+// de la pantalla "Usuarios y Permisos". Los roles se siembran en
+// 0001_init_schema.sql; esta pantalla no crea roles nuevos. Exige rol
+// Administrador por el mismo motivo que Listar: hoy solo lo consume esa
+// pantalla (ver cargarRolesAdmin en cotiza_scripts.html).
 func (h *UsuariosHandler) ListarRoles(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+
+	_, rolSesion, err := h.obtenerSesion(ctx, r)
+	if err != nil {
+		log.Printf("usuarios: error validando la sesión: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return
+	}
+	if rolSesion != "Administrador" {
+		escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo un Administrador puede consultar los roles."})
+		return
+	}
 
 	rows, err := h.DB.Query(ctx, `
 		SELECT rol, descripcion

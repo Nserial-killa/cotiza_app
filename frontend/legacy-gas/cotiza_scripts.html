@@ -290,6 +290,15 @@ window.CotizaApp = (function(){
         setText("sidebarCorreo", usuario.correo || "");
         setText("sidebarRol", usuario.rol || "");
 
+        // GET/POST /api/usuarios y GET /api/roles exigen rol
+        // Administrador desde la auditoría de QA (Tanda 1): ocultar el
+        // botón acá es solo cosmético (el backend ya rechaza con 403),
+        // pero evita que un no-admin entre a una pantalla que le va a
+        // fallar cada carga.
+        document.querySelectorAll('[data-section="usuarios"]').forEach(function(btn){
+          btn.classList.toggle("hidden", usuario.rol !== "Administrador");
+        });
+
         setLoading("loginView", false);
 
         cargarDatosBase(function(){
@@ -416,6 +425,13 @@ window.CotizaApp = (function(){
       // problema que cargarCalculadoras: el shim siempre respondía
       // usuarios:[], así que el filtro de "Responsable" en
       // Cotizaciones nunca tenía opciones reales.
+      //
+      // Usa /api/usuarios/activos (no /api/usuarios): ese endpoint
+      // quedó reservado para la pantalla "Usuarios y Permisos" y exige
+      // rol Administrador (auditoría de QA, Tanda 1) — un Vendedor que
+      // solo necesita este selector recibiría 403. /activos es el
+      // endpoint acotado (usuario_id + nombre, sin correo/rol) para
+      // cualquier sesión.
       async function cargarUsuariosActivos(callback){
         if(!state.usuario){
           if(callback) callback();
@@ -423,7 +439,7 @@ window.CotizaApp = (function(){
         }
 
         try{
-          const resp = await fetchAutenticado("/api/usuarios");
+          const resp = await fetchAutenticado("/api/usuarios/activos");
           let res = null;
           try{ res = await resp.json(); }catch(e){ res = null; }
           if(!resp.ok || !res || !res.ok){

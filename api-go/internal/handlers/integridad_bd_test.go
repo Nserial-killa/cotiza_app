@@ -164,8 +164,10 @@ func TestIntegridadTabsCotizador_CheckAlcance(t *testing.T) {
 	calculadoraID := intgCrearCalculadora(t, pool)
 	ctx := context.Background()
 
-	// OJO: el CHECK de alcance está en tabs_cotizador (0003), NO en
-	// catalogos: catalogos.alcance no tiene ninguna restricción.
+	// OJO: este es el CHECK de tabs_cotizador.alcance (0003), con sus
+	// propios valores PROPIO/REUTILIZABLE — no confundir con el CHECK
+	// de catalogos.alcance (0014), que usa GLOBAL/COTIZADOR y se
+	// prueba en TestIntegridadCatalogos_CheckAlcance más abajo.
 	for _, valido := range []string{"PROPIO", "REUTILIZABLE"} {
 		id := "TEST-INTG-TAB-OK-" + sufijoUnico()
 		_, err := pool.Exec(ctx,
@@ -510,6 +512,117 @@ func TestIntegridadSolicitudes_CheckEstadoYPrioridad(t *testing.T) {
 		intgAfirmarViolacion(t, insertar("Nueva", "Crítica"), intgCodigoCheck,
 			"el CHECK de solicitudes.prioridad (prioridad='Crítica')")
 	})
+}
+
+// Las 5 pruebas que siguen cubren 0014_checks_faltantes.sql (auditoría
+// de QA, Tanda 2): clientes/usuarios/calculadoras/crm_conexiones.estado
+// y catalogos.alcance no tenían CHECK a nivel de esquema.
+
+func TestIntegridadClientes_CheckEstado(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+
+	insertar := func(estado string) error {
+		id := "TEST-INTG-CLI-" + sufijoUnico()
+		_, err := pool.Exec(ctx,
+			`INSERT INTO clientes (cliente_id, nombre_comercial, estado) VALUES ($1, 'Cliente integridad', $2)`,
+			id, estado)
+		pool.Exec(ctx, `DELETE FROM clientes WHERE cliente_id = $1`, id)
+		return err
+	}
+
+	for _, valido := range []string{"Activo", "Inactivo"} {
+		intgAfirmarAceptado(t, insertar(valido), "el estado de cliente "+valido)
+	}
+	intgAfirmarViolacion(t, insertar("Suspendido"), intgCodigoCheck,
+		"el CHECK de clientes.estado (estado='Suspendido')")
+}
+
+func TestIntegridadUsuarios_CheckEstado(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+
+	insertar := func(estado string) error {
+		id := "TEST-INTG-USR-" + sufijoUnico()
+		correo := "integridad." + sufijoUnico() + "@exceltecgroup.com"
+		_, err := pool.Exec(ctx,
+			`INSERT INTO usuarios (usuario_id, nombre, correo, pin_hash, rol, estado)
+			 VALUES ($1, 'Usuario integridad', $2, 'hash-de-prueba', 'Vendedor', $3)`,
+			id, correo, estado)
+		pool.Exec(ctx, `DELETE FROM usuarios WHERE usuario_id = $1`, id)
+		return err
+	}
+
+	for _, valido := range []string{"Activo", "Inactivo"} {
+		intgAfirmarAceptado(t, insertar(valido), "el estado de usuario "+valido)
+	}
+	intgAfirmarViolacion(t, insertar("Pendiente"), intgCodigoCheck,
+		"el CHECK de usuarios.estado (estado='Pendiente')")
+}
+
+func TestIntegridadCalculadoras_CheckEstado(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+
+	insertar := func(estado string) error {
+		id := "TEST-INTG-CALCEST-" + sufijoUnico()
+		_, err := pool.Exec(ctx,
+			`INSERT INTO calculadoras (calculadora_id, nombre_calculadora, estado) VALUES ($1, 'Cotizador integridad', $2)`,
+			id, estado)
+		pool.Exec(ctx, `DELETE FROM calculadoras WHERE calculadora_id = $1`, id)
+		return err
+	}
+
+	// 'Publicado' es el que escribe compilador.Compilar; 'Borrador' es
+	// el filtro que ya expone cotiza_scripts.html.
+	for _, valido := range []string{"Activo", "Inactivo", "Borrador", "Publicado"} {
+		intgAfirmarAceptado(t, insertar(valido), "el estado de calculadora "+valido)
+	}
+	intgAfirmarViolacion(t, insertar("Archivado"), intgCodigoCheck,
+		"el CHECK de calculadoras.estado (estado='Archivado')")
+}
+
+func TestIntegridadCrmConexiones_CheckEstado(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+
+	insertar := func(estado string) error {
+		id := "TEST-INTG-CRM-" + sufijoUnico()
+		_, err := pool.Exec(ctx,
+			`INSERT INTO crm_conexiones (crm_conexion_id, tipo_crm, estado) VALUES ($1, 'BITRIX24', $2)`,
+			id, estado)
+		pool.Exec(ctx, `DELETE FROM crm_conexiones WHERE crm_conexion_id = $1`, id)
+		return err
+	}
+
+	for _, valido := range []string{"Activo", "Inactivo"} {
+		intgAfirmarAceptado(t, insertar(valido), "el estado de crm_conexiones "+valido)
+	}
+	intgAfirmarViolacion(t, insertar("Caducado"), intgCodigoCheck,
+		"el CHECK de crm_conexiones.estado (estado='Caducado')")
+}
+
+func TestIntegridadCatalogos_CheckAlcance(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+
+	insertar := func(alcance *string) error {
+		id := "TEST-INTG-CAT-" + sufijoUnico()
+		_, err := pool.Exec(ctx,
+			`INSERT INTO catalogos (catalogo_id, nombre_catalogo, alcance) VALUES ($1, 'Catálogo integridad', $2)`,
+			id, alcance)
+		pool.Exec(ctx, `DELETE FROM catalogos WHERE catalogo_id = $1`, id)
+		return err
+	}
+
+	for _, valido := range []string{"GLOBAL", "COTIZADOR"} {
+		valido := valido
+		intgAfirmarAceptado(t, insertar(&valido), "el alcance de catálogo "+valido)
+	}
+	// alcance es NULLABLE: el CHECK no debe exigir un valor.
+	intgAfirmarAceptado(t, insertar(nil), "un catálogo sin alcance informado (NULL)")
+	intgAfirmarViolacion(t, insertar(strPtr("REGIONAL")), intgCodigoCheck,
+		"el CHECK de catalogos.alcance (alcance='REGIONAL')")
 }
 
 // =====================================================================

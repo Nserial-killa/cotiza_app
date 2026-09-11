@@ -83,11 +83,36 @@ func patchUsuario(t *testing.T, handler *UsuariosHandler, actorID, usuarioID str
 	return rec, res
 }
 
-func getUsuarios(t *testing.T, handler *UsuariosHandler) (*httptest.ResponseRecorder, map[string]any) {
+func getUsuarios(t *testing.T, handler *UsuariosHandler, actorID string) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/usuarios", nil)
+	req = conActor(req, actorID)
 	rec := httptest.NewRecorder()
 	handler.Listar(rec, req)
+
+	var res map[string]any
+	assertJSON(t, rec.Body.Bytes(), &res)
+	return rec, res
+}
+
+func getUsuariosActivos(t *testing.T, handler *UsuariosHandler, actorID string) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/usuarios/activos", nil)
+	req = conActor(req, actorID)
+	rec := httptest.NewRecorder()
+	handler.ListarActivos(rec, req)
+
+	var res map[string]any
+	assertJSON(t, rec.Body.Bytes(), &res)
+	return rec, res
+}
+
+func getRoles(t *testing.T, handler *UsuariosHandler, actorID string) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/roles", nil)
+	req = conActor(req, actorID)
+	rec := httptest.NewRecorder()
+	handler.ListarRoles(rec, req)
 
 	var res map[string]any
 	assertJSON(t, rec.Body.Bytes(), &res)
@@ -125,7 +150,7 @@ func TestUsuariosCrear_AparecceEnElListado(t *testing.T) {
 		t.Errorf("estado por defecto = %v, esperaba Activo", usuario["estado"])
 	}
 
-	_, listado := getUsuarios(t, handler)
+	_, listado := getUsuarios(t, handler, admin)
 	usuarios, _ := listado["usuarios"].([]any)
 	encontrado := false
 	for _, u := range usuarios {
@@ -174,7 +199,7 @@ func TestUsuarios_NuncaExponeElPin(t *testing.T) {
 		t.Fatal("la respuesta de creación expone el campo pin_hash")
 	}
 
-	recListado, _ := getUsuarios(t, handler)
+	recListado, _ := getUsuarios(t, handler, admin)
 	if strings.Contains(strings.ToLower(recListado.Body.String()), "pin_hash") || strings.Contains(recListado.Body.String(), "$2") {
 		t.Fatal("el listado de usuarios expone pin_hash o algo con forma de hash bcrypt")
 	}
@@ -623,13 +648,9 @@ func TestUsuariosEditar_SoloEstadoInactivoBloqueaLoginPosterior(t *testing.T) {
 func TestRoles_ListaLosSembrados(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &UsuariosHandler{DB: pool}
+	admin := crearAdminActorPrueba(t, pool)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/roles", nil)
-	rec := httptest.NewRecorder()
-	handler.ListarRoles(rec, req)
-
-	var res map[string]any
-	assertJSON(t, rec.Body.Bytes(), &res)
+	rec, res := getRoles(t, handler, admin)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
@@ -648,5 +669,91 @@ func TestRoles_ListaLosSembrados(t *testing.T) {
 		if !nombres[esperado] {
 			t.Errorf("el rol sembrado %q no apareció en GET /api/roles", esperado)
 		}
+	}
+}
+
+// ==================================================
+// Gate de rol en los listados (auditoría de QA, Tanda 1): antes,
+// GET /api/usuarios y GET /api/roles los podía llamar cualquier
+// sesión válida. Ahora exigen rol Administrador, con el mismo
+// obtenerSesion que ya usaban Crear/Editar. El selector acotado
+// (GET /api/usuarios/activos) es la salida para las pantallas que
+// necesitan un <select> de responsables sin ser Administrador
+// (Cotizaciones, Reportes, Dashboard, Solicitudes).
+// ==================================================
+
+func TestUsuariosListar_VendedorRecibe403(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &UsuariosHandler{DB: pool}
+	vendedor := crearUsuarioPrueba(t, pool, "vendedor.lista."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
+
+	rec, res := getUsuarios(t, handler, vendedor)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("esperaba 403, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	if res["ok"] != false {
+		t.Error("esperaba ok:false")
+	}
+}
+
+func TestUsuariosListar_AdminPuedeListar(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &UsuariosHandler{DB: pool}
+	admin := crearAdminActorPrueba(t, pool)
+
+	rec, _ := getUsuarios(t, handler, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("un Administrador debería poder listar usuarios, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRoles_VendedorRecibe403(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &UsuariosHandler{DB: pool}
+	vendedor := crearUsuarioPrueba(t, pool, "vendedor.roles."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
+
+	rec, res := getRoles(t, handler, vendedor)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("esperaba 403, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	if res["ok"] != false {
+		t.Error("esperaba ok:false")
+	}
+}
+
+func TestUsuariosActivos_CualquierSesionPuedeListar(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &UsuariosHandler{DB: pool}
+	admin := crearAdminActorPrueba(t, pool)
+	vendedor := crearUsuarioPrueba(t, pool, "vendedor.activos."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
+	inactivo := crearUsuarioPrueba(t, pool, "inactivo.activos."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Inactivo")
+
+	rec, res := getUsuariosActivos(t, handler, vendedor)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("un Vendedor debería poder usar el selector acotado, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	usuarios, _ := res["usuarios"].([]any)
+	ids := make(map[string]bool, len(usuarios))
+	for _, u := range usuarios {
+		fila, ok := u.(map[string]any)
+		if !ok {
+			t.Fatalf("fila de usuario con forma inesperada: %+v", u)
+		}
+		ids[fmt.Sprintf("%v", fila["usuario_id"])] = true
+		for _, campoSensible := range []string{"correo", "rol", "estado", "ultimo_acceso"} {
+			if _, expone := fila[campoSensible]; expone {
+				t.Errorf("el selector acotado no debería exponer %q, fila: %+v", campoSensible, fila)
+			}
+		}
+	}
+	if !ids[admin] {
+		t.Errorf("el Administrador activo %q no apareció en el selector", admin)
+	}
+	if !ids[vendedor] {
+		t.Errorf("el Vendedor activo %q no apareció en el selector", vendedor)
+	}
+	if ids[inactivo] {
+		t.Errorf("el usuario Inactivo %q no debería aparecer en el selector", inactivo)
 	}
 }

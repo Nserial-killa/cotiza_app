@@ -154,6 +154,7 @@ func main() {
 			})
 			r.Route("/usuarios", func(r chi.Router) {
 				r.Get("/", usuarios.Listar)
+				r.Get("/activos", usuarios.ListarActivos)
 				r.Post("/", usuarios.Crear)
 				r.Patch("/{id}", usuarios.Editar)
 			})

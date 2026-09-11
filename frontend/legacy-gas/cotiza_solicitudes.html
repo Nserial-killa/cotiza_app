@@ -106,8 +106,9 @@
     if(prioridadForm) prioridadForm.innerHTML = PRIORIDADES.map(function(item){ return '<option'+(item === "Media" ? ' selected' : '')+'>'+escapar(item)+'</option>'; }).join("");
 
     const calculadoras = opcionesSelect(estado.calculadoras, "calculadora_id", "nombre_calculadora");
-    const usuarios = estado.usuarios.filter(function(item){ return item.estado === "Activo"; });
-    const usuariosHTML = opcionesSelect(usuarios, "usuario_id", "nombre");
+    // /api/usuarios/activos ya devuelve solo usuarios Activos (y sin el
+    // campo "estado"), así que no hace falta filtrar acá.
+    const usuariosHTML = opcionesSelect(estado.usuarios, "usuario_id", "nombre");
     if(porId("solCotizador")) porId("solCotizador").innerHTML = '<option value="">Seleccione</option>' + calculadoras;
     if(porId("solFiltroResponsable")) porId("solFiltroResponsable").innerHTML = '<option value="">Todos</option>' + usuariosHTML;
     if(porId("solVendedor")) porId("solVendedor").innerHTML = '<option value="">Seleccione</option>' + usuariosHTML;
@@ -126,7 +127,10 @@
         pedidos.push(solicitar("/api/calculadoras").then(function(data){ estado.calculadoras = data.calculadoras || []; }));
       }
       if(!estado.usuarios.length){
-        pedidos.push(solicitar("/api/usuarios").then(function(data){ estado.usuarios = data.usuarios || []; }));
+        // /api/usuarios exige rol Administrador desde la auditoría de
+        // QA (Tanda 1); Vendedor/Analista/Líder de producto necesitan
+        // este combo igual, así que se usa el endpoint acotado.
+        pedidos.push(solicitar("/api/usuarios/activos").then(function(data){ estado.usuarios = data.usuarios || []; }));
       }
       await Promise.all(pedidos);
       llenarCombos();
