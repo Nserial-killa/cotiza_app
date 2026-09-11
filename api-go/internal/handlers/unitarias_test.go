@@ -618,6 +618,39 @@ func TestUnitNormalizarOpcionEstilo_NilEsAusenciaNoError(t *testing.T) {
 	}
 }
 
+func TestUnitNormalizarColorEstilo(t *testing.T) {
+	valido := " #0b2f63 "
+	if err := normalizarColorEstilo(&valido, "color_primario"); err != nil || valido != "#0B2F63" {
+		t.Fatalf("el color hexadecimal válido no se normalizó: valor=%q error=%v", valido, err)
+	}
+	for _, invalido := range []string{"0B2F63", "#123", "#GG2233", ""} {
+		valor := invalido
+		if err := normalizarColorEstilo(&valor, "color_primario"); err == nil {
+			t.Errorf("el color inválido %q debía rechazarse", invalido)
+		}
+	}
+	if err := normalizarColorEstilo(nil, "color_primario"); err != nil {
+		t.Errorf("nil representa un campo ausente en PATCH y debe aceptarse: %v", err)
+	}
+}
+
+func TestUnitNormalizarLogoURL_ExigeHTTPS(t *testing.T) {
+	valida := " https://cdn.example.com/logo.png "
+	if err := normalizarLogoURL(&valida); err != nil || valida != "https://cdn.example.com/logo.png" {
+		t.Fatalf("la URL https válida no se normalizó: valor=%q error=%v", valida, err)
+	}
+	for _, invalida := range []string{"http://example.com/logo.png", "https:///logo.png", "logo.png"} {
+		valor := invalida
+		if err := normalizarLogoURL(&valor); err == nil {
+			t.Errorf("la URL inválida %q debía rechazarse", invalida)
+		}
+	}
+	vacia := "  "
+	if err := normalizarLogoURL(&vacia); err != nil || vacia != "" {
+		t.Fatalf("una cadena vacía debe permitir quitar el logo: valor=%q error=%v", vacia, err)
+	}
+}
+
 // ---------- plantilla_estructura.go ----------
 
 func TestUnitValidarOrdenCompleto_ExigeLaMismaListaSinRepetidos(t *testing.T) {

@@ -660,8 +660,10 @@
 
     const temasLista=byId("tplStyleThemes");
     if(temasLista) temasLista.addEventListener("click",manejarClickTema);
-    ["tplStylePageFormat","tplStyleMargin","tplStyleCover","tplStyleTable"].forEach(function(id){
-      bind(id,"change",programarGuardadoEstilo);
+    llenarFuentesEstilo();
+    document.querySelectorAll("#tplStepFour .tpl-style-control").forEach(function(campo){
+      const evento=(campo.matches('input[type="text"],input[type="url"],input[type="color"]'))?"input":"change";
+      campo.addEventListener(evento,programarGuardadoEstilo);
     });
   }
 
@@ -1356,11 +1358,6 @@
   }
 
   // ---------- Paso 4: Estilo visual ----------
-  // Solo tema/formato_pagina/margenes/diseno_portada/estilo_tablas existen
-  // en plantilla_estilos (ver PlantillaEstiloHandler) — colores, tipografía,
-  // logo, encabezado/pie y numeración de página no tienen columna en el
-  // backend todavía, así que esos controles del panel derecho quedan sin
-  // conectar a propósito (no se inventa persistencia para ellos acá).
   const temasEstiloPredefinidos=[
     {clave:"PROFESIONAL",nombre:"Profesional",colores:["#0B2F63","#1F6FFF","#20B8CD"]},
     {clave:"MODERNO",nombre:"Moderno",colores:["#0F2A4A","#185FA5","#25BCD2"]},
@@ -1371,6 +1368,59 @@
   // en el backend, así que elegir uno solo guarda el campo "tema" (texto
   // libre) de plantilla_estilos. Los colores de cada tarjeta son valores
   // fijos de este archivo, no datos vinculados a ninguna otra tabla.
+  const fuentesEstiloDisponibles=["Segoe UI","Arial","Georgia","Helvetica","Trebuchet MS","Verdana"];
+
+  function llenarFuentesEstilo(){
+    ["tplStyleTitleFont","tplStyleBodyFont"].forEach(function(id){
+      const select=byId(id);if(!select)return;
+      select.innerHTML=fuentesEstiloDisponibles.map(function(fuente){
+        return '<option value="'+escapar(fuente)+'">'+escapar(fuente)+'</option>';
+      }).join("");
+    });
+  }
+
+  function temaEstiloPorClave(clave){
+    const normalizada=String(clave||"").toUpperCase();
+    return temasEstiloPredefinidos.find(function(tema){return tema.clave===normalizada;})||temasEstiloPredefinidos[0];
+  }
+
+  function asignarValorEstilo(id,valor){
+    const campo=byId(id);if(campo)campo.value=valor==null?"":valor;
+  }
+
+  function asignarCheckEstilo(id,valor){
+    const campo=byId(id);if(campo)campo.checked=!!valor;
+  }
+
+  function seleccionarFuenteEstilo(id,valor){
+    const select=byId(id);if(!select)return;
+    const fuente=valor||"Segoe UI";
+    if(!Array.from(select.options).some(function(opcion){return opcion.value===fuente;})){
+      select.add(new Option(fuente,fuente));
+    }
+    select.value=fuente;
+  }
+
+  function cargarControlesIdentidad(estilo){
+    const tema=temaEstiloPorClave(estilo.tema);
+    asignarValorEstilo("tplStylePrimary",estilo.color_primario||tema.colores[0]);
+    asignarValorEstilo("tplStyleSecondary",estilo.color_secundario||tema.colores[1]);
+    asignarValorEstilo("tplStyleAccent",estilo.color_acento||tema.colores[2]);
+    asignarValorEstilo("tplStyleText",estilo.color_texto||"#172B4D");
+    asignarValorEstilo("tplStyleBackground",estilo.color_fondo||"#FFFFFF");
+    seleccionarFuenteEstilo("tplStyleTitleFont",estilo.fuente_titulos);
+    seleccionarFuenteEstilo("tplStyleBodyFont",estilo.fuente_texto);
+    asignarValorEstilo("tplStyleLogoUrl",estilo.logo_url||"");
+    asignarValorEstilo("tplStyleLogoSize",estilo.logo_tamano||"MEDIANO");
+    asignarCheckEstilo("tplStyleShowLogo",estilo.mostrar_logo);
+    asignarCheckEstilo("tplStyleShowOrg",estilo.mostrar_organizacion);
+    asignarValorEstilo("tplStyleOrgName",estilo.nombre_organizacion_visible||"");
+    asignarValorEstilo("tplStyleHeaderText",estilo.texto_encabezado||"");
+    asignarValorEstilo("tplStyleFooterText",estilo.texto_pie||"");
+    asignarCheckEstilo("tplStylePagination",estilo.numerar_paginas);
+    asignarCheckEstilo("tplStyleConfidential",estilo.marca_confidencial);
+    aplicarIdentidadPreview();
+  }
 
   async function cargarEstilo(){
     if(!estado.wizard.plantillaId)return;
@@ -1384,6 +1434,7 @@
       if(byId("tplStyleCover"))byId("tplStyleCover").value=estilo.diseno_portada||"BANDA_SUPERIOR";
       if(byId("tplStyleTable"))byId("tplStyleTable").value=estilo.estilo_tablas||"LINEAS";
       renderTemasEstilo(estilo.tema||"PROFESIONAL");
+      cargarControlesIdentidad(estilo);
       aplicarClasesPreview();
       cambiarEstadoEstilo("Sin cambios");
     }catch(error){
@@ -1421,13 +1472,33 @@
   }
   function programarGuardadoEstilo(){
     aplicarClasesPreview();
-    const payload={
+    aplicarIdentidadPreview();
+    const payload=payloadEstiloDesdeControles();
+    programarAutoguardado("estilo",function(){guardarEstilo(payload);});
+  }
+  function payloadEstiloDesdeControles(){
+    return {
       formato_pagina:byId("tplStylePageFormat")?byId("tplStylePageFormat").value:"CARTA",
       margenes:byId("tplStyleMargin")?byId("tplStyleMargin").value:"NORMAL",
       diseno_portada:byId("tplStyleCover")?byId("tplStyleCover").value:"BANDA_SUPERIOR",
-      estilo_tablas:byId("tplStyleTable")?byId("tplStyleTable").value:"LINEAS"
+      estilo_tablas:byId("tplStyleTable")?byId("tplStyleTable").value:"LINEAS",
+      color_primario:byId("tplStylePrimary")?byId("tplStylePrimary").value:"#0B2F63",
+      color_secundario:byId("tplStyleSecondary")?byId("tplStyleSecondary").value:"#1F6FFF",
+      color_acento:byId("tplStyleAccent")?byId("tplStyleAccent").value:"#20B8CD",
+      color_texto:byId("tplStyleText")?byId("tplStyleText").value:"#172B4D",
+      color_fondo:byId("tplStyleBackground")?byId("tplStyleBackground").value:"#FFFFFF",
+      fuente_titulos:byId("tplStyleTitleFont")?byId("tplStyleTitleFont").value:"Segoe UI",
+      fuente_texto:byId("tplStyleBodyFont")?byId("tplStyleBodyFont").value:"Segoe UI",
+      logo_url:byId("tplStyleLogoUrl")?byId("tplStyleLogoUrl").value.trim():"",
+      logo_tamano:byId("tplStyleLogoSize")?byId("tplStyleLogoSize").value:"MEDIANO",
+      mostrar_logo:!!(byId("tplStyleShowLogo")&&byId("tplStyleShowLogo").checked),
+      mostrar_organizacion:!!(byId("tplStyleShowOrg")&&byId("tplStyleShowOrg").checked),
+      nombre_organizacion_visible:byId("tplStyleOrgName")?byId("tplStyleOrgName").value.trim():"",
+      texto_encabezado:byId("tplStyleHeaderText")?byId("tplStyleHeaderText").value.trim():"",
+      texto_pie:byId("tplStyleFooterText")?byId("tplStyleFooterText").value.trim():"",
+      numerar_paginas:!!(byId("tplStylePagination")&&byId("tplStylePagination").checked),
+      marca_confidencial:!!(byId("tplStyleConfidential")&&byId("tplStyleConfidential").checked)
     };
-    programarAutoguardado("estilo",function(){guardarEstilo(payload);});
   }
   async function guardarEstilo(payload){
     if(!estado.wizard.plantillaId)return;
@@ -1456,6 +1527,57 @@
     });
     pagina.classList.add("format-"+formato,"margin-"+margen,"cover-"+portada,"table-"+tabla);
     setTexto("tplStylePreviewFormat",formato.toUpperCase());
+  }
+  function fuenteCSSPreview(valor){
+    const segura=String(valor||"Segoe UI").replace(/["']/g,"");
+    return '"'+segura+'", Arial, sans-serif';
+  }
+  function aplicarIdentidadPreview(){
+    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
+    const payload=payloadEstiloDesdeControles();
+    pagina.style.setProperty("--tpl-preview-primary",payload.color_primario);
+    pagina.style.setProperty("--tpl-preview-secondary",payload.color_secundario);
+    pagina.style.setProperty("--tpl-preview-accent",payload.color_acento);
+    pagina.style.setProperty("--tpl-preview-text",payload.color_texto);
+    pagina.style.setProperty("--tpl-preview-background",payload.color_fondo);
+    pagina.style.setProperty("--tpl-preview-title-font",fuenteCSSPreview(payload.fuente_titulos));
+    pagina.style.setProperty("--tpl-preview-body-font",fuenteCSSPreview(payload.fuente_texto));
+
+    const logo=byId("tplStylePreviewLogo");
+    const organizacion=byId("tplStylePreviewOrg");
+    const urlLogo=payload.logo_url;
+    const logoSolicitado=payload.mostrar_logo&&/^https:\/\//i.test(urlLogo);
+    if(logo){
+      logo.classList.remove("size-pequeno","size-mediano","size-grande");
+      logo.classList.add("size-"+payload.logo_tamano.toLowerCase());
+      if(logoSolicitado){
+        logo.classList.remove("hidden");
+        if(logo.getAttribute("src")!==urlLogo)logo.setAttribute("src",urlLogo);
+      }else{
+        logo.classList.add("hidden");
+        logo.removeAttribute("src");
+      }
+      logo.onerror=function(){
+        logo.classList.add("hidden");
+        if(organizacion&&payload.mostrar_organizacion)organizacion.classList.remove("hidden");
+      };
+    }
+    const mostrarOrganizacion=!logoSolicitado&&payload.mostrar_organizacion;
+    if(organizacion){
+      organizacion.textContent=payload.nombre_organizacion_visible||"Organización";
+      organizacion.classList.toggle("hidden",!mostrarOrganizacion);
+    }
+    const marca=logo&&logo.parentElement;
+    if(marca)marca.classList.toggle("hidden",!logoSolicitado&&!mostrarOrganizacion);
+
+    const encabezado=byId("tplStylePreviewHeader");
+    if(encabezado){encabezado.textContent=payload.texto_encabezado;encabezado.classList.toggle("hidden",!payload.texto_encabezado);}
+    const pie=byId("tplStylePreviewFooter");
+    if(pie){pie.textContent=payload.texto_pie;pie.classList.toggle("hidden",!payload.texto_pie);}
+    const confidencial=byId("tplStylePreviewConfidential");
+    if(confidencial)confidencial.classList.toggle("hidden",!payload.marca_confidencial);
+    const paginaNumero=byId("tplStylePreviewPageNumber");
+    if(paginaNumero)paginaNumero.classList.toggle("hidden",!payload.numerar_paginas);
   }
 
   async function abrirWizardNuevo(baseID,detalleConocido){

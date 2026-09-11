@@ -103,13 +103,29 @@ type plantillaVinculacion struct {
 }
 
 type plantillaEstilo struct {
-	EstiloID      string `json:"estilo_id"`
-	PlantillaID   string `json:"plantilla_id"`
-	Tema          string `json:"tema"`
-	FormatoPagina string `json:"formato_pagina"`
-	Margenes      string `json:"margenes"`
-	DisenoPortada string `json:"diseno_portada"`
-	EstiloTablas  string `json:"estilo_tablas"`
+	EstiloID                  string  `json:"estilo_id"`
+	PlantillaID               string  `json:"plantilla_id"`
+	Tema                      string  `json:"tema"`
+	FormatoPagina             string  `json:"formato_pagina"`
+	Margenes                  string  `json:"margenes"`
+	DisenoPortada             string  `json:"diseno_portada"`
+	EstiloTablas              string  `json:"estilo_tablas"`
+	ColorPrimario             *string `json:"color_primario"`
+	ColorSecundario           *string `json:"color_secundario"`
+	ColorAcento               *string `json:"color_acento"`
+	ColorTexto                *string `json:"color_texto"`
+	ColorFondo                *string `json:"color_fondo"`
+	FuenteTitulos             *string `json:"fuente_titulos"`
+	FuenteTexto               *string `json:"fuente_texto"`
+	LogoURL                   *string `json:"logo_url"`
+	LogoTamano                string  `json:"logo_tamano"`
+	MostrarLogo               bool    `json:"mostrar_logo"`
+	MostrarOrganizacion       bool    `json:"mostrar_organizacion"`
+	NombreOrganizacionVisible *string `json:"nombre_organizacion_visible"`
+	TextoEncabezado           *string `json:"texto_encabezado"`
+	TextoPie                  *string `json:"texto_pie"`
+	NumerarPaginas            bool    `json:"numerar_paginas"`
+	MarcaConfidencial         bool    `json:"marca_confidencial"`
 }
 
 type crearPlantillaRequest struct {
@@ -374,10 +390,19 @@ func (h *PlantillasHandler) consultarDetalle(ctx context.Context, id string) (*p
 
 	var estilo plantillaEstilo
 	err = h.DB.QueryRow(ctx, `
-		SELECT estilo_id::text, plantilla_id::text, tema, formato_pagina, margenes, diseno_portada, estilo_tablas
+		SELECT estilo_id::text, plantilla_id::text, tema, formato_pagina, margenes, diseno_portada, estilo_tablas,
+		       color_primario, color_secundario, color_acento, color_texto, color_fondo,
+		       fuente_titulos, fuente_texto, logo_url, logo_tamano, mostrar_logo,
+		       mostrar_organizacion, nombre_organizacion_visible, texto_encabezado, texto_pie,
+		       numerar_paginas, marca_confidencial
 		  FROM plantilla_estilos WHERE plantilla_id::text=$1`, id).Scan(
 		&estilo.EstiloID, &estilo.PlantillaID, &estilo.Tema, &estilo.FormatoPagina,
 		&estilo.Margenes, &estilo.DisenoPortada, &estilo.EstiloTablas,
+		&estilo.ColorPrimario, &estilo.ColorSecundario, &estilo.ColorAcento,
+		&estilo.ColorTexto, &estilo.ColorFondo, &estilo.FuenteTitulos, &estilo.FuenteTexto,
+		&estilo.LogoURL, &estilo.LogoTamano, &estilo.MostrarLogo, &estilo.MostrarOrganizacion,
+		&estilo.NombreOrganizacionVisible, &estilo.TextoEncabezado, &estilo.TextoPie,
+		&estilo.NumerarPaginas, &estilo.MarcaConfidencial,
 	)
 	if err == nil {
 		item.Estilo = &estilo
@@ -809,8 +834,17 @@ func copiarContenidoPlantilla(ctx context.Context, tx pgx.Tx, origenID, destinoI
 		}
 	}
 	_, err = tx.Exec(ctx, `
-		INSERT INTO plantilla_estilos (plantilla_id,tema,formato_pagina,margenes,diseno_portada,estilo_tablas)
-		SELECT $1, tema, formato_pagina, margenes, diseno_portada, estilo_tablas
+		INSERT INTO plantilla_estilos (
+			plantilla_id,tema,formato_pagina,margenes,diseno_portada,estilo_tablas,
+			color_primario,color_secundario,color_acento,color_texto,color_fondo,
+			fuente_titulos,fuente_texto,logo_url,logo_tamano,mostrar_logo,
+			mostrar_organizacion,nombre_organizacion_visible,texto_encabezado,texto_pie,
+			numerar_paginas,marca_confidencial)
+		SELECT $1, tema, formato_pagina, margenes, diseno_portada, estilo_tablas,
+		       color_primario, color_secundario, color_acento, color_texto, color_fondo,
+		       fuente_titulos, fuente_texto, logo_url, logo_tamano, mostrar_logo,
+		       mostrar_organizacion, nombre_organizacion_visible, texto_encabezado, texto_pie,
+		       numerar_paginas, marca_confidencial
 		  FROM plantilla_estilos WHERE plantilla_id::text=$2`, destinoID, origenID)
 	return err
 }

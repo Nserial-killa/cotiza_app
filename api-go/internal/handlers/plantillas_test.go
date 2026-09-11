@@ -230,6 +230,12 @@ func TestPlantillas_CrearDesdeOtraCopiaSeccionesBloquesYEstilo(t *testing.T) {
 	rec := llamarPlantilla(t, http.MethodPatch, "/api/plantillas/{id}/estilo", rutaEstilo, e.estilo.Actualizar, map[string]any{
 		"tema": "EJECUTIVO", "formato_pagina": "A4", "margenes": "AMPLIO",
 		"diseno_portada": "LATERAL", "estilo_tablas": "TARJETAS",
+		"color_primario": "#112233", "color_secundario": "#445566", "color_acento": "#778899",
+		"color_texto": "#1A2B3C", "color_fondo": "#F4F5F6", "fuente_titulos": "Georgia",
+		"fuente_texto": "Arial", "logo_url": "https://example.com/logo.png", "logo_tamano": "GRANDE",
+		"mostrar_logo": true, "mostrar_organizacion": true, "nombre_organizacion_visible": "Exceltec",
+		"texto_encabezado": "Propuesta comercial", "texto_pie": "Uso interno", "numerar_paginas": true,
+		"marca_confidencial": true,
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("preparar estilo base: %d: %s", rec.Code, rec.Body.String())
@@ -250,6 +256,12 @@ func TestPlantillas_CrearDesdeOtraCopiaSeccionesBloquesYEstilo(t *testing.T) {
 	}
 	if detalle.Plantilla.Estilo == nil || detalle.Plantilla.Estilo.Tema != "EJECUTIVO" || detalle.Plantilla.Estilo.FormatoPagina != "A4" {
 		t.Fatalf("la copia no preservó el estilo: %+v", detalle.Plantilla.Estilo)
+	}
+	if detalle.Plantilla.Estilo.ColorPrimario == nil || *detalle.Plantilla.Estilo.ColorPrimario != "#112233" ||
+		detalle.Plantilla.Estilo.LogoURL == nil || *detalle.Plantilla.Estilo.LogoURL != "https://example.com/logo.png" ||
+		!detalle.Plantilla.Estilo.MostrarLogo || !detalle.Plantilla.Estilo.NumerarPaginas ||
+		detalle.Plantilla.Estilo.LogoTamano != "GRANDE" {
+		t.Fatalf("la copia no preservó la identidad visual: %+v", detalle.Plantilla.Estilo)
 	}
 }
 
@@ -435,21 +447,60 @@ func TestPlantillaEstilo_UpsertYActualizacionParcial(t *testing.T) {
 	rec := llamarPlantilla(t, http.MethodPatch, "/api/plantillas/{id}/estilo", ruta, e.estilo.Actualizar, map[string]any{
 		"tema": "CORPORATIVO", "formato_pagina": "A4", "margenes": "COMPACTO",
 		"diseno_portada": "MINIMALISTA", "estilo_tablas": "SUAVE",
+		"color_primario": "#0b2f63", "color_secundario": "#1F6FFF", "color_acento": "#20B8CD",
+		"color_texto": "#172B4D", "color_fondo": "#FFFFFF", "fuente_titulos": "Georgia",
+		"fuente_texto": "Arial", "logo_url": "https://example.com/marca.svg", "logo_tamano": "pequeno",
+		"mostrar_logo": true, "mostrar_organizacion": true, "nombre_organizacion_visible": "Exceltec CR",
+		"texto_encabezado": "Propuesta", "texto_pie": "Confidencial", "numerar_paginas": true,
+		"marca_confidencial": true,
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("crear estilo: %d: %s", rec.Code, rec.Body.String())
 	}
-	rec = llamarPlantilla(t, http.MethodPatch, "/api/plantillas/{id}/estilo", ruta, e.estilo.Actualizar, map[string]any{"margenes": "AMPLIO"})
+	rec = llamarPlantilla(t, http.MethodPatch, "/api/plantillas/{id}/estilo", ruta, e.estilo.Actualizar, map[string]any{
+		"margenes": "AMPLIO", "texto_encabezado": "Propuesta actualizada",
+	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("actualizar estilo parcial: %d: %s", rec.Code, rec.Body.String())
 	}
 	var tema, formato, margenes, portada, tablas string
+	var primario, fuenteTitulos, logoURL, logoTamano, encabezado string
+	var mostrarLogo, mostrarOrganizacion, numerar, confidencial bool
 	if err := e.pool.QueryRow(context.Background(), `
-		SELECT tema,formato_pagina,margenes,diseno_portada,estilo_tablas
-		FROM plantilla_estilos WHERE plantilla_id::text=$1`, plantillaID).Scan(&tema, &formato, &margenes, &portada, &tablas); err != nil {
+		SELECT tema,formato_pagina,margenes,diseno_portada,estilo_tablas,
+		       color_primario,fuente_titulos,logo_url,logo_tamano,mostrar_logo,
+		       mostrar_organizacion,texto_encabezado,numerar_paginas,marca_confidencial
+		FROM plantilla_estilos WHERE plantilla_id::text=$1`, plantillaID).Scan(
+		&tema, &formato, &margenes, &portada, &tablas, &primario, &fuenteTitulos,
+		&logoURL, &logoTamano, &mostrarLogo, &mostrarOrganizacion, &encabezado, &numerar, &confidencial); err != nil {
 		t.Fatal(err)
 	}
 	if tema != "CORPORATIVO" || formato != "A4" || margenes != "AMPLIO" || portada != "MINIMALISTA" || tablas != "SUAVE" {
 		t.Fatalf("estilo inesperado: %s %s %s %s %s", tema, formato, margenes, portada, tablas)
+	}
+	if primario != "#0B2F63" || fuenteTitulos != "Georgia" || logoURL != "https://example.com/marca.svg" ||
+		logoTamano != "PEQUENO" || !mostrarLogo || !mostrarOrganizacion || encabezado != "Propuesta actualizada" ||
+		!numerar || !confidencial {
+		t.Fatalf("identidad visual inesperada: %s %s %s %s %t %t %s %t %t",
+			primario, fuenteTitulos, logoURL, logoTamano, mostrarLogo, mostrarOrganizacion, encabezado, numerar, confidencial)
+	}
+}
+
+func TestPlantillaEstilo_ValidaColoresLogoYTamano(t *testing.T) {
+	e := nuevoEntornoPlantillas(t)
+	plantillaID := crearPlantillaPrueba(t, e, "Plantilla validaciones de estilo", nil)
+	ruta := "/api/plantillas/" + plantillaID + "/estilo"
+
+	casos := []map[string]any{
+		{"color_primario": "azul"},
+		{"logo_url": "http://example.com/logo.png"},
+		{"logo_url": "https:///sin-host.png"},
+		{"logo_tamano": "ENORME"},
+	}
+	for _, body := range casos {
+		rec := llamarPlantilla(t, http.MethodPatch, "/api/plantillas/{id}/estilo", ruta, e.estilo.Actualizar, body)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("se esperaba 400 para %+v, dio %d: %s", body, rec.Code, rec.Body.String())
+		}
 	}
 }

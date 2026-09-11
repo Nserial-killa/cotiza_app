@@ -463,6 +463,25 @@ func TestIntegridadPlantillaEstilos_CheckDeLasCuatroOpciones(t *testing.T) {
 	}
 }
 
+func TestIntegridadPlantillaEstilos_CheckDeIdentidadVisual(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+
+	insertar := func(color, tamano string) error {
+		plantillaID := intgCrearPlantilla(t, pool)
+		_, err := pool.Exec(ctx, `
+			INSERT INTO plantilla_estilos (plantilla_id, color_primario, logo_tamano)
+			VALUES ($1::uuid, $2, $3)`, plantillaID, color, tamano)
+		return err
+	}
+
+	intgAfirmarAceptado(t, insertar("#0B2F63", "MEDIANO"), "un color hexadecimal y tamaño de logo válidos")
+	intgAfirmarViolacion(t, insertar("azul", "MEDIANO"), intgCodigoCheck,
+		"el CHECK de plantilla_estilos.color_primario")
+	intgAfirmarViolacion(t, insertar("#0B2F63", "ENORME"), intgCodigoCheck,
+		"el CHECK de plantilla_estilos.logo_tamano")
+}
+
 func TestIntegridadIntegracionesApi_CheckEstado(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
