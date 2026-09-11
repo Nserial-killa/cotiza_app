@@ -154,9 +154,19 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	usuario.PuedeVerPrice = puedeVerPrice
 
+	// La comparación bcrypt de arriba (costo 12, el mismo del señuelo)
+	// es trabajo de CPU que no acepta context y no se puede
+	// interrumpir. Si su tiempo se descontara del presupuesto de este
+	// login, en una máquina cargada quedaría sin margen para sellar el
+	// último acceso y crear la sesión, y una credencial VÁLIDA
+	// terminaría en "No fue posible iniciar la sesión." Por eso lo que
+	// resta de base arranca con su propio presupuesto.
+	ctxSesion, cancelSesion := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancelSesion()
+
 	// El acceso ya es válido; si el sello de último acceso falla, se
 	// registra en el log pero no se le niega la entrada al usuario.
-	if _, err := h.DB.Exec(ctx,
+	if _, err := h.DB.Exec(ctxSesion,
 		`UPDATE usuarios SET ultimo_acceso = now() WHERE usuario_id = $1`,
 		usuario.UsuarioID,
 	); err != nil {
@@ -173,7 +183,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.Exec(ctx,
+	if _, err := h.DB.Exec(ctxSesion,
 		`INSERT INTO sesiones (token, usuario_id, fecha_expiracion) VALUES ($1, $2, $3)`,
 		token, usuario.UsuarioID, time.Now().Add(duracionSesion),
 	); err != nil {

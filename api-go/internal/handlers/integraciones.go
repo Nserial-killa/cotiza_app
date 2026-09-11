@@ -109,8 +109,15 @@ func (h *IntegracionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Igual que en usuarios.go: bcrypt es trabajo de CPU que no acepta
+	// context, así que no puede descontarse del presupuesto reservado
+	// para el INSERT — si no, crear una integración válida terminaría
+	// en 500 por "context deadline exceeded" en una máquina cargada.
+	ctxEscritura, cancelEscritura := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancelEscritura()
+
 	var integracionID string
-	err = h.DB.QueryRow(ctx, `
+	err = h.DB.QueryRow(ctxEscritura, `
 		INSERT INTO integraciones_api (nombre, api_key_hash, creado_por)
 		VALUES ($1, $2, $3)
 		RETURNING integracion_id::text`,

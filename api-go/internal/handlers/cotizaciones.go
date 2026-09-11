@@ -321,6 +321,14 @@ func (h *CotizacionesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	filtroUsuarioID := strings.TrimSpace(q.Get("filtro_usuario_id"))
 	fechaDesde := strings.TrimSpace(q.Get("fecha_desde"))
 
+	// fecha_desde entra al SQL como $5::date: sin validarla acá, un
+	// valor basura lo rechaza Postgres y el error sale como 500 en vez
+	// de 400. Mismo criterio (y mismo helper) que reportes.go.
+	if err := validarFechaReporte(fechaDesde, "fecha_desde"); err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
 	rows, err := h.DB.Query(ctx, `
 		SELECT c.cotizacion_id, c.version_actual, cv.nombre_version, c.version_aceptada,
 		       c.codigo_oferta, cl.nombre_comercial, COALESCE(cl.razon_social, cl.nombre_comercial),
@@ -390,6 +398,13 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	versionSolicitada := strings.TrimSpace(r.URL.Query().Get("version"))
+	// La versión entra al SQL como $2::int; sin validarla, "?version=abc"
+	// lo rechazaba Postgres y salía como 500. versionOpcional es el mismo
+	// helper que usa el motor de ejecución (cotizador_runtime.go).
+	if _, err := versionOpcional(versionSolicitada); err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()

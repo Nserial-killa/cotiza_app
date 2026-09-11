@@ -212,12 +212,22 @@ func (h *UsuariosHandler) Crear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// bcrypt con costo 12 es trabajo de CPU de cientos de milisegundos
+	// (bastante más en una máquina cargada) y no acepta context, así que
+	// no se puede interrumpir. Si ese tiempo se descuenta del
+	// presupuesto de arriba, al INSERT puede no quedarle nada y un alta
+	// perfectamente válida termina en 500 por "context deadline
+	// exceeded". Por eso las operaciones de base que siguen al hash
+	// arrancan con su propio presupuesto.
+	ctxEscritura, cancelEscritura := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancelEscritura()
+
 	// Reintenta con un id nuevo solo si el generado choca con uno
 	// existente (extremadamente improbable con el sufijo aleatorio).
 	var usuarioID string
 	for intento := 0; intento < 3; intento++ {
 		usuarioID = generarUsuarioID(correo)
-		_, err = h.DB.Exec(ctx, `
+		_, err = h.DB.Exec(ctxEscritura, `
 			INSERT INTO usuarios (usuario_id, nombre, correo, pin_hash, rol, estado, puede_ver_gestor)
 			VALUES ($1, $2, $3, $4, $5, $6, true)`,
 			usuarioID, nombre, correo, string(pinHash), rol, estado,
@@ -374,6 +384,12 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 		pinHash = &v
 	}
 
+	// Mismo motivo que en Crear: el hash de bcrypt no se puede
+	// interrumpir y no debe descontarse del tiempo reservado para la
+	// base, o cambiar un PIN válido terminaría en 500.
+	ctxEscritura, cancelEscritura := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancelEscritura()
+
 	// UPDATE dinámico: solo se tocan las columnas cuyo puntero no es
 	// nil (mismo criterio que decidió no venir en el pedido = no
 	// tocar). Con ningún campo presente (ej. pedido vacío) no hay
@@ -400,7 +416,7 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 
 	valores = append(valores, usuarioID)
 	consulta := "UPDATE usuarios SET " + strings.Join(columnas, ", ") + " WHERE usuario_id = $" + strconv.Itoa(len(valores))
-	tag, err := h.DB.Exec(ctx, consulta, valores...)
+	tag, err := h.DB.Exec(ctxEscritura, consulta, valores...)
 	if err != nil {
 		if _, esUnica := comoViolacionUnica(err); esUnica {
 			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "Ya existe un usuario con ese correo."})
@@ -416,7 +432,7 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var actualizado usuarioAdmin
-	err = h.DB.QueryRow(ctx, `
+	err = h.DB.QueryRow(ctxEscritura, `
 		SELECT usuario_id, nombre, correo, rol, estado, ultimo_acceso
 		  FROM usuarios WHERE usuario_id = $1`, usuarioID,
 	).Scan(&actualizado.UsuarioID, &actualizado.Nombre, &actualizado.Correo, &actualizado.Rol, &actualizado.Estado, &actualizado.UltimoAcceso)
