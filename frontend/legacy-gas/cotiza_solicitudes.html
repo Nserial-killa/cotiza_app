@@ -97,23 +97,33 @@
     }).join("");
   }
 
-  function llenarCombos(){
+  function llenarCombosEstaticos(){
     const etapa = porId("solFiltroEtapa");
     const prioridadFiltro = porId("solFiltroPrioridad");
     const prioridadForm = porId("solPrioridad");
     if(etapa) etapa.innerHTML = '<option value="">Todas</option>' + ESTADOS.map(function(item){ return '<option>'+escapar(item)+'</option>'; }).join("");
     if(prioridadFiltro) prioridadFiltro.innerHTML = '<option value="">Todas</option>' + PRIORIDADES.map(function(item){ return '<option>'+escapar(item)+'</option>'; }).join("");
     if(prioridadForm) prioridadForm.innerHTML = PRIORIDADES.map(function(item){ return '<option'+(item === "Media" ? ' selected' : '')+'>'+escapar(item)+'</option>'; }).join("");
+  }
 
+  function reemplazarOpcionesConservandoValor(id, opciones){
+    const select = porId(id);
+    if(!select) return;
+    const valorSeleccionado = select.value;
+    select.innerHTML = opciones;
+    select.value = valorSeleccionado;
+  }
+
+  function llenarCombosServidor(){
     const calculadoras = opcionesSelect(estado.calculadoras, "calculadora_id", "nombre_calculadora");
     // /api/usuarios/activos ya devuelve solo usuarios Activos (y sin el
     // campo "estado"), así que no hace falta filtrar acá.
     const usuariosHTML = opcionesSelect(estado.usuarios, "usuario_id", "nombre");
-    if(porId("solCotizador")) porId("solCotizador").innerHTML = '<option value="">Seleccione</option>' + calculadoras;
-    if(porId("solFiltroResponsable")) porId("solFiltroResponsable").innerHTML = '<option value="">Todos</option>' + usuariosHTML;
-    if(porId("solVendedor")) porId("solVendedor").innerHTML = '<option value="">Seleccione</option>' + usuariosHTML;
-    if(porId("solAnalista")) porId("solAnalista").innerHTML = '<option value="">Sin asignar</option>' + usuariosHTML;
-    if(porId("solLider")) porId("solLider").innerHTML = '<option value="">Sin asignar</option>' + usuariosHTML;
+    reemplazarOpcionesConservandoValor("solCotizador", '<option value="">Seleccione</option>' + calculadoras);
+    reemplazarOpcionesConservandoValor("solFiltroResponsable", '<option value="">Todos</option>' + usuariosHTML);
+    reemplazarOpcionesConservandoValor("solVendedor", '<option value="">Seleccione</option>' + usuariosHTML);
+    reemplazarOpcionesConservandoValor("solAnalista", '<option value="">Sin asignar</option>' + usuariosHTML);
+    reemplazarOpcionesConservandoValor("solLider", '<option value="">Sin asignar</option>' + usuariosHTML);
   }
 
   async function cargarCombos(){
@@ -133,7 +143,7 @@
         pedidos.push(solicitar("/api/usuarios/activos").then(function(data){ estado.usuarios = data.usuarios || []; }));
       }
       await Promise.all(pedidos);
-      llenarCombos();
+      llenarCombosServidor();
     })();
     try{ await estado.cargandoBase; }finally{ estado.cargandoBase = null; }
   }
@@ -226,7 +236,7 @@
     const form = porId("formSolicitud");
     if(form) form.reset();
     if(porId("solSolicitudId")) porId("solSolicitudId").value = "";
-    llenarCombos();
+    llenarCombosServidor();
     if(porId("solPrioridad")) porId("solPrioridad").value = "Media";
     const usuario = (core().state || {}).usuario;
     if(usuario && porId("solVendedor")) porId("solVendedor").value = usuario.usuario_id || "";
@@ -381,6 +391,7 @@
     });
   }
 
+  llenarCombosEstaticos();
   enlazar();
   window.CotizaSolicitudes = { mostrarListado:cargarListado, abrirDetalle:abrirDetalle };
 })();
