@@ -8,11 +8,13 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cotiza/api/internal/middleware"
@@ -41,6 +43,23 @@ func (h *SolicitudesExternasHandler) Crear(w http.ResponseWriter, r *http.Reques
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible identificar la integración."})
 		return
 	}
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	defer cancel()
+	if idempotencyKey != "" {
+		var solicitudID string
+		err := h.DB.QueryRow(ctx, `SELECT solicitud_id::text FROM solicitudes WHERE idempotency_key = $1`, idempotencyKey).Scan(&solicitudID)
+		if err == nil {
+			escribirJSON(w, http.StatusCreated, map[string]any{"ok": true, "solicitud_id": solicitudID})
+			return
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			log.Printf("solicitudes externas: error consultando idempotencia: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible procesar la solicitud."})
+			return
+		}
+	}
 
 	var req crearSolicitudExternaRequest
 	if err := decodificarJSON(r, &req); err != nil {
@@ -59,9 +78,6 @@ func (h *SolicitudesExternasHandler) Crear(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
-	defer cancel()
-
 	if req.CalculadoraID != "" {
 		var existe bool
 		if err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM calculadoras WHERE calculadora_id = $1)`, req.CalculadoraID).Scan(&existe); err != nil {
@@ -79,12 +95,16 @@ func (h *SolicitudesExternasHandler) Crear(w http.ResponseWriter, r *http.Reques
 	err := h.DB.QueryRow(ctx, `
 		INSERT INTO solicitudes
 			(origen, integracion_id, cliente_nombre, contacto_nombre, contacto_correo,
-			 contacto_telefono, calculadora_id, descripcion, estado)
-		VALUES ('API_EXTERNA', $1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), 'Nueva')
+			 contacto_telefono, calculadora_id, descripcion, estado, idempotency_key)
+		VALUES ('API_EXTERNA', $1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), 'Nueva', NULLIF($8, ''))
+		ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
 		RETURNING solicitud_id::text`,
 		integracionID, req.ClienteNombre, req.ContactoNombre, req.ContactoCorreo,
-		req.ContactoTelefono, req.CalculadoraID, req.Descripcion,
+		req.ContactoTelefono, req.CalculadoraID, req.Descripcion, idempotencyKey,
 	).Scan(&solicitudID)
+	if errors.Is(err, pgx.ErrNoRows) && idempotencyKey != "" {
+		err = h.DB.QueryRow(ctx, `SELECT solicitud_id::text FROM solicitudes WHERE idempotency_key = $1`, idempotencyKey).Scan(&solicitudID)
+	}
 	if err != nil {
 		log.Printf("solicitudes externas: error creando solicitud: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear la solicitud."})

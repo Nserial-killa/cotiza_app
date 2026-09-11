@@ -566,12 +566,11 @@ func (h *PlantillasHandler) Editar(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 	var existe bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM plantillas WHERE plantilla_id::text=$1)`, id).Scan(&existe); err != nil {
-		responderErrorPlantilla(w, "validar la plantilla", err)
-		return
-	}
-	if !existe {
+	if err := tx.QueryRow(ctx, `SELECT true FROM plantillas WHERE plantilla_id::text=$1 FOR UPDATE`, id).Scan(&existe); errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Plantilla no encontrada."})
+		return
+	} else if err != nil {
+		responderErrorPlantilla(w, "validar la plantilla", err)
 		return
 	}
 	organizacionID := ""

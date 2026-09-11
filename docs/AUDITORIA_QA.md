@@ -433,3 +433,48 @@ sería un estado irrecuperable.
 - Extraer el armado del router a una función testeable, para poder verificar
   los 401 endpoint por endpoint en proceso, sin depender del análisis estático
   ni de un servidor levantado.
+
+## Tanda 2 — concurrencia e idempotencia
+
+Esta tanda agrega pruebas con goroutines, barrera de inicio y
+`sync.WaitGroup` para ejercer operaciones realmente superpuestas. Los casos
+cubiertos son: dos publicaciones del mismo cotizador, dos conversiones de la
+misma solicitud, 20 altas concurrentes de cotización y dos sesiones editando
+una plantilla o un usuario. El cierre verifica una sola versión `ACTIVA`, una
+sola cotización por solicitud, códigos de oferta únicos y estados finales que
+corresponden por completo a una de las ediciones, sin campos mezclados.
+
+La compilación y el código de oferta ya tenían serialización transaccional. Se
+cerraron dos ventanas encontradas en la auditoría:
+
+- `SolicitudesHandler.Convertir` ahora toma `FOR UPDATE` sobre la solicitud
+  dentro de la misma transacción que crea la cotización. La segunda conversión
+  espera, relee el estado `Convertida` y recibe 409.
+- `PlantillasHandler.Editar` bloquea la plantilla mientras actualiza sus datos
+  y reemplaza asociaciones. Una edición concurrente termina antes de que la
+  siguiente empiece, por lo que el resultado es last-write-wins sin mezcla.
+
+### Decisión de idempotencia para clientes externos
+
+`POST /api/externo/solicitudes` acepta la cabecera opcional
+`Idempotency-Key`. La migración es `0015_idempotency.sql` —los números 0013 y
+0014 ya estaban aplicados— y agrega una columna nullable con índice único
+parcial. El flujo usa `INSERT ... ON CONFLICT`: aun si dos solicitudes llegan
+al mismo tiempo, solo una fila se crea y ambas respuestas son HTTP 201 con el
+mismo `solicitud_id`.
+
+Un cliente debe generar una clave estable por evento lógico y conservarla en
+todos sus reintentos, por ejemplo `bitrix:deal:84721:create`. Las claves son
+globalmente únicas, por lo que conviene incluir el nombre del sistema y su ID
+de evento. La primera petición válida gana: reutilizar la clave con otro cuerpo
+devuelve la solicitud original y no modifica sus datos.
+
+```http
+POST /api/externo/solicitudes
+X-Api-Key: <clave-de-integracion>
+Idempotency-Key: bitrix:deal:84721:create
+Content-Type: application/json
+```
+
+Sin `Idempotency-Key`, cada llamada conserva el comportamiento histórico y
+crea una solicitud nueva. La idempotencia es opt-in.

@@ -415,6 +415,13 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		log.Printf("solicitudes: error iniciando conversión de %s: %v", id, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible convertir la solicitud."})
+		return
+	}
+	defer tx.Rollback(ctx)
 
 	var (
 		clienteID          *string
@@ -423,9 +430,10 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 		calculadoraID      *string
 		estadoActual       string
 	)
-	err := h.DB.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT cliente_id, cliente_nombre, cliente_razon_social, calculadora_id, estado
-		  FROM solicitudes WHERE solicitud_id::text = $1`, id,
+		  FROM solicitudes WHERE solicitud_id::text = $1
+		  FOR UPDATE`, id,
 	).Scan(&clienteID, &clienteNombre, &clienteRazonSocial, &calculadoraID, &estadoActual)
 	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Solicitud no encontrada."})
@@ -461,14 +469,6 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 	if clienteID != nil {
 		entrada.ClienteID = *clienteID
 	}
-
-	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		log.Printf("solicitudes: error iniciando conversión de %s: %v", id, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible convertir la solicitud."})
-		return
-	}
-	defer tx.Rollback(ctx)
 
 	cotizacionID, codigoOferta, ok := h.Cotizaciones.crearCotizacionEnTx(w, ctx, tx, entrada, usuarioID, "Cotización creada a partir de la solicitud "+id+".")
 	if !ok {

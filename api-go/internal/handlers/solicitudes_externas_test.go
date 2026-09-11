@@ -54,6 +54,10 @@ func montarRouterSolicitudesExternas(pool *pgxpool.Pool) *chi.Mux {
 }
 
 func postSolicitudExterna(t *testing.T, router http.Handler, clave string, body map[string]any) (*httptest.ResponseRecorder, map[string]any) {
+	return postSolicitudExternaConIdempotencia(t, router, clave, "", body)
+}
+
+func postSolicitudExternaConIdempotencia(t *testing.T, router http.Handler, clave, idempotencyKey string, body map[string]any) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
 	raw, err := json.Marshal(body)
 	if err != nil {
@@ -64,12 +68,117 @@ func postSolicitudExterna(t *testing.T, router http.Handler, clave string, body 
 	if clave != "" {
 		req.Header.Set("X-Api-Key", clave)
 	}
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	var res map[string]any
 	assertJSON(t, rec.Body.Bytes(), &res)
 	return rec, res
+}
+
+func TestSolicitudesExternas_IdempotencyKeyReutilizaLaSolicitud(t *testing.T) {
+	pool := setupTestDB(t)
+	router := montarRouterSolicitudesExternas(pool)
+	_, clave := crearIntegracionPruebaExterna(t, pool, "Activo")
+	idempotencyKey := "bitrix-reintento-" + sufijoUnico()
+	body := map[string]any{"cliente_nombre": "Cliente idempotente", "descripcion": "Mismo pedido reenviado"}
+
+	primera, respuestaPrimera := postSolicitudExternaConIdempotencia(t, router, clave, idempotencyKey, body)
+	segunda, respuestaSegunda := postSolicitudExternaConIdempotencia(t, router, clave, idempotencyKey, body)
+	if primera.Code != http.StatusCreated || segunda.Code != http.StatusCreated {
+		t.Fatalf("ambos intentos debían responder 201: primera=%d segunda=%d", primera.Code, segunda.Code)
+	}
+	idPrimera, _ := respuestaPrimera["solicitud_id"].(string)
+	idSegunda, _ := respuestaSegunda["solicitud_id"].(string)
+	if idPrimera == "" || idPrimera != idSegunda {
+		t.Fatalf("el reintento no devolvió la misma solicitud: primera=%q segunda=%q", idPrimera, idSegunda)
+	}
+	limpiarSolicitud(t, pool, idPrimera)
+
+	var cantidad int
+	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*)::int FROM solicitudes WHERE idempotency_key=$1`, idempotencyKey).Scan(&cantidad); err != nil {
+		t.Fatal(err)
+	}
+	if cantidad != 1 {
+		t.Fatalf("se crearon %d solicitudes para una sola clave", cantidad)
+	}
+}
+
+func TestSolicitudesExternas_ClavesIdempotenciaDistintasCreanDos(t *testing.T) {
+	pool := setupTestDB(t)
+	router := montarRouterSolicitudesExternas(pool)
+	_, clave := crearIntegracionPruebaExterna(t, pool, "Activo")
+	body := map[string]any{"cliente_nombre": "Cliente con dos eventos"}
+
+	_, respuestaA := postSolicitudExternaConIdempotencia(t, router, clave, "evento-a-"+sufijoUnico(), body)
+	_, respuestaB := postSolicitudExternaConIdempotencia(t, router, clave, "evento-b-"+sufijoUnico(), body)
+	idA, _ := respuestaA["solicitud_id"].(string)
+	idB, _ := respuestaB["solicitud_id"].(string)
+	if idA == "" || idB == "" || idA == idB {
+		t.Fatalf("claves distintas no crearon solicitudes distintas: a=%q b=%q", idA, idB)
+	}
+	limpiarSolicitud(t, pool, idA)
+	limpiarSolicitud(t, pool, idB)
+}
+
+func TestSolicitudesExternas_SinIdempotencyKeySiempreCrea(t *testing.T) {
+	pool := setupTestDB(t)
+	router := montarRouterSolicitudesExternas(pool)
+	_, clave := crearIntegracionPruebaExterna(t, pool, "Activo")
+	body := map[string]any{"cliente_nombre": "Cliente sin idempotencia"}
+
+	_, respuestaA := postSolicitudExterna(t, router, clave, body)
+	_, respuestaB := postSolicitudExterna(t, router, clave, body)
+	idA, _ := respuestaA["solicitud_id"].(string)
+	idB, _ := respuestaB["solicitud_id"].(string)
+	if idA == "" || idB == "" || idA == idB {
+		t.Fatalf("sin cabecera cada llamada debe crear: a=%q b=%q", idA, idB)
+	}
+	limpiarSolicitud(t, pool, idA)
+	limpiarSolicitud(t, pool, idB)
+}
+
+func TestSolicitudesExternas_IdempotencyKeyConcurrenteCreaUna(t *testing.T) {
+	pool := setupTestDB(t)
+	router := montarRouterSolicitudesExternas(pool)
+	_, clave := crearIntegracionPruebaExterna(t, pool, "Activo")
+	idempotencyKey := "bitrix-concurrente-" + sufijoUnico()
+	body, err := json.Marshal(map[string]any{"cliente_nombre": "Cliente reintento simultáneo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resultados := ejecutarEnParalelo(2, func(_ int) resultadoHTTPConcurrente {
+		req := httptest.NewRequest(http.MethodPost, "/api/externo/solicitudes", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Api-Key", clave)
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+		return ejecutarHTTPConcurrente(router, req)
+	})
+	var solicitudID string
+	for i, resultado := range resultados {
+		if resultado.Err != nil || resultado.Codigo != http.StatusCreated {
+			t.Fatalf("reintento %d falló: err=%v status=%d body=%s", i, resultado.Err, resultado.Codigo, resultado.Texto)
+		}
+		id, _ := resultado.Cuerpo["solicitud_id"].(string)
+		if solicitudID == "" {
+			solicitudID = id
+		} else if id != solicitudID {
+			t.Fatalf("los reintentos devolvieron ids distintos: %q y %q", solicitudID, id)
+		}
+	}
+	limpiarSolicitud(t, pool, solicitudID)
+
+	var cantidad int
+	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*)::int FROM solicitudes WHERE idempotency_key=$1`, idempotencyKey).Scan(&cantidad); err != nil {
+		t.Fatal(err)
+	}
+	if cantidad != 1 {
+		t.Fatalf("el índice parcial permitió %d filas para la misma clave", cantidad)
+	}
 }
 
 func limpiarSolicitud(t *testing.T, pool *pgxpool.Pool, solicitudID string) {
