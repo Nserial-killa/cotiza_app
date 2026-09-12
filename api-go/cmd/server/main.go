@@ -1,0 +1,198 @@
+// Cotiza API — punto de entrada.
+//
+// Estructura pensada para crecer por módulo (Carril A / Carril B del
+// plan de trabajo) sin pisarse: cada quien agrega sus rutas en
+// internal/handlers y las registra acá, dentro de su propio grupo
+// de rutas ("/api/catalogos", "/api/cotizaciones", etc).
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+
+	"cotiza/api/internal/config"
+	"cotiza/api/internal/db"
+	"cotiza/api/internal/handlers"
+	"cotiza/api/internal/middleware"
+)
+
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("configuración inválida: %v", err)
+	}
+
+	pool, err := db.NewPool(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("no se pudo conectar a la base de datos: %v", err)
+	}
+	defer pool.Close()
+
+	router := chi.NewRouter()
+	router.Use(chimiddleware.Logger)
+	router.Use(chimiddleware.Recoverer)
+	router.Use(chimiddleware.Timeout(30 * time.Second))
+	router.Use(cors.Handler(cors.Options{
+		// En desarrollo se permite todo origen; ajustar en producción
+		// al dominio real del frontend.
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
+
+	health := &handlers.HealthHandler{DB: pool}
+	auth := &handlers.AuthHandler{DB: pool}
+	catalogos := &handlers.CatalogosHandler{DB: pool}
+	cotizadorTabs := &handlers.CotizadorTabsHandler{DB: pool}
+	compilador := &handlers.CompiladorHandler{DB: pool}
+	usuarios := &handlers.UsuariosHandler{DB: pool}
+	reglas := &handlers.ReglasHandler{DB: pool}
+	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
+	clientes := &handlers.ClientesHandler{DB: pool}
+	dashboard := &handlers.DashboardHandler{DB: pool}
+	reportes := &handlers.ReportesHandler{DB: pool}
+	calculadoras := &handlers.CalculadorasHandler{DB: pool}
+	runtimeCotizador := &handlers.CotizadorRuntimeHandler{DB: pool}
+	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool}
+	plantillas := &handlers.PlantillasHandler{DB: pool}
+	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
+	plantillaVinculaciones := &handlers.PlantillaVinculacionesHandler{DB: pool}
+	plantillaEstilo := &handlers.PlantillaEstiloHandler{DB: pool}
+	integraciones := &handlers.IntegracionesHandler{DB: pool}
+	solicitudes := &handlers.SolicitudesHandler{DB: pool, Cotizaciones: cotizaciones}
+	solicitudesExternas := &handlers.SolicitudesExternasHandler{DB: pool}
+
+	router.Route("/api", func(r chi.Router) {
+		// Públicas — sin sesión. Todo lo demás bajo /api exige un
+		// token válido (ver el r.Group de acá abajo).
+		r.Get("/health", health.Check)
+		r.Post("/auth/login", auth.Login)
+		r.Get("/publico/cotizacion/{token}", enlacesPublicos.VerCotizacion)
+
+		// API externo (Bitrix24 u otro): clave propia por header
+		// X-Api-Key, nunca una sesión de usuario — grupo aparte del de
+		// abajo, con su propio middleware.
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequiereApiKey(pool))
+			r.Post("/externo/solicitudes", solicitudesExternas.Crear)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequiereSesion(pool))
+
+			r.Route("/auth", func(r chi.Router) {
+				r.Delete("/logout", auth.Logout)
+			})
+
+			// --- Carril A (Configuración): catálogos, diseñador, reglas,
+			//     compilador, plantillas.
+			r.Get("/catalogos/designer", catalogos.ListarDesigner)
+			r.Post("/catalogos", catalogos.GuardarCatalogo)
+			r.Delete("/catalogos/{id}", catalogos.EliminarCatalogo)
+			r.Post("/catalogos/valores", catalogos.GuardarValor)
+			r.Delete("/catalogos/valores/{id}", catalogos.EliminarValor)
+			r.Post("/catalogos/relaciones", catalogos.GuardarRelaciones)
+			r.Delete("/catalogos/relaciones/{id}", catalogos.EliminarRelacion)
+			r.Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
+			r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
+			r.Delete("/cotizador/tabs/{id}", cotizadorTabs.EliminarTab)
+			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
+			r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
+			r.Delete("/cotizador/elementos/{id}", cotizadorTabs.EliminarElemento)
+			r.Post("/cotizador/validar", compilador.Validar)
+			r.Post("/cotizador/compilar", compilador.Compilar)
+			r.Get("/cotizador/runtime/{cotizacion_id}", runtimeCotizador.Obtener)
+			r.Post("/cotizador/runtime/{cotizacion_id}/valores", runtimeCotizador.GuardarValores)
+			r.Route("/reglas", func(r chi.Router) {
+				r.Get("/", reglas.Listar)
+				r.Post("/", reglas.Guardar)
+				r.Delete("/{id}", reglas.Eliminar)
+			})
+
+			// --- Carril A (Configuración): plantillas.
+			r.Route("/plantillas", func(r chi.Router) {
+				r.Get("/", plantillas.Listar)
+				r.Post("/", plantillas.Crear)
+				r.Get("/opciones", plantillas.Opciones)
+				r.Get("/{id}", plantillas.Detalle)
+				r.Patch("/{id}", plantillas.Editar)
+				r.Post("/{id}/publicar", plantillas.Publicar)
+				r.Delete("/{id}", plantillas.Eliminar)
+				r.Post("/{id}/secciones", plantillaEstructura.CrearSeccion)
+				r.Patch("/secciones/{seccion_id}", plantillaEstructura.EditarSeccion)
+				r.Delete("/secciones/{seccion_id}", plantillaEstructura.EliminarSeccion)
+				r.Post("/secciones/{seccion_id}/orden", plantillaEstructura.OrdenarSecciones)
+				r.Post("/secciones/{seccion_id}/bloques", plantillaEstructura.CrearBloque)
+				r.Patch("/bloques/{bloque_id}", plantillaEstructura.EditarBloque)
+				r.Delete("/bloques/{bloque_id}", plantillaEstructura.EliminarBloque)
+				r.Post("/bloques/{bloque_id}/orden", plantillaEstructura.OrdenarBloques)
+				r.Get("/{id}/fuentes", plantillaVinculaciones.Fuentes)
+				r.Post("/bloques/{bloque_id}/vinculacion", plantillaVinculaciones.Guardar)
+				r.Delete("/bloques/{bloque_id}/vinculacion", plantillaVinculaciones.Eliminar)
+				r.Patch("/{id}/estilo", plantillaEstilo.Actualizar)
+			})
+
+			// --- Carril B (Operación): cotizaciones, dashboard, reportes.
+			r.Get("/dashboard", dashboard.Obtener)
+			r.Get("/reportes/cotizaciones", reportes.Listar)
+			r.Get("/reportes/cotizaciones/exportar", reportes.Exportar)
+			r.Get("/roles", usuarios.ListarRoles)
+			r.Get("/calculadoras", calculadoras.Listar)
+			r.Post("/calculadoras", calculadoras.Crear)
+			r.Route("/clientes", func(r chi.Router) {
+				r.Get("/", cotizaciones.ListarClientes)
+				r.Get("/gestion", clientes.Listar)
+				r.Post("/", clientes.Crear)
+				r.Patch("/{id}", clientes.Editar)
+			})
+			r.Route("/usuarios", func(r chi.Router) {
+				r.Get("/", usuarios.Listar)
+				r.Get("/activos", usuarios.ListarActivos)
+				r.Post("/", usuarios.Crear)
+				r.Patch("/{id}", usuarios.Editar)
+			})
+			r.Route("/cotizaciones", func(r chi.Router) {
+				r.Get("/", cotizaciones.Listar)
+				r.Post("/", cotizaciones.Crear)
+				r.Get("/{id}", cotizaciones.Detalle)
+				r.Post("/{id}/version", cotizaciones.CrearVersion)
+				r.Post("/{id}/estado", cotizaciones.CambiarEstado)
+				r.Post("/{id}/enlace", enlacesPublicos.GenerarEnlace)
+			})
+			r.Route("/integraciones", func(r chi.Router) {
+				r.Get("/", integraciones.Listar)
+				r.Post("/", integraciones.Crear)
+				r.Patch("/{id}", integraciones.Editar)
+			})
+			r.Route("/solicitudes", func(r chi.Router) {
+				r.Get("/", solicitudes.Listar)
+				r.Post("/", solicitudes.Crear)
+				r.Get("/{id}", solicitudes.Detalle)
+				r.Patch("/{id}", solicitudes.CambiarEstado)
+				r.Post("/{id}/convertir", solicitudes.Convertir)
+			})
+		})
+	})
+
+	// El propio Go sirve el frontend estático (HTML/CSS/JS existente).
+	// Evita tener un contenedor nginx aparte para un proyecto de este
+	// tamaño; se puede separar más adelante si hace falta.
+	staticDir := http.Dir(cfg.StaticDir)
+	fileServer := http.FileServer(staticDir)
+	router.Handle("/*", fileServer)
+
+	addr := ":" + cfg.Port
+	log.Printf("Cotiza API escuchando en %s (env=%s)", addr, cfg.Env)
+	if err := http.ListenAndServe(addr, router); err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
+}

@@ -1,0 +1,1813 @@
+
+<section id="section-plantillas" class="section tpl-module">
+  <div id="tplGalleryView">
+    <div class="tpl-page-head">
+      <div>
+        <span class="tpl-eyebrow">DISEÑO DE PROPUESTAS</span>
+        <h1>Plantillas de Propuesta</h1>
+        <p>Seleccione, personalice y publique la estructura de sus propuestas comerciales.</p>
+      </div>
+      <button id="tplBtnNueva" class="btn btn-primary tpl-new-button" type="button" aria-label="Crear una nueva plantilla de propuesta"><span>＋</span> Nueva plantilla</button>
+    </div>
+
+    <div class="tpl-filter-card">
+      <div class="tpl-search-wrap">
+        <input id="tplFiltroBusqueda" class="input" type="search" placeholder="Buscar plantilla">
+        <span>⌕</span>
+      </div>
+      <div class="field">
+        <label for="tplFiltroCotizador">Cotizador</label>
+        <select id="tplFiltroCotizador" class="select"><option value="">Todos</option></select>
+      </div>
+      <div class="field">
+        <label for="tplFiltroTipo">Tipo de propuesta</label>
+        <select id="tplFiltroTipo" class="select"><option value="">Todos</option></select>
+      </div>
+      <div class="field">
+        <label for="tplFiltroEstado">Estado</label>
+        <select id="tplFiltroEstado" class="select">
+          <option value="">Todos</option>
+          <option value="Borrador">Borrador</option>
+          <option value="Publicada">Publicada</option>
+          <option value="Archivada">Archivada</option>
+        </select>
+      </div>
+      <button id="tplBtnAplicarFiltros" class="btn btn-primary tpl-filter-button" type="button">⌁ Aplicar filtros</button>
+    </div>
+
+    <div class="tpl-kpi-row">
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">▤</span><strong id="tplKpiTotal">6</strong><span>plantillas</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">✓</span><strong id="tplKpiPublicadas">4</strong><span>publicadas</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">✎</span><strong id="tplKpiBorradores">2</strong><span>borradores</span></div>
+      <div class="tpl-kpi"><span class="tpl-kpi-icon">▦</span><strong id="tplKpiEstilos">4</strong><span>estilos visuales</span></div>
+    </div>
+
+    <div class="tpl-list-head">
+      <h2>Plantillas disponibles</h2>
+      <span id="tplResultadoTexto">6 resultados</span>
+    </div>
+    <!-- Contenido inicial de respaldo; el módulo API lo sustituye al cargar plantillas reales. -->
+    <div id="tplCards" class="tpl-card-grid">
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-navy"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Básica</h3><p>Estructura simple y directa para propuestas claras y concisas.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button id="tplBtnVistaPrevia1" class="btn btn-ghost" type="button">◉ Vista previa</button><button id="tplBtnUsarBase1" class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card recommended">
+        <span class="tpl-recommended-label">RECOMENDADA</span><div class="tpl-card-preview theme-blue"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Profesional</h3><p>Estructura profesional con solución, alcance, inversión y condiciones.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button id="tplBtnVistaPrevia2" class="btn btn-ghost" type="button">◉ Vista previa</button><button id="tplBtnUsarBase2" class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-green"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Empresarial</h3><p>Estructura avanzada con contexto, beneficios, implementación e inversión detallada.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button id="tplBtnVistaPrevia3" class="btn btn-ghost" type="button">◉ Vista previa</button><button id="tplBtnUsarBase3" class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-slate"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-master">Plantilla maestra</span><span class="tpl-badge tpl-badge-published">Publicada</span></div><h3>Plantilla Completa</h3><p>Estructura integral para propuestas complejas con todos los elementos comerciales.</p><ul><li>Todos los cotizadores</li><li>Uso general</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button id="tplBtnVistaPrevia4" class="btn btn-ghost" type="button">◉ Vista previa</button><button id="tplBtnUsarBase4" class="btn btn-primary" type="button">Usar como base</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-blue"><span>PROPUESTA COMERCIAL</span><h4>Cotización Proyectos de Automatización</h4><div class="tpl-preview-lines"><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-draft">Borrador</span></div><h3>Plantilla de Cotización Proyectos de Automatización</h3><p>Estructura integral para propuestas complejas con todos los elementos comerciales.</p><ul><li>Automatización</li><li>Proyecto nuevo SeSuite, Consultoría por Proyecto, Consultoría por Outsourcing</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button id="tplBtnVistaPrevia5" class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Editar borrador</button></div>
+      </article>
+      <article class="tpl-template-card">
+        <div class="tpl-card-preview theme-blue"><span>PROPUESTA COMERCIAL</span><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>Inversión total</b><strong>USD 24,000</strong></footer></div>
+        <div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge tpl-badge-draft">Borrador</span></div><h3>Plantilla de Prueba</h3><p>Plantilla de trabajo para validar la estructura y presentación comercial.</p><ul><li>Automatización</li><li>Consultoría por Horas</li></ul><small>Versión 1</small></div>
+        <div class="tpl-card-actions"><button id="tplBtnVistaPrevia6" class="btn btn-ghost" type="button">◉ Vista previa</button><button class="btn btn-primary" type="button">Editar borrador</button></div>
+      </article>
+    </div>
+    <div id="tplEmpty" class="tpl-empty hidden">
+      <div>▤</div>
+      <h3>No se encontraron plantillas</h3>
+      <p>Ajuste los filtros o cree una plantilla nueva.</p>
+    </div>
+  </div>
+
+  <div id="tplWizardView" class="hidden">
+    <div class="tpl-wizard-head">
+      <div>
+        <button id="tplBtnVolverGaleria" class="tpl-link-button" type="button"><span aria-hidden="true">←</span> Volver a Plantillas</button>
+        <span class="tpl-eyebrow">CONSTRUCTOR DE PROPUESTAS</span>
+        <div class="tpl-title-line">
+          <h1>Crear plantilla de propuesta</h1>
+          <span id="tplWizardEstadoBadge" class="tpl-badge tpl-badge-draft">Borrador</span>
+        </div>
+        <p id="tplWizardDescripcionCabecera">Defina la información general y las asociaciones de la plantilla.</p>
+      </div>
+      <div class="tpl-wizard-head-actions">
+        <button id="tplBtnVistaPreviaWizard" class="btn btn-ghost hidden" type="button">◉ Vista previa</button>
+        <div id="tplWizardNombreCabecera" class="tpl-current-name">Nueva plantilla</div>
+      </div>
+    </div>
+
+    <div class="tpl-stepper">
+      <button class="tpl-step active" data-tpl-step="1" type="button"><span>1</span>Datos básicos</button>
+      <button class="tpl-step" data-tpl-step="2" type="button"><span>2</span>Estructura</button>
+      <button class="tpl-step" data-tpl-step="3" type="button"><span>3</span>Vincular datos</button>
+      <button class="tpl-step" data-tpl-step="4" type="button"><span>4</span>Estilo visual</button>
+      <button class="tpl-step" data-tpl-step="5" type="button"><span>5</span>Revisar y publicar</button>
+    </div>
+
+    <div id="tplStepOne" class="tpl-wizard-grid">
+      <div class="tpl-panel">
+        <h2>Información de la plantilla</h2>
+        <input id="tplPlantillaId" type="hidden">
+        <input id="tplPlantillaBaseId" type="hidden">
+        <input id="tplEstiloClave" type="hidden">
+
+        <div class="field">
+          <label for="tplNombre">Nombre de la plantilla <em>*</em></label>
+          <input id="tplNombre" class="input" maxlength="120" type="text" placeholder="Ejemplo: Proyecto nuevo SeSuite">
+        </div>
+        <div class="field">
+          <label for="tplDescripcion">Descripción</label>
+          <textarea id="tplDescripcion" class="input tpl-textarea" maxlength="500" placeholder="Describa el propósito y uso de esta plantilla"></textarea>
+          <small id="tplDescripcionContador">0 / 500</small>
+        </div>
+        <div class="tpl-form-row">
+          <div class="field">
+            <label for="tplCodigo">Código de plantilla</label>
+            <input id="tplCodigo" class="input" type="text" placeholder="Generado automáticamente" readonly>
+          </div>
+          <div class="field">
+            <label for="tplEstado">Estado</label>
+            <input id="tplEstado" class="input" type="text" value="Borrador" readonly>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Crear desde <em>*</em></label>
+          <div id="tplBaseOptions" class="tpl-base-options"></div>
+        </div>
+      </div>
+
+      <div class="tpl-panel">
+        <h2>Asociaciones</h2>
+        <div class="field">
+          <label for="tplCotizadores">Cotizadores asociados <em>*</em></label>
+          <select id="tplCotizadores" class="select tpl-multi" multiple></select>
+          <small>Use Ctrl o Cmd para seleccionar más de uno.</small>
+        </div>
+        <div class="field">
+          <label for="tplTiposPropuesta">Tipos de propuesta <em>*</em></label>
+          <select id="tplTiposPropuesta" class="select tpl-multi" multiple></select>
+          <small>Se muestran los tipos disponibles para los cotizadores seleccionados.</small>
+        </div>
+        <div class="field">
+          <label for="tplOrganizacion">Organización <em>*</em></label>
+          <select id="tplOrganizacion" class="select"></select>
+        </div>
+        <label class="tpl-switch-row">
+          <span>Disponible para nuevas propuestas</span>
+          <input id="tplDisponible" type="checkbox" checked>
+          <i></i>
+        </label>
+        <label class="tpl-switch-row">
+          <span>Permitir duplicar esta plantilla</span>
+          <input id="tplPermiteDuplicar" type="checkbox" checked>
+          <i></i>
+        </label>
+        <div class="tpl-info-box">Estas asociaciones determinan dónde podrá utilizarse la plantilla. Puede modificarlas antes de publicarla.</div>
+      </div>
+    </div>
+
+    <div id="tplStepTwo" class="hidden">
+      <div class="tpl-builder-grid">
+        <aside class="tpl-builder-panel tpl-builder-left">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Secciones</h2><span id="tplStructureSummary">0 secciones</span></div>
+            <button id="tplBtnNuevaSeccion" class="tpl-icon-button" type="button" title="Nueva sección">＋</button>
+          </div>
+          <div id="tplSectionList" class="tpl-section-list"></div>
+
+          <div class="tpl-palette-head">
+            <h2>Bloques disponibles</h2>
+            <p>Arrastre un bloque hacia una sección.</p>
+          </div>
+          <div id="tplBlockPalette" class="tpl-block-palette"></div>
+        </aside>
+
+        <div class="tpl-builder-panel tpl-builder-center">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Estructura de la propuesta</h2><span>Ordene secciones y bloques</span></div>
+            <span id="tplStructureState" class="tpl-save-state">Sin cambios</span>
+          </div>
+          <div id="tplStructureCanvas" class="tpl-structure-canvas"></div>
+          <div id="tplStructureEmpty" class="tpl-structure-empty hidden">
+            <strong>La plantilla no tiene secciones</strong>
+            <span>Agregue la primera sección para comenzar.</span>
+          </div>
+        </div>
+
+        <aside class="tpl-builder-panel tpl-builder-right">
+          <div class="tpl-builder-panel-head"><div><h2>Propiedades</h2><span id="tplPropertyType">Seleccione un elemento</span></div></div>
+          <div id="tplPropertyEmpty" class="tpl-property-empty">
+            <div>⚙</div>
+            <p>Seleccione una sección o bloque para configurar sus propiedades.</p>
+          </div>
+
+          <div id="tplPropertySection" class="hidden">
+            <div class="field">
+              <label for="tplPropSectionName">Nombre interno</label>
+              <input id="tplPropSectionName" class="input" maxlength="120" type="text">
+            </div>
+            <div class="field">
+              <label for="tplPropSectionTitle">Título visible</label>
+              <input id="tplPropSectionTitle" class="input" maxlength="160" type="text">
+            </div>
+            <label class="tpl-switch-row"><span>Mostrar título</span><input id="tplPropSectionShowTitle" type="checkbox"><i></i></label>
+            <div class="field">
+              <label for="tplPropSectionVisibility">Visibilidad</label>
+              <select id="tplPropSectionVisibility" class="select"><option value="SIEMPRE">Siempre visible</option><option value="CONDICIONAL">Condicional</option></select>
+            </div>
+            <div class="field">
+              <label for="tplPropSectionLayout">Diseño de bloques</label>
+              <select id="tplPropSectionLayout" class="select">
+                <option value="UNA">1 columna</option>
+                <option value="DOS_50_50">2 columnas iguales</option>
+                <option value="DOS_30_70">2 columnas: 30% / 70%</option>
+                <option value="DOS_70_30">2 columnas: 70% / 30%</option>
+                <option value="TRES_IGUALES">3 columnas iguales</option>
+              </select>
+              <small>En teléfonos los bloques se acomodan automáticamente en una columna.</small>
+            </div>
+            <label class="tpl-switch-row"><span>Mostrar en propuesta web</span><input id="tplPropSectionWeb" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Mostrar en PDF</span><input id="tplPropSectionPdf" type="checkbox"><i></i></label>
+            <button id="tplBtnDeleteSection" class="btn tpl-btn-danger" type="button">Eliminar sección</button>
+          </div>
+
+          <div id="tplPropertyBlock" class="hidden">
+            <div class="field">
+              <label for="tplPropBlockType">Tipo de bloque</label>
+              <input id="tplPropBlockType" class="input" type="text" readonly>
+            </div>
+            <div class="field">
+              <label for="tplPropBlockName">Nombre interno</label>
+              <input id="tplPropBlockName" class="input" maxlength="120" type="text">
+            </div>
+            <div class="field">
+              <label for="tplPropBlockTitle">Título visible</label>
+              <input id="tplPropBlockTitle" class="input" maxlength="160" type="text">
+            </div>
+            <div class="field">
+              <label for="tplPropBlockPlaceholder">Contenido o indicación</label>
+              <textarea id="tplPropBlockPlaceholder" class="input tpl-property-textarea" maxlength="1000"></textarea>
+              <small>La vinculación con datos del cotizador se realizará en el siguiente paso.</small>
+            </div>
+            <div class="field">
+              <label for="tplPropBlockColumn">Ubicación en la sección</label>
+              <select id="tplPropBlockColumn" class="select"><option value="0">Ancho completo</option></select>
+              <small>Seleccione la columna donde se mostrará este bloque.</small>
+            </div>
+            <label class="tpl-switch-row"><span>Mostrar en propuesta web</span><input id="tplPropBlockWeb" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Mostrar en PDF</span><input id="tplPropBlockPdf" type="checkbox"><i></i></label>
+            <button id="tplBtnDeleteBlock" class="btn tpl-btn-danger" type="button">Eliminar bloque</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tplStepThree" class="hidden">
+      <div class="tpl-mapping-toolbar">
+        <div>
+          <h2>Vincular datos del cotizador</h2>
+          <p>Conecte cada campo de la propuesta con una salida pública o componente del cotizador.</p>
+        </div>
+        <div class="field">
+          <label for="tplMappingCotizador">Cotizador que está configurando</label>
+          <select id="tplMappingCotizador" class="select"></select>
+        </div>
+        <span id="tplMappingState" class="tpl-save-state">Sin cambios</span>
+      </div>
+
+      <div class="tpl-mapping-grid">
+        <aside class="tpl-builder-panel tpl-mapping-left">
+          <div class="tpl-builder-panel-head"><div><h2>Bloques de la plantilla</h2><span id="tplMappingSummary">0 vinculaciones</span></div></div>
+          <div id="tplMappingBlockList" class="tpl-mapping-block-list"></div>
+        </aside>
+
+        <div class="tpl-builder-panel tpl-mapping-center">
+          <div class="tpl-builder-panel-head">
+            <div><h2 id="tplMappingBlockTitle">Seleccione un bloque</h2><span id="tplMappingBlockType">Configure sus campos de destino</span></div>
+          </div>
+          <div id="tplMappingEmpty" class="tpl-property-empty">
+            <div>⌁</div>
+            <p>Seleccione a la izquierda un bloque que requiera información del cotizador.</p>
+          </div>
+          <div id="tplMappingFields" class="tpl-mapping-fields hidden"></div>
+        </div>
+
+        <aside class="tpl-builder-panel tpl-mapping-right">
+          <div class="tpl-builder-panel-head"><div><h2>Fuentes disponibles</h2><span>Campos visibles, salidas especiales y componentes</span></div></div>
+          <div class="tpl-source-search"><input id="tplMappingSourceSearch" class="input" type="search" placeholder="Buscar campo, salida o componente"></div>
+          <div id="tplAvailableSources" class="tpl-available-sources"></div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tplStepFour" class="hidden">
+      <div class="tpl-style-toolbar">
+        <div>
+          <h2>Estilo visual de la propuesta</h2>
+          <p>Configure la identidad visual dentro de opciones seguras y consistentes para web y PDF.</p>
+        </div>
+        <span id="tplStyleState" class="tpl-save-state">Sin cambios</span>
+      </div>
+
+      <div class="tpl-style-grid">
+        <aside class="tpl-builder-panel tpl-style-left">
+          <div class="tpl-builder-panel-head"><div><h2>Temas visuales</h2><span>Seleccione un punto de partida</span></div></div>
+          <div id="tplStyleThemes" class="tpl-style-themes"></div>
+
+          <div class="tpl-style-panel-section">
+            <h3>Documento</h3>
+            <div class="field">
+              <label for="tplStylePageFormat">Formato de página</label>
+              <select id="tplStylePageFormat" class="select tpl-style-control">
+                <option value="CARTA">Carta</option><option value="A4">A4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tplStyleMargin">Márgenes</label>
+              <select id="tplStyleMargin" class="select tpl-style-control">
+                <option value="COMPACTO">Compactos</option><option value="NORMAL">Normales</option><option value="AMPLIO">Amplios</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tplStyleCover">Diseño de portada</label>
+              <select id="tplStyleCover" class="select tpl-style-control">
+                <option value="BANDA_SUPERIOR">Banda superior</option><option value="LATERAL">Panel lateral</option><option value="MINIMALISTA">Minimalista</option><option value="BLOQUE">Bloque ejecutivo</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tplStyleTable">Estilo de tablas</label>
+              <select id="tplStyleTable" class="select tpl-style-control">
+                <option value="LINEAS">Líneas</option><option value="SUAVE">Suave</option><option value="TARJETAS">Tarjetas</option>
+              </select>
+            </div>
+          </div>
+        </aside>
+
+        <div class="tpl-builder-panel tpl-style-center">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Vista previa</h2><span>Representación aproximada de la propuesta web y PDF</span></div>
+            <span id="tplStylePreviewFormat" class="tpl-style-format-badge">CARTA</span>
+          </div>
+          <div class="tpl-style-preview-stage">
+            <article id="tplStylePreviewPage" class="tpl-style-preview-page format-carta cover-banda_superior table-lineas margin-normal">
+              <header class="tpl-style-preview-cover">
+                <div class="tpl-style-preview-brand">
+                  <img id="tplStylePreviewLogo" class="hidden" alt="Logo de la organización">
+                  <strong id="tplStylePreviewOrg">Organización</strong>
+                </div>
+                <span id="tplStylePreviewHeader">PROPUESTA COMERCIAL</span>
+                <h1 id="tplStylePreviewTitle">Título de la propuesta</h1>
+                <p id="tplStylePreviewClient">Preparado para Cliente Ejemplo S.A.</p>
+              </header>
+              <div class="tpl-style-preview-content">
+                <section>
+                  <h2>Nuestra solución</h2>
+                  <p>Resumen de la solución propuesta, sus beneficios y el valor principal para el cliente.</p>
+                </section>
+                <section>
+                  <h2>Alcance del proyecto</h2>
+                  <ul><li>Entregable principal</li><li>Implementación y acompañamiento</li><li>Soporte especializado</li></ul>
+                </section>
+                <section>
+                  <h2>Inversión</h2>
+                  <div class="tpl-style-preview-table">
+                    <div class="tpl-style-preview-row head"><span>Concepto</span><span>Inversión</span></div>
+                    <div class="tpl-style-preview-row"><span>Servicios profesionales</span><span>USD 18,500</span></div>
+                    <div class="tpl-style-preview-row total"><span>Total</span><span>USD 18,500</span></div>
+                  </div>
+                </section>
+              </div>
+              <footer class="tpl-style-preview-footer">
+                <span id="tplStylePreviewFooter"></span>
+                <span id="tplStylePreviewConfidential" class="hidden">CONFIDENCIAL</span>
+                <span id="tplStylePreviewPageNumber">1</span>
+              </footer>
+            </article>
+          </div>
+        </div>
+
+        <aside class="tpl-builder-panel tpl-style-right">
+          <div class="tpl-builder-panel-head"><div><h2>Identidad y formato</h2><span>Personalice la marca sin alterar la estructura</span></div></div>
+          <div class="tpl-style-settings">
+            <h3>Colores</h3>
+            <div class="tpl-color-grid">
+              <label>Primario<input id="tplStylePrimary" class="tpl-style-control" type="color" value="#0B2F63"></label>
+              <label>Secundario<input id="tplStyleSecondary" class="tpl-style-control" type="color" value="#1F6FFF"></label>
+              <label>Acento<input id="tplStyleAccent" class="tpl-style-control" type="color" value="#20B8CD"></label>
+              <label>Texto<input id="tplStyleText" class="tpl-style-control" type="color" value="#172B4D"></label>
+              <label>Fondo<input id="tplStyleBackground" class="tpl-style-control" type="color" value="#FFFFFF"></label>
+            </div>
+
+            <h3>Tipografía</h3>
+            <div class="tpl-form-row">
+              <div class="field"><label for="tplStyleTitleFont">Títulos</label><select id="tplStyleTitleFont" class="select tpl-style-control"></select></div>
+              <div class="field"><label for="tplStyleBodyFont">Texto</label><select id="tplStyleBodyFont" class="select tpl-style-control"></select></div>
+            </div>
+
+            <h3>Marca</h3>
+            <div class="field"><label for="tplStyleLogoUrl">URL HTTPS del logotipo</label><input id="tplStyleLogoUrl" class="input tpl-style-control" type="url" placeholder="https://..."></div>
+            <div class="field"><label for="tplStyleLogoSize">Tamaño del logotipo</label><select id="tplStyleLogoSize" class="select tpl-style-control"><option value="PEQUENO">Pequeño</option><option value="MEDIANO">Mediano</option><option value="GRANDE">Grande</option></select></div>
+            <label class="tpl-switch-row"><span>Mostrar logotipo</span><input id="tplStyleShowLogo" class="tpl-style-control" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Mostrar nombre de organización</span><input id="tplStyleShowOrg" class="tpl-style-control" type="checkbox"><i></i></label>
+            <div class="field"><label for="tplStyleOrgName">Nombre visible</label><input id="tplStyleOrgName" class="input tpl-style-control" maxlength="160" type="text"></div>
+
+            <h3>Encabezado y pie</h3>
+            <div class="field"><label for="tplStyleHeaderText">Texto superior</label><input id="tplStyleHeaderText" class="input tpl-style-control" maxlength="160" type="text"></div>
+            <div class="field"><label for="tplStyleFooterText">Texto del pie</label><input id="tplStyleFooterText" class="input tpl-style-control" maxlength="240" type="text" placeholder="Ejemplo: www.empresa.com"></div>
+            <label class="tpl-switch-row"><span>Numerar páginas</span><input id="tplStylePagination" class="tpl-style-control" type="checkbox"><i></i></label>
+            <label class="tpl-switch-row"><span>Marcar como confidencial</span><input id="tplStyleConfidential" class="tpl-style-control" type="checkbox"><i></i></label>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tplStepFive" class="hidden">
+      <div class="tpl-review-toolbar">
+        <div>
+          <h2>Revisar y publicar</h2>
+          <p>Compruebe la propuesta completa con datos de ejemplo antes de bloquear y publicar esta versión.</p>
+        </div>
+        <div class="tpl-preview-channel" role="group" aria-label="Canal de vista previa">
+          <button class="active" data-preview-channel="WEB" type="button">Propuesta web</button>
+          <button data-preview-channel="PDF" type="button">PDF</button>
+        </div>
+        <span id="tplReviewState" class="tpl-save-state">Pendiente de revisión</span>
+      </div>
+
+      <div class="tpl-review-grid">
+        <div class="tpl-builder-panel tpl-review-preview-panel">
+          <div class="tpl-builder-panel-head">
+            <div><h2>Vista previa de la propuesta</h2><span id="tplReviewPreviewHint">Datos de ejemplo · Propuesta web</span></div>
+            <button id="tplBtnRefreshReview" class="tpl-icon-button tpl-review-refresh" type="button" title="Actualizar vista previa">↻</button>
+          </div>
+          <div id="tplReviewPreviewStage" class="tpl-review-preview-stage channel-web">
+            <article id="tplReviewPreviewPage" class="tpl-review-page"></article>
+          </div>
+          <div class="tpl-review-sample-note">Los nombres, montos y textos mostrados son datos de ejemplo. Al generar una propuesta serán sustituidos por los valores de la cotización.</div>
+        </div>
+
+        <aside class="tpl-review-side">
+          <div class="tpl-builder-panel tpl-review-summary-card">
+            <div class="tpl-builder-panel-head"><div><h2>Resumen</h2><span id="tplReviewVersion">Versión 1</span></div></div>
+            <div id="tplReviewSummary" class="tpl-review-summary"></div>
+          </div>
+          <div class="tpl-builder-panel tpl-review-validation-card">
+            <div class="tpl-builder-panel-head">
+              <div><h2>Validaciones</h2><span id="tplReviewValidationSummary">Sin revisar</span></div>
+            </div>
+            <div id="tplReviewValidationList" class="tpl-review-validation-list"></div>
+          </div>
+          <div id="tplReviewPublishInfo" class="tpl-review-publish-info">
+            <strong>Publicación controlada</strong>
+            <p>Al publicar, esta versión quedará bloqueada y disponible para generar propuestas nuevas.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="tpl-action-bar">
+      <button id="tplBtnCancelar" class="btn btn-ghost" type="button">Cancelar</button>
+      <button id="tplBtnGuardar" class="btn btn-ghost" type="button">▣ Guardar borrador</button>
+      <button id="tplBtnGuardarContinuar" class="btn btn-primary" type="button">Guardar y continuar a Estructura →</button>
+    </div>
+  </div>
+
+  <div id="tplPreviewModal" class="tpl-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tplPreviewTitle">
+    <div class="tpl-modal-card">
+      <div class="tpl-modal-head">
+        <div><span>VISTA PREVIA</span><h2 id="tplPreviewTitle">Plantilla</h2></div>
+        <button id="tplBtnCerrarPreview" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <div class="tpl-preview-body">
+        <div id="tplPreviewPage" class="tpl-page-preview"></div>
+        <div class="tpl-preview-info">
+          <p id="tplPreviewDescripcion"></p>
+          <dl>
+            <div><dt>Estado</dt><dd id="tplPreviewEstado"></dd></div>
+            <div><dt>Versión</dt><dd id="tplPreviewVersion"></dd></div>
+            <div><dt>Cotizadores</dt><dd id="tplPreviewCotizadores"></dd></div>
+            <div><dt>Tipos de propuesta</dt><dd id="tplPreviewTipos"></dd></div>
+          </dl>
+          <button id="tplBtnUsarPreview" class="btn btn-primary" type="button">Usar como base</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const estado = {
+    iniciado:false,
+    cargando:false,
+    plantillas:[],
+    publicadas:[],
+    calculadoras:[],
+    tiposPropuesta:[],
+    organizaciones:[],
+    detallePreview:null,
+    wizard:{
+      plantillaId:"",
+      crearDesde:"",
+      paso:1,
+      sucio:false,
+      guardando:false,
+      detalle:null,
+      estructura:nuevoEstadoEstructura(),
+      mapeo:nuevoEstadoMapeo()
+    }
+  };
+
+  function nuevoEstadoEstructura(){
+    return {secciones:[],seleccion:null,arrastre:null,timers:{}};
+  }
+  function nuevoEstadoMapeo(){
+    return {calculadoraID:"",bloqueId:"",busqueda:"",campos:[],datosCotizacion:[]};
+  }
+
+  function core(){ return window.__cotizaCore || null; }
+  function byId(id){ return document.getElementById(id); }
+  function escapar(value){
+    const c = core();
+    if(c && typeof c.escapeHtml === "function") return c.escapeHtml(value);
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+  }
+  function toast(mensaje){
+    const c = core();
+    if(c && typeof c.mostrarToast === "function") c.mostrarToast(mensaje);
+    else console.log(mensaje);
+  }
+  function setTexto(id,valor){ const nodo=byId(id); if(nodo) nodo.textContent=valor===undefined||valor===null?"":String(valor); }
+  function mostrarCargando(activo){
+    estado.cargando=!!activo;
+    const raiz=byId("section-plantillas");
+    if(raiz) raiz.classList.toggle("loading",!!activo);
+    ["tplBtnNueva","tplBtnAplicarFiltros","tplBtnGuardar","tplBtnGuardarContinuar"].forEach(function(id){
+      const boton=byId(id);if(boton) boton.disabled=!!activo;
+    });
+  }
+
+  async function solicitarJSON(url,opciones){
+    const c=core();
+    if(!c || typeof c.fetchAutenticado !== "function") throw new Error("La sesión de Cotiza todavía no está lista.");
+    const resp=await c.fetchAutenticado(url,opciones||{});
+    let data=null;
+    try{data=await resp.json();}catch(error){data=null;}
+    if(!resp.ok || !data || !data.ok) throw new Error((data&&data.error)||"No fue posible completar la solicitud.");
+    return data;
+  }
+
+  function iniciar(){
+    if(estado.iniciado) return;
+    estado.iniciado=true;
+    bind("tplBtnNueva","click",function(){ abrirWizardNuevo(""); });
+    bind("tplBtnAplicarFiltros","click",cargarGaleria);
+    bind("tplFiltroCotizador","change",cargarGaleria);
+    bind("tplFiltroTipo","change",cargarGaleria);
+    bind("tplFiltroEstado","change",cargarGaleria);
+    let timerBusqueda=null;
+    bind("tplFiltroBusqueda","input",function(){clearTimeout(timerBusqueda);timerBusqueda=setTimeout(cargarGaleria,250);});
+    bind("tplFiltroBusqueda","change",cargarGaleria);
+    bind("tplBtnVolverGaleria","click",volverGaleria);
+    bind("tplBtnCancelar","click",volverGaleria);
+    bind("tplBtnGuardar","click",guardarBorrador);
+    bind("tplBtnGuardarContinuar","click",accionPrincipalWizard);
+    bind("tplBtnCerrarPreview","click",cerrarPreview);
+    bind("tplBtnUsarPreview","click",usarPreviewComoBase);
+    bind("tplBtnVistaPreviaWizard","click",function(){
+      if(estado.wizard.plantillaId) abrirPreview(estado.wizard.plantillaId);
+    });
+    bind("tplBtnRefreshReview","click",cargarResumenRevision);
+    bind("tplBtnNuevaSeccion","click",crearSeccion);
+    bind("tplBtnDeleteSection","click",eliminarSeccionSeleccionada);
+    bind("tplBtnDeleteBlock","click",eliminarBloqueSeleccionado);
+
+    const tarjetas=byId("tplCards");
+    if(tarjetas) tarjetas.addEventListener("click",manejarAccionTarjeta);
+    const bases=byId("tplBaseOptions");
+    if(bases) bases.addEventListener("click",manejarSeleccionBase);
+    const listaSecciones=byId("tplSectionList");
+    if(listaSecciones){
+      listaSecciones.addEventListener("click",manejarSeleccionSeccion);
+      listaSecciones.addEventListener("dragstart",iniciarArrastreSeccion);
+      listaSecciones.addEventListener("dragover",permitirSoltarSeccion);
+      listaSecciones.addEventListener("drop",soltarSeccion);
+      listaSecciones.addEventListener("dragend",terminarArrastreEstructura);
+      listaSecciones.addEventListener("keydown",manejarTecladoSeccion);
+    }
+    const paletaBloques=byId("tplBlockPalette");
+    if(paletaBloques){
+      paletaBloques.addEventListener("dragstart",iniciarArrastreTipoBloque);
+      paletaBloques.addEventListener("dragend",terminarArrastreEstructura);
+      paletaBloques.addEventListener("dblclick",agregarBloqueDesdePaleta);
+      paletaBloques.addEventListener("keydown",function(evento){if(evento.key==="Enter"||evento.key===" "){evento.preventDefault();agregarBloqueDesdePaleta(evento);}});
+    }
+    const canvasEstructura=byId("tplStructureCanvas");
+    if(canvasEstructura){
+      canvasEstructura.addEventListener("click",manejarSeleccionCanvas);
+      canvasEstructura.addEventListener("dragstart",iniciarArrastreBloque);
+      canvasEstructura.addEventListener("dragover",permitirSoltarEnColumna);
+      canvasEstructura.addEventListener("dragleave",limpiarZonaSoltar);
+      canvasEstructura.addEventListener("drop",soltarEnColumna);
+      canvasEstructura.addEventListener("dragend",terminarArrastreEstructura);
+      canvasEstructura.addEventListener("keydown",manejarTecladoBloque);
+    }
+    const modal=byId("tplPreviewModal");
+    if(modal) modal.addEventListener("click",function(evento){if(evento.target===modal) cerrarPreview();});
+    document.querySelectorAll("#section-plantillas .tpl-step").forEach(function(boton){
+      boton.addEventListener("click",function(){ irAPaso(Number(boton.dataset.tplStep||1),true); });
+    });
+    document.querySelectorAll("#section-plantillas [data-preview-channel]").forEach(function(boton){
+      boton.addEventListener("click",function(){ cambiarCanalRevision(boton.dataset.previewChannel||"WEB"); });
+    });
+    ["tplNombre","tplDescripcion","tplCotizadores","tplTiposPropuesta","tplOrganizacion","tplDisponible","tplPermiteDuplicar"].forEach(function(id){
+      const campo=byId(id);
+      if(!campo) return;
+      campo.addEventListener(id==="tplNombre"||id==="tplDescripcion"?"input":"change",function(){
+        estado.wizard.sucio=true;
+        if(id==="tplDescripcion") actualizarContadorDescripcion();
+        if(id==="tplNombre") setTexto("tplWizardNombreCabecera",campo.value.trim()||"Nueva plantilla");
+      });
+    });
+    ["tplPropSectionName","tplPropSectionTitle","tplPropSectionShowTitle","tplPropSectionVisibility","tplPropSectionLayout","tplPropSectionWeb","tplPropSectionPdf"].forEach(function(id){
+      bind(id,"change",programarGuardadoSeccion);
+    });
+    ["tplPropBlockName","tplPropBlockTitle","tplPropBlockPlaceholder","tplPropBlockColumn","tplPropBlockWeb","tplPropBlockPdf"].forEach(function(id){
+      bind(id,"change",programarGuardadoBloque);
+    });
+
+    bind("tplMappingCotizador","change",function(){ cambiarCotizadorMapeo(this.value); });
+    let timerBusquedaFuente=null;
+    bind("tplMappingSourceSearch","input",function(){
+      estado.wizard.mapeo.busqueda=this.value;
+      clearTimeout(timerBusquedaFuente);
+      timerBusquedaFuente=setTimeout(renderAvailableSources,150);
+    });
+    const listaMapeo=byId("tplMappingBlockList");
+    if(listaMapeo) listaMapeo.addEventListener("click",manejarSeleccionBloqueMapeo);
+    const fuentesLista=byId("tplAvailableSources");
+    if(fuentesLista) fuentesLista.addEventListener("click",manejarClickFuente);
+
+    const temasLista=byId("tplStyleThemes");
+    if(temasLista) temasLista.addEventListener("click",manejarClickTema);
+    llenarFuentesEstilo();
+    document.querySelectorAll("#tplStepFour .tpl-style-control").forEach(function(campo){
+      const evento=(campo.matches('input[type="text"],input[type="url"],input[type="color"]'))?"input":"change";
+      campo.addEventListener(evento,programarGuardadoEstilo);
+    });
+  }
+
+  function bind(id,evento,fn){const nodo=byId(id);if(nodo)nodo.addEventListener(evento,fn);}
+
+  async function cargarOpciones(forzar){
+    if(!forzar && estado.calculadoras.length && estado.tiposPropuesta.length){
+      poblarSelectores();
+      return;
+    }
+    const resultados=await Promise.all([
+      solicitarJSON("/api/calculadoras"),
+      solicitarJSON("/api/plantillas/opciones"),
+      solicitarJSON("/api/plantillas?estado=Publicada")
+    ]);
+    estado.calculadoras=resultados[0].calculadoras||[];
+    estado.tiposPropuesta=resultados[1].tipos_propuesta||[];
+    estado.organizaciones=resultados[1].organizaciones||[];
+    estado.publicadas=resultados[2].plantillas||[];
+    poblarSelectores();
+  }
+
+  function poblarSelectores(){
+    llenarSelectSimple("tplFiltroCotizador",estado.calculadoras,"calculadora_id","nombre_calculadora","Todos");
+    llenarSelectMultiple("tplCotizadores",estado.calculadoras,"calculadora_id","nombre_calculadora");
+    llenarSelectSimpleValores("tplFiltroTipo",estado.tiposPropuesta,"Todos");
+    llenarSelectMultipleValores("tplTiposPropuesta",estado.tiposPropuesta);
+    llenarSelectSimple("tplOrganizacion",estado.organizaciones,"organizacion_id","nombre","Sin organización asignada");
+    renderBasesPublicadas();
+  }
+
+  function llenarSelectSimple(id,items,campoValor,campoTexto,etiquetaVacia){
+    const select=byId(id);if(!select)return;
+    const actual=select.value||"";
+    select.innerHTML='<option value="">'+escapar(etiquetaVacia)+'</option>'+(items||[]).map(function(item){
+      const valor=item[campoValor]||"";return '<option value="'+escapar(valor)+'">'+escapar(item[campoTexto]||valor)+'</option>';
+    }).join("");
+    select.value=actual;
+  }
+  function llenarSelectSimpleValores(id,items,etiquetaVacia){
+    const select=byId(id);if(!select)return;const actual=select.value||"";
+    select.innerHTML='<option value="">'+escapar(etiquetaVacia)+'</option>'+(items||[]).map(function(item){return '<option value="'+escapar(item)+'">'+escapar(item)+'</option>';}).join("");
+    select.value=actual;
+  }
+  function llenarSelectMultiple(id,items,campoValor,campoTexto){
+    const select=byId(id);if(!select)return;const actuales=valoresSeleccionados(select);
+    select.innerHTML=(items||[]).map(function(item){const valor=item[campoValor]||"";return '<option value="'+escapar(valor)+'">'+escapar(item[campoTexto]||valor)+'</option>';}).join("");
+    seleccionarValores(select,actuales);
+  }
+  function llenarSelectMultipleValores(id,items){
+    const select=byId(id);if(!select)return;const actuales=valoresSeleccionados(select);
+    select.innerHTML=(items||[]).map(function(item){return '<option value="'+escapar(item)+'">'+escapar(item)+'</option>';}).join("");
+    seleccionarValores(select,actuales);
+  }
+  function valoresSeleccionados(select){return Array.prototype.slice.call((select&&select.selectedOptions)||[]).map(function(opcion){return opcion.value;}).filter(Boolean);}
+  function seleccionarValores(select,valores){
+    const mapa={};(valores||[]).forEach(function(valor){mapa[String(valor)]=true;});
+    Array.prototype.forEach.call((select&&select.options)||[],function(opcion){opcion.selected=!!mapa[String(opcion.value)];});
+  }
+
+  async function cargarGaleria(){
+    const c=core();
+    if(!c || !c.state || !c.state.usuario) return;
+    mostrarCargando(true);
+    try{
+      await cargarOpciones(false);
+      const params=new URLSearchParams();
+      const filtros={
+        busqueda:byId("tplFiltroBusqueda")?byId("tplFiltroBusqueda").value.trim():"",
+        calculadora_id:byId("tplFiltroCotizador")?byId("tplFiltroCotizador").value:"",
+        tipo_propuesta:byId("tplFiltroTipo")?byId("tplFiltroTipo").value:"",
+        estado:byId("tplFiltroEstado")?byId("tplFiltroEstado").value:""
+      };
+      Object.keys(filtros).forEach(function(clave){if(filtros[clave])params.set(clave,filtros[clave]);});
+      const data=await solicitarJSON("/api/plantillas"+(params.toString()?"?"+params.toString():""));
+      estado.plantillas=data.plantillas||[];
+      renderGaleria(data);
+    }catch(error){
+      toast(error&&error.message?error.message:"No fue posible cargar las plantillas.");
+    }finally{mostrarCargando(false);}
+  }
+
+  function renderGaleria(data){
+    const contadores=data.contadores||data||{};
+    setTexto("tplKpiTotal",contadores.total||0);
+    setTexto("tplKpiPublicadas",contadores.publicadas||0);
+    setTexto("tplKpiBorradores",contadores.borradores||0);
+    setTexto("tplKpiEstilos",contadores.estilos||0);
+    const cantidad=estado.plantillas.length;
+    setTexto("tplResultadoTexto",cantidad+(cantidad===1?" resultado":" resultados"));
+    const contenedor=byId("tplCards");
+    const vacio=byId("tplEmpty");
+    if(contenedor) contenedor.classList.toggle("hidden",cantidad===0);
+    if(vacio) vacio.classList.toggle("hidden",cantidad!==0);
+    if(!contenedor)return;
+    const temas=["theme-navy","theme-blue","theme-green","theme-slate"];
+    contenedor.innerHTML=estado.plantillas.map(function(item,indice){
+      const publicada=item.estado==="Publicada";
+      const claseEstado=publicada?"tpl-badge-published":"tpl-badge-draft";
+      const accion=publicada?"base":"editar";
+      const etiqueta=publicada?"Usar como base":"Editar borrador";
+      const cotizadores=(item.cotizadores||[]).join(", ")||"Sin cotizadores asociados";
+      const tipos=(item.tipos_propuesta||[]).join(", ")||"Sin tipos asociados";
+      return '<article class="tpl-template-card">'+
+        '<div class="tpl-card-preview '+temas[indice%temas.length]+'"><span>PROPUESTA COMERCIAL</span><h4>'+escapar(item.nombre||"Plantilla")+'</h4><div class="tpl-preview-lines"><i></i><i></i><i></i></div><footer><b>'+escapar(item.codigo||"")+'</b><strong>V'+escapar(item.version||1)+'</strong></footer></div>'+
+        '<div class="tpl-card-content"><div class="tpl-card-badges"><span class="tpl-badge '+claseEstado+'">'+escapar(item.estado||"Borrador")+'</span></div><h3>'+escapar(item.nombre||"Plantilla")+'</h3><p>'+escapar(item.descripcion||"Sin descripción")+'</p><ul><li>'+escapar(cotizadores)+'</li><li>'+escapar(tipos)+'</li></ul><small>Versión '+escapar(item.version||1)+'</small></div>'+
+        '<div class="tpl-card-actions"><button class="btn btn-ghost" data-tpl-accion="preview" data-plantilla-id="'+escapar(item.plantilla_id)+'" type="button">◉ Vista previa</button><button class="btn btn-primary" data-tpl-accion="'+accion+'" data-plantilla-id="'+escapar(item.plantilla_id)+'" type="button">'+etiqueta+'</button></div>'+
+      '</article>';
+    }).join("");
+  }
+
+  function manejarAccionTarjeta(evento){
+    const boton=evento.target.closest("[data-tpl-accion]");if(!boton)return;
+    const id=boton.dataset.plantillaId||"";
+    if(boton.dataset.tplAccion==="preview") abrirPreview(id);
+    else if(boton.dataset.tplAccion==="base") abrirWizardNuevo(id);
+    else if(boton.dataset.tplAccion==="editar") abrirWizardEdicion(id);
+  }
+
+  async function obtenerDetalle(id){const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(id));return data.plantilla;}
+
+  async function abrirPreview(id){
+    if(!id)return;mostrarCargando(true);
+    try{
+      const detalle=await obtenerDetalle(id);estado.detallePreview=detalle;
+      setTexto("tplPreviewTitle",detalle.nombre||"Plantilla");
+      setTexto("tplPreviewDescripcion",detalle.descripcion||"Sin descripción");
+      setTexto("tplPreviewEstado",detalle.estado||"Borrador");
+      setTexto("tplPreviewVersion","Versión "+(detalle.version||1));
+      setTexto("tplPreviewCotizadores",nombresCotizadores(detalle.calculadora_ids));
+      setTexto("tplPreviewTipos",(detalle.tipos_propuesta||[]).join(", ")||"Sin tipos asociados");
+      renderEstructuraSimplificada(detalle,byId("tplPreviewPage"));
+      const modal=byId("tplPreviewModal");if(modal)modal.classList.remove("hidden");
+    }catch(error){toast(error&&error.message?error.message:"No fue posible cargar la vista previa.");}
+    finally{mostrarCargando(false);}
+  }
+  function cerrarPreview(){const modal=byId("tplPreviewModal");if(modal)modal.classList.add("hidden");}
+  function usarPreviewComoBase(){
+    const id=estado.detallePreview&&estado.detallePreview.plantilla_id;
+    cerrarPreview();if(id)abrirWizardNuevo(id,estado.detallePreview);
+  }
+  function renderEstructuraSimplificada(detalle,contenedor){
+    if(!contenedor)return;const secciones=(detalle&&detalle.secciones)||[];
+    if(!secciones.length){contenedor.innerHTML='<div class="tpl-structure-empty"><strong>Sin secciones configuradas</strong><span>Esta plantilla todavía no tiene una estructura para mostrar.</span></div>';return;}
+    contenedor.innerHTML=secciones.map(function(seccion){
+      const bloques=seccion.bloques||[];
+      return '<section><h3>'+escapar(seccion.titulo||seccion.nombre||"Sección")+'</h3>'+
+        (bloques.length?'<ul>'+bloques.map(function(bloque){return '<li><strong>'+escapar(bloque.titulo||bloque.nombre_interno||"Bloque")+'</strong><span>'+escapar(bloque.tipo_bloque||"BLOQUE")+'</span></li>';}).join("")+'</ul>':'<p>Sin bloques.</p>')+'</section>';
+    }).join("");
+  }
+
+  const tiposBloqueEstructura=[
+    {tipo:"TEXTO",titulo:"Texto",descripcion:"Párrafos y contenido libre",icono:"T"},
+    {tipo:"LISTA",titulo:"Lista",descripcion:"Elementos ordenados o con viñetas",icono:"≡"},
+    {tipo:"TABLA_INVERSION",titulo:"Tabla de inversión",descripcion:"Resumen económico de la propuesta",icono:"▦"},
+    {tipo:"CAMPO_VINCULADO",titulo:"Campo vinculado",descripcion:"Dato del cotizador",icono:"⌁"},
+    {tipo:"CONDICIONES",titulo:"Condiciones",descripcion:"Términos comerciales",icono:"§"},
+    {tipo:"IMAGEN",titulo:"Imagen",descripcion:"Recurso gráfico de la propuesta",icono:"▧"}
+  ];
+
+  function cargarEstructura(opciones){
+    if(!estado.wizard.plantillaId)return Promise.resolve();
+    opciones=opciones||{};
+    cambiarEstadoEstructura("Cargando...");
+    return obtenerDetalle(estado.wizard.plantillaId).then(function(detalle){
+      estado.wizard.detalle=detalle;
+      estado.wizard.estructura.secciones=detalle.secciones||[];
+      if(opciones.seleccion){estado.wizard.estructura.seleccion=opciones.seleccion;}
+      validarSeleccionEstructura();
+      renderConstructorEstructura();
+      cambiarEstadoEstructura(opciones.guardado?"Guardado":"Sin cambios");
+    }).catch(function(error){
+      cambiarEstadoEstructura("Error al cargar",true);
+      toast(error&&error.message?error.message:"No fue posible cargar la estructura.");
+    });
+  }
+
+  function renderConstructorEstructura(){
+    renderPaletaBloques();
+    renderListaSecciones();
+    renderCanvasEstructura();
+    renderPropiedadesEstructura();
+  }
+
+  function renderPaletaBloques(){
+    const paleta=byId("tplBlockPalette");if(!paleta)return;
+    paleta.innerHTML=tiposBloqueEstructura.map(function(item){
+      return '<div class="tpl-palette-block" draggable="true" tabindex="0" role="button" title="Arrastre o presione Enter para agregar" data-tipo-bloque="'+item.tipo+'">'+
+        '<span class="tpl-palette-icon">'+escapar(item.icono)+'</span><span><strong>'+escapar(item.titulo)+'</strong><small>'+escapar(item.descripcion)+'</small></span><i>⋮⋮</i></div>';
+    }).join("");
+  }
+
+  function renderListaSecciones(){
+    const lista=byId("tplSectionList");if(!lista)return;
+    const secciones=estado.wizard.estructura.secciones;
+    const seleccion=estado.wizard.estructura.seleccion;
+    lista.innerHTML=secciones.map(function(seccion,indice){
+      const activa=seleccion&&seleccion.tipo==="seccion"&&seleccion.id===seccion.seccion_id;
+      const cantidad=(seccion.bloques||[]).length;
+      return '<button class="tpl-section-item '+(activa?'selected':'')+'" type="button" draggable="true" data-seccion-id="'+escapar(seccion.seccion_id)+'">'+
+        '<span class="tpl-drag-handle">⋮⋮</span><span class="tpl-section-number">'+(indice+1)+'</span><span class="tpl-section-copy"><strong>'+escapar(seccion.nombre||"Sección")+'</strong><small>'+cantidad+(cantidad===1?' bloque':' bloques')+'</small></span></button>';
+    }).join("");
+    const cantidad=secciones.length;
+    setTexto("tplStructureSummary",cantidad+(cantidad===1?" sección":" secciones"));
+  }
+
+  function renderCanvasEstructura(){
+    const canvas=byId("tplStructureCanvas"),vacio=byId("tplStructureEmpty");if(!canvas)return;
+    const secciones=estado.wizard.estructura.secciones;
+    canvas.classList.toggle("hidden",secciones.length===0);
+    if(vacio)vacio.classList.toggle("hidden",secciones.length!==0);
+    if(!secciones.length){canvas.innerHTML="";return;}
+    const seleccion=estado.wizard.estructura.seleccion;
+    canvas.innerHTML=secciones.map(function(seccion,indice){
+      const columnas=numeroColumnas(seccion.diseno_bloques);
+      const activa=seleccion&&seleccion.tipo==="seccion"&&seleccion.id===seccion.seccion_id;
+      let columnasHTML="";
+      for(let columna=0;columna<columnas;columna++){
+        const bloques=(seccion.bloques||[]).filter(function(bloque){return columnaNormalizada(seccion,bloque.columna)===columna;});
+        columnasHTML+='<div class="tpl-structure-column" data-seccion-id="'+escapar(seccion.seccion_id)+'" data-columna="'+columna+'"><span class="tpl-column-label">'+(columnas===1?'Columna única':'Columna '+(columna+1))+'</span>'+
+          bloques.map(function(bloque){
+            const seleccionado=seleccion&&seleccion.tipo==="bloque"&&seleccion.id===bloque.bloque_id;
+            return '<article class="tpl-structure-block '+(seleccionado?'selected':'')+'" draggable="true" tabindex="0" role="button" title="Arrastre para reordenar; use Alt + flechas como alternativa" data-bloque-id="'+escapar(bloque.bloque_id)+'" data-seccion-id="'+escapar(seccion.seccion_id)+'" data-columna="'+columna+'"><span class="tpl-drag-handle">⋮⋮</span><span><strong>'+escapar(bloque.titulo||bloque.nombre_interno||etiquetaTipoBloque(bloque.tipo_bloque))+'</strong><small>'+escapar(etiquetaTipoBloque(bloque.tipo_bloque))+'</small></span></article>';
+          }).join("")+(bloques.length?'':'<em class="tpl-column-empty">Suelte un bloque aquí</em>')+'</div>';
+      }
+      return '<section class="tpl-canvas-section '+(activa?'selected':'')+'" data-seccion-id="'+escapar(seccion.seccion_id)+'"><header><span>'+(indice+1)+'</span><div><h3>'+escapar(seccion.titulo||seccion.nombre||"Sección")+'</h3><small>'+escapar(etiquetaDiseno(seccion.diseno_bloques))+'</small></div></header><div class="tpl-canvas-columns" style="grid-template-columns:'+columnasCSS(seccion.diseno_bloques)+'">'+columnasHTML+'</div></section>';
+    }).join("");
+  }
+
+  function renderPropiedadesEstructura(){
+    const seleccion=estado.wizard.estructura.seleccion;
+    const vacio=byId("tplPropertyEmpty"),panelSeccion=byId("tplPropertySection"),panelBloque=byId("tplPropertyBlock");
+    if(vacio)vacio.classList.toggle("hidden",!!seleccion);
+    if(panelSeccion)panelSeccion.classList.add("hidden");
+    if(panelBloque)panelBloque.classList.add("hidden");
+    if(!seleccion){setTexto("tplPropertyType","Seleccione un elemento");return;}
+    if(seleccion.tipo==="seccion"){
+      const seccion=buscarSeccion(seleccion.id);if(!seccion){estado.wizard.estructura.seleccion=null;renderPropiedadesEstructura();return;}
+      setTexto("tplPropertyType","Sección");if(panelSeccion)panelSeccion.classList.remove("hidden");
+      byId("tplPropSectionName").value=seccion.nombre||"";
+      byId("tplPropSectionTitle").value=seccion.titulo||"";
+      byId("tplPropSectionShowTitle").checked=seccion.mostrar_titulo!==false;
+      byId("tplPropSectionVisibility").value=seccion.visibilidad||"SIEMPRE";
+      byId("tplPropSectionLayout").value=seccion.diseno_bloques||"UNA";
+      byId("tplPropSectionWeb").checked=seccion.mostrar_web!==false;
+      byId("tplPropSectionPdf").checked=seccion.mostrar_pdf!==false;
+      return;
+    }
+    const resultado=buscarBloque(seleccion.id);if(!resultado){estado.wizard.estructura.seleccion=null;renderPropiedadesEstructura();return;}
+    setTexto("tplPropertyType","Bloque");if(panelBloque)panelBloque.classList.remove("hidden");
+    byId("tplPropBlockType").value=etiquetaTipoBloque(resultado.bloque.tipo_bloque);
+    byId("tplPropBlockName").value=resultado.bloque.nombre_interno||"";
+    byId("tplPropBlockTitle").value=resultado.bloque.titulo||"";
+    byId("tplPropBlockPlaceholder").value=resultado.bloque.contenido||"";
+    poblarColumnasBloque(resultado.seccion,resultado.bloque);
+    byId("tplPropBlockWeb").checked=resultado.bloque.mostrar_web!==false;
+    byId("tplPropBlockPdf").checked=resultado.bloque.mostrar_pdf!==false;
+  }
+
+  function poblarColumnasBloque(seccion,bloque){
+    const select=byId("tplPropBlockColumn");if(!select)return;
+    const cantidad=numeroColumnas(seccion.diseno_bloques);let html="";
+    for(let i=0;i<cantidad;i++)html+='<option value="'+i+'">'+(cantidad===1?'Columna única':'Columna '+(i+1))+'</option>';
+    select.innerHTML=html;select.value=String(columnaNormalizada(seccion,bloque.columna));
+  }
+
+  function numeroColumnas(diseno){return diseno==="TRES_IGUALES"?3:(String(diseno||"").indexOf("DOS_")===0?2:1);}
+  function columnaNormalizada(seccion,columna){return Math.max(0,Math.min(numeroColumnas(seccion.diseno_bloques)-1,Number(columna)||0));}
+  function columnasCSS(diseno){
+    if(diseno==="DOS_30_70")return "minmax(0,3fr) minmax(0,7fr)";
+    if(diseno==="DOS_70_30")return "minmax(0,7fr) minmax(0,3fr)";
+    return "repeat("+numeroColumnas(diseno)+",minmax(0,1fr))";
+  }
+  function etiquetaDiseno(diseno){
+    const etiquetas={UNA:"1 columna",DOS_50_50:"2 columnas iguales",DOS_30_70:"2 columnas · 30/70",DOS_70_30:"2 columnas · 70/30",TRES_IGUALES:"3 columnas iguales"};
+    return etiquetas[diseno]||"1 columna";
+  }
+  function etiquetaTipoBloque(tipo){const item=tiposBloqueEstructura.find(function(actual){return actual.tipo===tipo;});return item?item.titulo:(tipo||"Bloque");}
+  function buscarSeccion(id){return estado.wizard.estructura.secciones.find(function(seccion){return seccion.seccion_id===id;})||null;}
+  function buscarBloque(id){
+    for(const seccion of estado.wizard.estructura.secciones){
+      const bloque=(seccion.bloques||[]).find(function(actual){return actual.bloque_id===id;});
+      if(bloque)return {seccion:seccion,bloque:bloque};
+    }
+    return null;
+  }
+  function validarSeleccionEstructura(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion)return;
+    if(seleccion.tipo==="seccion"&&!buscarSeccion(seleccion.id))estado.wizard.estructura.seleccion=null;
+    if(seleccion.tipo==="bloque"&&!buscarBloque(seleccion.id))estado.wizard.estructura.seleccion=null;
+  }
+  function seleccionarEstructura(tipo,id){estado.wizard.estructura.seleccion={tipo:tipo,id:id};renderConstructorEstructura();}
+  function cambiarEstadoEstructura(texto,error){
+    const nodo=byId("tplStructureState");if(!nodo)return;nodo.textContent=texto;
+    nodo.classList.toggle("saving",texto==="Guardando..."||texto==="Cargando...");nodo.classList.toggle("error",!!error);
+  }
+
+  function manejarSeleccionSeccion(evento){const item=evento.target.closest("[data-seccion-id]");if(item)seleccionarEstructura("seccion",item.dataset.seccionId);}
+  function manejarSeleccionCanvas(evento){
+    const bloque=evento.target.closest("[data-bloque-id]");if(bloque){seleccionarEstructura("bloque",bloque.dataset.bloqueId);return;}
+    const seccion=evento.target.closest(".tpl-canvas-section[data-seccion-id]");if(seccion)seleccionarEstructura("seccion",seccion.dataset.seccionId);
+  }
+  function agregarBloqueDesdePaleta(evento){
+    const item=evento.target.closest("[data-tipo-bloque]");if(!item)return;
+    const seleccion=estado.wizard.estructura.seleccion;let seccion=null,columna=0;
+    if(seleccion&&seleccion.tipo==="seccion")seccion=buscarSeccion(seleccion.id);
+    if(seleccion&&seleccion.tipo==="bloque"){
+      const resultado=buscarBloque(seleccion.id);if(resultado){seccion=resultado.seccion;columna=columnaNormalizada(resultado.seccion,resultado.bloque.columna);}
+    }
+    if(!seccion){toast("Seleccione una sección antes de agregar el bloque.");return;}
+    crearBloque(item.dataset.tipoBloque,seccion.seccion_id,columna);
+  }
+
+  async function crearSeccion(){
+    if(!estado.wizard.plantillaId){toast("Guarde primero los datos básicos de la plantilla.");return;}
+    const numero=estado.wizard.estructura.secciones.length+1;
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/secciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nombre:"Sección "+numero,titulo:"Sección "+numero,mostrar_titulo:true,visibilidad:"SIEMPRE",diseno_bloques:"UNA",mostrar_web:true,mostrar_pdf:true})});
+      await cargarEstructura({seleccion:{tipo:"seccion",id:data.seccion_id},guardado:true});toast(data.mensaje||"Sección creada.");
+    }catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible crear la sección.");}
+  }
+
+  async function crearBloque(tipo,seccionID,columna){
+    const seccion=buscarSeccion(seccionID);if(!seccion)return;
+    const titulo=etiquetaTipoBloque(tipo);const nombre=String(tipo||"bloque").toLowerCase()+"_"+Date.now().toString(36);
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(seccionID)+"/bloques",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tipo_bloque:tipo,nombre_interno:nombre,titulo:titulo,columna:columna,mostrar_web:true,mostrar_pdf:true})});
+      await cargarEstructura({seleccion:{tipo:"bloque",id:data.bloque_id},guardado:true});toast(data.mensaje||"Bloque creado.");
+    }catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible crear el bloque.");}
+  }
+
+  function programarGuardadoSeccion(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="seccion")return;
+    const seccion=buscarSeccion(seleccion.id);if(!seccion)return;
+    const payload={nombre:byId("tplPropSectionName").value.trim(),titulo:byId("tplPropSectionTitle").value.trim(),mostrar_titulo:byId("tplPropSectionShowTitle").checked,visibilidad:byId("tplPropSectionVisibility").value,diseno_bloques:byId("tplPropSectionLayout").value,mostrar_web:byId("tplPropSectionWeb").checked,mostrar_pdf:byId("tplPropSectionPdf").checked};
+    programarAutoguardado("seccion:"+seccion.seccion_id,function(){guardarPropiedadesSeccion(seccion.seccion_id,payload);});
+  }
+  async function guardarPropiedadesSeccion(seccionID,payload){
+    const seleccion={tipo:"seccion",id:seccionID};const seccion=buscarSeccion(seccionID);if(!seccion)return;
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(seccion.seccion_id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const limite=numeroColumnas(payload.diseno_bloques)-1;
+      const fuera=(seccion.bloques||[]).filter(function(bloque){return Number(bloque.columna)>limite;});
+      if(fuera.length)await Promise.all(fuera.map(function(bloque){return solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloque.bloque_id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({columna:limite})});}));
+      await cargarEstructura({seleccion:seleccion,guardado:true});
+    }catch(error){await cargarEstructura({seleccion:seleccion});cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible actualizar la sección.");}
+  }
+
+  function programarGuardadoBloque(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="bloque")return;
+    const resultado=buscarBloque(seleccion.id);if(!resultado)return;
+    const payload={nombre_interno:byId("tplPropBlockName").value.trim(),titulo:byId("tplPropBlockTitle").value.trim(),contenido:byId("tplPropBlockPlaceholder").value.trim(),columna:Number(byId("tplPropBlockColumn").value)||0,mostrar_web:byId("tplPropBlockWeb").checked,mostrar_pdf:byId("tplPropBlockPdf").checked};
+    programarAutoguardado("bloque:"+resultado.bloque.bloque_id,function(){guardarPropiedadesBloque(resultado.bloque.bloque_id,payload);});
+  }
+  async function guardarPropiedadesBloque(bloqueID,payload){
+    const seleccion={tipo:"bloque",id:bloqueID};const resultado=buscarBloque(bloqueID);if(!resultado)return;
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(resultado.bloque.bloque_id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      await cargarEstructura({seleccion:seleccion,guardado:true});
+    }catch(error){await cargarEstructura({seleccion:seleccion});cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible actualizar el bloque.");}
+  }
+  function programarAutoguardado(clave,accion){
+    const timers=estado.wizard.estructura.timers;clearTimeout(timers[clave]);
+    timers[clave]=setTimeout(function(){delete timers[clave];accion();},250);
+  }
+  function cancelarAutoguardado(clave){
+    const timers=estado.wizard.estructura.timers;clearTimeout(timers[clave]);delete timers[clave];
+  }
+
+  async function eliminarSeccionSeleccionada(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="seccion")return;
+    const seccion=buscarSeccion(seleccion.id);if(!seccion||!window.confirm('¿Eliminar la sección "'+seccion.nombre+'" y todos sus bloques?'))return;
+    cancelarAutoguardado("seccion:"+seccion.seccion_id);cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(seccion.seccion_id),{method:"DELETE"});estado.wizard.estructura.seleccion=null;await cargarEstructura({guardado:true});toast(data.mensaje||"Sección eliminada.");}
+    catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible eliminar la sección.");}
+  }
+
+  async function eliminarBloqueSeleccionado(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="bloque")return;
+    const resultado=buscarBloque(seleccion.id);if(!resultado||!window.confirm('¿Eliminar el bloque "'+(resultado.bloque.titulo||resultado.bloque.nombre_interno)+'"?'))return;
+    cancelarAutoguardado("bloque:"+resultado.bloque.bloque_id);cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(resultado.bloque.bloque_id),{method:"DELETE"});await cargarEstructura({seleccion:{tipo:"seccion",id:resultado.seccion.seccion_id},guardado:true});toast(data.mensaje||"Bloque eliminado.");}
+    catch(error){cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible eliminar el bloque.");}
+  }
+
+  function iniciarArrastreSeccion(evento){
+    const item=evento.target.closest("[data-seccion-id]");if(!item)return;
+    prepararArrastre(evento,{tipo:"seccion",id:item.dataset.seccionId});item.classList.add("dragging");
+  }
+  function iniciarArrastreTipoBloque(evento){
+    const item=evento.target.closest("[data-tipo-bloque]");if(!item)return;
+    prepararArrastre(evento,{tipo:"paleta",tipoBloque:item.dataset.tipoBloque});item.classList.add("dragging");
+  }
+  function iniciarArrastreBloque(evento){
+    const item=evento.target.closest("[data-bloque-id]");if(!item)return;
+    prepararArrastre(evento,{tipo:"bloque",id:item.dataset.bloqueId,seccionID:item.dataset.seccionId,columna:Number(item.dataset.columna)});item.classList.add("dragging");
+  }
+  function prepararArrastre(evento,datos){
+    estado.wizard.estructura.arrastre=datos;
+    if(evento.dataTransfer){evento.dataTransfer.effectAllowed="move";evento.dataTransfer.setData("text/plain",JSON.stringify(datos));}
+  }
+  function permitirSoltarSeccion(evento){
+    const arrastre=estado.wizard.estructura.arrastre;if(!arrastre||arrastre.tipo!=="seccion")return;
+    evento.preventDefault();limpiarIndicadoresSoltar();
+    const item=evento.target.closest("[data-seccion-id]");
+    if(item&&item.dataset.seccionId!==arrastre.id){const despues=evento.clientY>item.getBoundingClientRect().top+item.getBoundingClientRect().height/2;item.classList.add(despues?"drop-after":"drop-before");}
+    else if(!item&&byId("tplSectionList"))byId("tplSectionList").classList.add("drop-end");
+  }
+  function soltarSeccion(evento){
+    const arrastre=estado.wizard.estructura.arrastre;if(!arrastre||arrastre.tipo!=="seccion")return;
+    evento.preventDefault();const item=evento.target.closest("[data-seccion-id]");const destino=item&&item.dataset.seccionId;
+    const despues=!!(item&&item.classList.contains("drop-after"));limpiarIndicadoresSoltar();if(destino===arrastre.id)return;
+    const ids=estado.wizard.estructura.secciones.map(function(seccion){return seccion.seccion_id;});
+    const origen=ids.indexOf(arrastre.id);if(origen<0)return;ids.splice(origen,1);
+    let posicion=destino?ids.indexOf(destino):ids.length;if(posicion<0)posicion=ids.length;if(despues)posicion++;
+    ids.splice(posicion,0,arrastre.id);guardarOrdenSecciones(arrastre.id,ids);
+  }
+  function manejarTecladoSeccion(evento){
+    if(!evento.altKey||(evento.key!=="ArrowUp"&&evento.key!=="ArrowDown"))return;
+    const item=evento.target.closest("[data-seccion-id]");if(!item)return;evento.preventDefault();
+    const ids=estado.wizard.estructura.secciones.map(function(seccion){return seccion.seccion_id;});const indice=ids.indexOf(item.dataset.seccionId);const destino=indice+(evento.key==="ArrowUp"?-1:1);
+    if(indice<0||destino<0||destino>=ids.length)return;const temporal=ids[indice];ids[indice]=ids[destino];ids[destino]=temporal;guardarOrdenSecciones(item.dataset.seccionId,ids);
+  }
+  async function guardarOrdenSecciones(anclaID,ids){
+    cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/secciones/"+encodeURIComponent(anclaID)+"/orden",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({seccion_ids:ids})});await cargarEstructura({seleccion:{tipo:"seccion",id:anclaID},guardado:true});if(data.mensaje)toast(data.mensaje);}
+    catch(error){await cargarEstructura();cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible reordenar las secciones.");}
+  }
+
+  function permitirSoltarEnColumna(evento){
+    const arrastre=estado.wizard.estructura.arrastre;const columna=evento.target.closest(".tpl-structure-column");if(!arrastre||!columna)return;
+    if(arrastre.tipo==="bloque"&&(arrastre.seccionID!==columna.dataset.seccionId||arrastre.columna!==Number(columna.dataset.columna)))return;
+    if(arrastre.tipo!=="bloque"&&arrastre.tipo!=="paleta")return;
+    evento.preventDefault();limpiarIndicadoresSoltar();columna.classList.add("drop-target");
+    const bloque=evento.target.closest("[data-bloque-id]");if(bloque&&arrastre.tipo==="bloque"&&bloque.dataset.bloqueId!==arrastre.id){const despues=evento.clientY>bloque.getBoundingClientRect().top+bloque.getBoundingClientRect().height/2;bloque.classList.add(despues?"drop-after":"drop-before");}
+  }
+  function limpiarZonaSoltar(evento){const columna=evento.target.closest(".tpl-structure-column");if(columna&&evento.relatedTarget&&columna.contains(evento.relatedTarget))return;limpiarIndicadoresSoltar();}
+  function soltarEnColumna(evento){
+    const arrastre=estado.wizard.estructura.arrastre;const columna=evento.target.closest(".tpl-structure-column");if(!arrastre||!columna)return;
+    evento.preventDefault();const seccionID=columna.dataset.seccionId,columnaNumero=Number(columna.dataset.columna);const objetivo=evento.target.closest("[data-bloque-id]");const objetivoID=objetivo&&objetivo.dataset.bloqueId;const despues=!!(objetivo&&objetivo.classList.contains("drop-after"));limpiarIndicadoresSoltar();
+    if(arrastre.tipo==="paleta"){crearBloque(arrastre.tipoBloque,seccionID,columnaNumero);return;}
+    if(arrastre.tipo==="bloque"&&arrastre.seccionID===seccionID&&arrastre.columna===columnaNumero)reordenarBloque(arrastre.id,seccionID,columnaNumero,objetivoID,despues);
+  }
+  function reordenarBloque(bloqueID,seccionID,columna,objetivoID,despues){
+    const seccion=buscarSeccion(seccionID);if(!seccion||bloqueID===objetivoID)return;
+    const cantidad=numeroColumnas(seccion.diseno_bloques),grupos=[];for(let i=0;i<cantidad;i++)grupos.push([]);
+    (seccion.bloques||[]).forEach(function(bloque){grupos[columnaNormalizada(seccion,bloque.columna)].push(bloque.bloque_id);});
+    const grupo=grupos[columna],origen=grupo.indexOf(bloqueID);if(origen<0)return;grupo.splice(origen,1);
+    let posicion=objetivoID?grupo.indexOf(objetivoID):grupo.length;if(posicion<0)posicion=grupo.length;if(despues)posicion++;
+    grupo.splice(posicion,0,bloqueID);guardarOrdenBloques(bloqueID,[].concat.apply([],grupos));
+  }
+  function manejarTecladoBloque(evento){
+    if(!evento.altKey||(evento.key!=="ArrowUp"&&evento.key!=="ArrowDown"))return;
+    const item=evento.target.closest("[data-bloque-id]");if(!item)return;evento.preventDefault();
+    const seccion=buscarSeccion(item.dataset.seccionId);if(!seccion)return;const cantidad=numeroColumnas(seccion.diseno_bloques),grupos=[];for(let i=0;i<cantidad;i++)grupos.push([]);
+    (seccion.bloques||[]).forEach(function(bloque){grupos[columnaNormalizada(seccion,bloque.columna)].push(bloque.bloque_id);});
+    const grupo=grupos[Number(item.dataset.columna)],indice=grupo.indexOf(item.dataset.bloqueId),destino=indice+(evento.key==="ArrowUp"?-1:1);
+    if(indice<0||destino<0||destino>=grupo.length)return;const temporal=grupo[indice];grupo[indice]=grupo[destino];grupo[destino]=temporal;guardarOrdenBloques(item.dataset.bloqueId,[].concat.apply([],grupos));
+  }
+  async function guardarOrdenBloques(anclaID,ids){
+    cambiarEstadoEstructura("Guardando...");
+    try{const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(anclaID)+"/orden",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bloque_ids:ids})});await cargarEstructura({seleccion:{tipo:"bloque",id:anclaID},guardado:true});if(data.mensaje)toast(data.mensaje);}
+    catch(error){await cargarEstructura();cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:"No fue posible reordenar los bloques.");}
+  }
+  function limpiarIndicadoresSoltar(){document.querySelectorAll("#section-plantillas .drop-before,#section-plantillas .drop-after,#section-plantillas .drop-target,#section-plantillas .drop-end").forEach(function(nodo){nodo.classList.remove("drop-before","drop-after","drop-target","drop-end");});}
+  function terminarArrastreEstructura(){limpiarIndicadoresSoltar();document.querySelectorAll("#section-plantillas .dragging").forEach(function(nodo){nodo.classList.remove("dragging");});estado.wizard.estructura.arrastre=null;}
+
+  // ---------- Paso 3: Vincular datos ----------
+  // El backend guarda una vinculación por (bloque_id, calculadora_id): un
+  // bloque puede apuntar a una fuente distinta según el cotizador elegido
+  // acá arriba. Por eso el detalle completo de la plantilla (que ya trae
+  // TODAS las vinculaciones de TODOS los cotizadores en cada bloque) se
+  // filtra en el cliente por el cotizador seleccionado en vez de pedirlo
+  // de nuevo al servidor cada vez que cambia el selector.
+  //
+  // Solo CAMPO_VINCULADO y TABLA_INVERSION representan un dato puntual
+  // del cotizador (según quedaron definidos en el paso 2): CAMPO_VINCULADO
+  // existe justamente para mostrar un valor, y TABLA_INVERSION puede
+  // anclarse al total de la oferta (fuente COTIZACION_BASE
+  // "total_precio"). TEXTO, LISTA, CONDICIONES e IMAGEN son contenido
+  // libre que ya se escribe directamente en el bloque (paso 2, campo
+  // "contenido") y no tienen un destino 1 a 1 en el modelo de vinculación
+  // del backend (una vinculación es exactamente una fuente por bloque).
+  const tiposBloqueVinculable=["CAMPO_VINCULADO","TABLA_INVERSION"];
+
+  function bloquesVinculables(){
+    const resultado=[];
+    ((estado.wizard.detalle&&estado.wizard.detalle.secciones)||[]).forEach(function(seccion){
+      (seccion.bloques||[]).forEach(function(bloque){
+        if(tiposBloqueVinculable.indexOf(bloque.tipo_bloque)>=0){
+          resultado.push({bloque:bloque,seccionNombre:seccion.titulo||seccion.nombre||"Sección"});
+        }
+      });
+    });
+    return resultado;
+  }
+  function vinculacionParaCotizador(bloque,calculadoraID){
+    if(!calculadoraID)return null;
+    return (bloque.vinculaciones||[]).find(function(v){return v.calculadora_id===calculadoraID;})||null;
+  }
+
+  async function cargarMapeo(){
+    if(!estado.wizard.plantillaId)return;
+    cambiarEstadoMapeo("Cargando...");
+    try{
+      const detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      estado.wizard.detalle=detalle;
+      poblarSelectorMappingCotizador(detalle);
+      const items=bloquesVinculables();
+      if(estado.wizard.mapeo.bloqueId&&!items.some(function(item){return item.bloque.bloque_id===estado.wizard.mapeo.bloqueId;})){
+        estado.wizard.mapeo.bloqueId="";
+      }
+      renderMappingBlockList();
+      renderMappingFields();
+      await cargarFuentesCalculadora();
+      cambiarEstadoMapeo("Sin cambios");
+    }catch(error){
+      cambiarEstadoMapeo("Error al cargar",true);
+      toast(error&&error.message?error.message:"No fue posible cargar la vinculación de datos.");
+    }
+  }
+  function poblarSelectorMappingCotizador(detalle){
+    const select=byId("tplMappingCotizador");if(!select)return;
+    const ids=(detalle&&detalle.calculadora_ids)||[];
+    const anterior=estado.wizard.mapeo.calculadoraID;
+    select.innerHTML=ids.map(function(id){
+      const calc=estado.calculadoras.find(function(c){return c.calculadora_id===id;});
+      return '<option value="'+escapar(id)+'">'+escapar(calc?calc.nombre_calculadora:id)+'</option>';
+    }).join("");
+    const actual=(anterior&&ids.indexOf(anterior)>=0)?anterior:(ids[0]||"");
+    estado.wizard.mapeo.calculadoraID=actual;
+    select.value=actual;
+  }
+  async function cambiarCotizadorMapeo(nuevoID){
+    estado.wizard.mapeo.calculadoraID=nuevoID;
+    renderMappingBlockList();
+    renderMappingFields();
+    await cargarFuentesCalculadora();
+  }
+  async function cargarFuentesCalculadora(){
+    const calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!calculadoraID||!estado.wizard.plantillaId){
+      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.datosCotizacion=[];renderAvailableSources();return;
+    }
+    try{
+      const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/fuentes?calculadora_id="+encodeURIComponent(calculadoraID));
+      estado.wizard.mapeo.campos=data.campos||[];
+      estado.wizard.mapeo.datosCotizacion=data.datos_cotizacion||[];
+    }catch(error){
+      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.datosCotizacion=[];
+      toast(error&&error.message?error.message:"No fue posible cargar las fuentes disponibles.");
+    }
+    renderAvailableSources();
+  }
+  function renderMappingBlockList(){
+    const lista=byId("tplMappingBlockList");if(!lista)return;
+    const items=bloquesVinculables();
+    const calculadoraID=estado.wizard.mapeo.calculadoraID;
+    const vinculados=items.filter(function(item){return !!vinculacionParaCotizador(item.bloque,calculadoraID);}).length;
+    setTexto("tplMappingSummary",vinculados+" de "+items.length+" vinculados");
+    if(!items.length){
+      lista.innerHTML='<div class="tpl-mapping-empty">Esta plantilla todavía no tiene bloques de tipo Campo vinculado o Tabla de inversión. Agréguelos en el paso 2.</div>';
+      return;
+    }
+    lista.innerHTML=items.map(function(item){
+      const vinculado=!!vinculacionParaCotizador(item.bloque,calculadoraID);
+      const activo=estado.wizard.mapeo.bloqueId===item.bloque.bloque_id;
+      return '<button class="tpl-mapping-block-item '+(activo?'selected':'')+' '+(vinculado?'linked':'unlinked')+'" type="button" data-bloque-id="'+escapar(item.bloque.bloque_id)+'">'+
+        '<span class="tpl-mapping-block-status">'+(vinculado?'✓':'○')+'</span>'+
+        '<span class="tpl-mapping-block-copy"><strong>'+escapar(item.bloque.titulo||item.bloque.nombre_interno||"Bloque")+'</strong><small>'+escapar(item.seccionNombre)+' · '+escapar(etiquetaTipoBloque(item.bloque.tipo_bloque))+'</small></span>'+
+      '</button>';
+    }).join("");
+  }
+  function manejarSeleccionBloqueMapeo(evento){
+    const item=evento.target.closest("[data-bloque-id]");if(!item)return;
+    estado.wizard.mapeo.bloqueId=item.dataset.bloqueId;
+    renderMappingBlockList();renderMappingFields();renderAvailableSources();
+  }
+  function renderMappingFields(){
+    const vacio=byId("tplMappingEmpty"),campo=byId("tplMappingFields");
+    const items=bloquesVinculables();
+    const seleccionado=items.find(function(item){return item.bloque.bloque_id===estado.wizard.mapeo.bloqueId;});
+    if(!seleccionado){
+      if(vacio)vacio.classList.remove("hidden");
+      if(campo){campo.classList.add("hidden");campo.innerHTML="";}
+      setTexto("tplMappingBlockTitle","Seleccione un bloque");
+      setTexto("tplMappingBlockType","Configure sus campos de destino");
+      return;
+    }
+    if(vacio)vacio.classList.add("hidden");
+    if(campo)campo.classList.remove("hidden");
+    setTexto("tplMappingBlockTitle",seleccionado.bloque.titulo||seleccionado.bloque.nombre_interno||"Bloque");
+    setTexto("tplMappingBlockType",etiquetaTipoBloque(seleccionado.bloque.tipo_bloque)+" · "+seleccionado.seccionNombre);
+    if(!campo)return;
+    const vinculacion=vinculacionParaCotizador(seleccionado.bloque,estado.wizard.mapeo.calculadoraID);
+    if(vinculacion){
+      const nombre=nombreFuente(vinculacion.fuente_tipo,vinculacion.fuente_id);
+      campo.innerHTML='<div class="tpl-mapping-current"><div><span>Vinculado a</span><strong>'+escapar(nombre)+'</strong><small>'+(vinculacion.fuente_tipo==="CAMPO"?"Campo del cotizador":"Dato de la cotización")+'</small></div><button id="tplBtnQuitarVinculacion" class="btn tpl-btn-danger" type="button">Quitar vinculación</button></div>';
+      const boton=byId("tplBtnQuitarVinculacion");if(boton)boton.addEventListener("click",quitarVinculacionActual);
+    }else{
+      campo.innerHTML='<div class="tpl-mapping-current tpl-mapping-current-empty"><p>Este bloque todavía no está vinculado. Elija una fuente en el panel derecho.</p></div>';
+    }
+  }
+  function nombreFuente(fuenteTipo,fuenteID){
+    const lista=fuenteTipo==="CAMPO"?estado.wizard.mapeo.campos:estado.wizard.mapeo.datosCotizacion;
+    const item=(lista||[]).find(function(f){return f.fuente_id===fuenteID;});
+    return item?item.nombre:fuenteID;
+  }
+  function normalizarBusquedaFuente(valor){
+    const c=core();
+    if(c&&typeof c.normalizarTextoBusquedaParam_==="function")return c.normalizarTextoBusquedaParam_(valor);
+    return String(valor||"").toLowerCase().trim();
+  }
+  function vinculacionSeleccionActual(){
+    const items=bloquesVinculables();
+    const seleccionado=items.find(function(item){return item.bloque.bloque_id===estado.wizard.mapeo.bloqueId;});
+    if(!seleccionado)return null;
+    return vinculacionParaCotizador(seleccionado.bloque,estado.wizard.mapeo.calculadoraID);
+  }
+  function renderAvailableSources(){
+    const contenedor=byId("tplAvailableSources");if(!contenedor)return;
+    if(!estado.wizard.mapeo.bloqueId){
+      contenedor.innerHTML='<div class="tpl-source-empty">Seleccione un bloque a la izquierda para vincular una fuente.</div>';
+      return;
+    }
+    const termino=normalizarBusquedaFuente(estado.wizard.mapeo.busqueda);
+    const filtrar=function(lista){
+      return (lista||[]).filter(function(f){
+        return !termino||normalizarBusquedaFuente(f.nombre).indexOf(termino)>=0||normalizarBusquedaFuente(f.tab_nombre||"").indexOf(termino)>=0;
+      });
+    };
+    const campos=filtrar(estado.wizard.mapeo.campos);
+    const datos=filtrar(estado.wizard.mapeo.datosCotizacion);
+    if(!campos.length&&!datos.length){
+      contenedor.innerHTML='<div class="tpl-source-empty">Ninguna fuente coincide con la búsqueda.</div>';
+      return;
+    }
+    contenedor.innerHTML=
+      (campos.length?'<div class="tpl-source-group"><h3>Campos del cotizador</h3>'+campos.map(filaFuente).join("")+'</div>':'')+
+      (datos.length?'<div class="tpl-source-group"><h3>Datos de la cotización</h3>'+datos.map(filaFuente).join("")+'</div>':'');
+  }
+  function filaFuente(fuente){
+    const actual=vinculacionSeleccionActual();
+    const activa=!!(actual&&actual.fuente_tipo===fuente.fuente_tipo&&actual.fuente_id===fuente.fuente_id);
+    return '<button class="tpl-source-item '+(activa?'selected':'')+'" type="button" data-fuente-tipo="'+escapar(fuente.fuente_tipo)+'" data-fuente-id="'+escapar(fuente.fuente_id)+'">'+
+      '<span class="tpl-source-copy"><strong>'+escapar(fuente.nombre)+'</strong>'+(fuente.tab_nombre?'<small>'+escapar(fuente.tab_nombre)+'</small>':'')+'</span>'+
+      (activa?'<span class="tpl-source-check">✓</span>':'')+
+    '</button>';
+  }
+  function manejarClickFuente(evento){
+    const item=evento.target.closest("[data-fuente-tipo]");if(!item)return;
+    if(!estado.wizard.mapeo.bloqueId){toast("Seleccione primero un bloque.");return;}
+    guardarVinculacion(item.dataset.fuenteTipo,item.dataset.fuenteId);
+  }
+  async function guardarVinculacion(fuenteTipo,fuenteID){
+    const bloqueID=estado.wizard.mapeo.bloqueId,calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!bloqueID||!calculadoraID)return;
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID)+"/vinculacion",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({calculadora_id:calculadoraID,fuente_tipo:fuenteTipo,fuente_id:fuenteID})});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingBlockList();renderMappingFields();renderAvailableSources();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Vinculación guardada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible guardar la vinculación.");
+    }
+  }
+  async function quitarVinculacionActual(){
+    const bloqueID=estado.wizard.mapeo.bloqueId,calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!bloqueID||!calculadoraID)return;
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID)+"/vinculacion?calculadora_id="+encodeURIComponent(calculadoraID),{method:"DELETE"});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingBlockList();renderMappingFields();renderAvailableSources();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Vinculación eliminada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible quitar la vinculación.");
+    }
+  }
+  function cambiarEstadoMapeo(texto,error){
+    const nodo=byId("tplMappingState");if(!nodo)return;nodo.textContent=texto;
+    nodo.classList.toggle("saving",texto==="Guardando..."||texto==="Cargando...");nodo.classList.toggle("error",!!error);
+  }
+
+  // ---------- Paso 4: Estilo visual ----------
+  const temasEstiloPredefinidos=[
+    {clave:"PROFESIONAL",nombre:"Profesional",colores:["#0B2F63","#1F6FFF","#20B8CD"]},
+    {clave:"MODERNO",nombre:"Moderno",colores:["#0F2A4A","#185FA5","#25BCD2"]},
+    {clave:"EJECUTIVO",nombre:"Ejecutivo",colores:["#1C2B3A","#3D5A80","#E0B354"]},
+    {clave:"MINIMALISTA",nombre:"Minimalista",colores:["#111827","#4B5563","#9CA3AF"]}
+  ];
+  // Los temas son solo un punto de partida visual: no hay tabla de temas
+  // en el backend, así que elegir uno solo guarda el campo "tema" (texto
+  // libre) de plantilla_estilos. Los colores de cada tarjeta son valores
+  // fijos de este archivo, no datos vinculados a ninguna otra tabla.
+  const fuentesEstiloDisponibles=["Segoe UI","Arial","Georgia","Helvetica","Trebuchet MS","Verdana"];
+
+  function llenarFuentesEstilo(){
+    ["tplStyleTitleFont","tplStyleBodyFont"].forEach(function(id){
+      const select=byId(id);if(!select)return;
+      select.innerHTML=fuentesEstiloDisponibles.map(function(fuente){
+        return '<option value="'+escapar(fuente)+'">'+escapar(fuente)+'</option>';
+      }).join("");
+    });
+  }
+
+  function temaEstiloPorClave(clave){
+    const normalizada=String(clave||"").toUpperCase();
+    return temasEstiloPredefinidos.find(function(tema){return tema.clave===normalizada;})||temasEstiloPredefinidos[0];
+  }
+
+  function asignarValorEstilo(id,valor){
+    const campo=byId(id);if(campo)campo.value=valor==null?"":valor;
+  }
+
+  function asignarCheckEstilo(id,valor){
+    const campo=byId(id);if(campo)campo.checked=!!valor;
+  }
+
+  function seleccionarFuenteEstilo(id,valor){
+    const select=byId(id);if(!select)return;
+    const fuente=valor||"Segoe UI";
+    if(!Array.from(select.options).some(function(opcion){return opcion.value===fuente;})){
+      select.add(new Option(fuente,fuente));
+    }
+    select.value=fuente;
+  }
+
+  function cargarControlesIdentidad(estilo){
+    const tema=temaEstiloPorClave(estilo.tema);
+    asignarValorEstilo("tplStylePrimary",estilo.color_primario||tema.colores[0]);
+    asignarValorEstilo("tplStyleSecondary",estilo.color_secundario||tema.colores[1]);
+    asignarValorEstilo("tplStyleAccent",estilo.color_acento||tema.colores[2]);
+    asignarValorEstilo("tplStyleText",estilo.color_texto||"#172B4D");
+    asignarValorEstilo("tplStyleBackground",estilo.color_fondo||"#FFFFFF");
+    seleccionarFuenteEstilo("tplStyleTitleFont",estilo.fuente_titulos);
+    seleccionarFuenteEstilo("tplStyleBodyFont",estilo.fuente_texto);
+    asignarValorEstilo("tplStyleLogoUrl",estilo.logo_url||"");
+    asignarValorEstilo("tplStyleLogoSize",estilo.logo_tamano||"MEDIANO");
+    asignarCheckEstilo("tplStyleShowLogo",estilo.mostrar_logo);
+    asignarCheckEstilo("tplStyleShowOrg",estilo.mostrar_organizacion);
+    asignarValorEstilo("tplStyleOrgName",estilo.nombre_organizacion_visible||"");
+    asignarValorEstilo("tplStyleHeaderText",estilo.texto_encabezado||"");
+    asignarValorEstilo("tplStyleFooterText",estilo.texto_pie||"");
+    asignarCheckEstilo("tplStylePagination",estilo.numerar_paginas);
+    asignarCheckEstilo("tplStyleConfidential",estilo.marca_confidencial);
+    aplicarIdentidadPreview();
+  }
+
+  async function cargarEstilo(){
+    if(!estado.wizard.plantillaId)return;
+    cambiarEstadoEstilo("Cargando...");
+    try{
+      const detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      estado.wizard.detalle=detalle;
+      const estilo=detalle.estilo||{tema:"PROFESIONAL",formato_pagina:"CARTA",margenes:"NORMAL",diseno_portada:"BANDA_SUPERIOR",estilo_tablas:"LINEAS"};
+      if(byId("tplStylePageFormat"))byId("tplStylePageFormat").value=estilo.formato_pagina||"CARTA";
+      if(byId("tplStyleMargin"))byId("tplStyleMargin").value=estilo.margenes||"NORMAL";
+      if(byId("tplStyleCover"))byId("tplStyleCover").value=estilo.diseno_portada||"BANDA_SUPERIOR";
+      if(byId("tplStyleTable"))byId("tplStyleTable").value=estilo.estilo_tablas||"LINEAS";
+      renderTemasEstilo(estilo.tema||"PROFESIONAL");
+      cargarControlesIdentidad(estilo);
+      aplicarClasesPreview();
+      cambiarEstadoEstilo("Sin cambios");
+    }catch(error){
+      cambiarEstadoEstilo("Error al cargar",true);
+      toast(error&&error.message?error.message:"No fue posible cargar el estilo.");
+    }
+  }
+  function renderTemasEstilo(temaActual){
+    const contenedor=byId("tplStyleThemes");if(!contenedor)return;
+    contenedor.innerHTML=temasEstiloPredefinidos.map(function(tema){
+      const activo=String(temaActual||"").toUpperCase()===tema.clave;
+      return '<button class="tpl-style-theme-card '+(activo?'selected':'')+'" type="button" data-tema="'+tema.clave+'">'+
+        '<span class="tpl-style-theme-swatch">'+tema.colores.map(function(color){return '<i style="background:'+color+'"></i>';}).join("")+'</span>'+
+        '<strong>'+escapar(tema.nombre)+'</strong>'+
+      '</button>';
+    }).join("");
+    aplicarTemaPreview(temaActual);
+  }
+  // Los temas no tienen columnas propias en plantilla_estilos (solo el
+  // texto libre "tema"): lo único que puede reflejar visualmente un tema
+  // en la vista previa son estas 3 variables CSS, que el CSS usa como
+  // color de la portada (ver cotiza_base.css, .tpl-style-preview-cover).
+  function aplicarTemaPreview(temaActual){
+    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
+    const clave=String(temaActual||"").toUpperCase();
+    const tema=temasEstiloPredefinidos.find(function(t){return t.clave===clave;})||temasEstiloPredefinidos[0];
+    pagina.style.setProperty("--tpl-preview-primary",tema.colores[0]);
+    pagina.style.setProperty("--tpl-preview-secondary",tema.colores[1]);
+    pagina.style.setProperty("--tpl-preview-accent",tema.colores[2]);
+  }
+  function manejarClickTema(evento){
+    const item=evento.target.closest("[data-tema]");if(!item)return;
+    renderTemasEstilo(item.dataset.tema);
+    guardarEstilo({tema:item.dataset.tema});
+  }
+  function programarGuardadoEstilo(){
+    aplicarClasesPreview();
+    aplicarIdentidadPreview();
+    const payload=payloadEstiloDesdeControles();
+    programarAutoguardado("estilo",function(){guardarEstilo(payload);});
+  }
+  function payloadEstiloDesdeControles(){
+    return {
+      formato_pagina:byId("tplStylePageFormat")?byId("tplStylePageFormat").value:"CARTA",
+      margenes:byId("tplStyleMargin")?byId("tplStyleMargin").value:"NORMAL",
+      diseno_portada:byId("tplStyleCover")?byId("tplStyleCover").value:"BANDA_SUPERIOR",
+      estilo_tablas:byId("tplStyleTable")?byId("tplStyleTable").value:"LINEAS",
+      color_primario:byId("tplStylePrimary")?byId("tplStylePrimary").value:"#0B2F63",
+      color_secundario:byId("tplStyleSecondary")?byId("tplStyleSecondary").value:"#1F6FFF",
+      color_acento:byId("tplStyleAccent")?byId("tplStyleAccent").value:"#20B8CD",
+      color_texto:byId("tplStyleText")?byId("tplStyleText").value:"#172B4D",
+      color_fondo:byId("tplStyleBackground")?byId("tplStyleBackground").value:"#FFFFFF",
+      fuente_titulos:byId("tplStyleTitleFont")?byId("tplStyleTitleFont").value:"Segoe UI",
+      fuente_texto:byId("tplStyleBodyFont")?byId("tplStyleBodyFont").value:"Segoe UI",
+      logo_url:byId("tplStyleLogoUrl")?byId("tplStyleLogoUrl").value.trim():"",
+      logo_tamano:byId("tplStyleLogoSize")?byId("tplStyleLogoSize").value:"MEDIANO",
+      mostrar_logo:!!(byId("tplStyleShowLogo")&&byId("tplStyleShowLogo").checked),
+      mostrar_organizacion:!!(byId("tplStyleShowOrg")&&byId("tplStyleShowOrg").checked),
+      nombre_organizacion_visible:byId("tplStyleOrgName")?byId("tplStyleOrgName").value.trim():"",
+      texto_encabezado:byId("tplStyleHeaderText")?byId("tplStyleHeaderText").value.trim():"",
+      texto_pie:byId("tplStyleFooterText")?byId("tplStyleFooterText").value.trim():"",
+      numerar_paginas:!!(byId("tplStylePagination")&&byId("tplStylePagination").checked),
+      marca_confidencial:!!(byId("tplStyleConfidential")&&byId("tplStyleConfidential").checked)
+    };
+  }
+  async function guardarEstilo(payload){
+    if(!estado.wizard.plantillaId)return;
+    cambiarEstadoEstilo("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/estilo",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      cambiarEstadoEstilo("Guardado");
+    }catch(error){
+      cambiarEstadoEstilo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible actualizar el estilo.");
+    }
+  }
+  function cambiarEstadoEstilo(texto,error){
+    const nodo=byId("tplStyleState");if(!nodo)return;nodo.textContent=texto;
+    nodo.classList.toggle("saving",texto==="Guardando..."||texto==="Cargando...");nodo.classList.toggle("error",!!error);
+  }
+  function aplicarClasesPreview(){
+    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
+    const formato=(byId("tplStylePageFormat")?byId("tplStylePageFormat").value:"CARTA").toLowerCase();
+    const margen=(byId("tplStyleMargin")?byId("tplStyleMargin").value:"NORMAL").toLowerCase();
+    const portada=(byId("tplStyleCover")?byId("tplStyleCover").value:"BANDA_SUPERIOR").toLowerCase();
+    const tabla=(byId("tplStyleTable")?byId("tplStyleTable").value:"LINEAS").toLowerCase();
+    Array.prototype.slice.call(pagina.classList).forEach(function(clase){
+      if(/^(format|margin|cover|table)-/.test(clase))pagina.classList.remove(clase);
+    });
+    pagina.classList.add("format-"+formato,"margin-"+margen,"cover-"+portada,"table-"+tabla);
+    setTexto("tplStylePreviewFormat",formato.toUpperCase());
+  }
+  function fuenteCSSPreview(valor){
+    const segura=String(valor||"Segoe UI").replace(/["']/g,"");
+    return '"'+segura+'", Arial, sans-serif';
+  }
+  function aplicarIdentidadPreview(){
+    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
+    const payload=payloadEstiloDesdeControles();
+    pagina.style.setProperty("--tpl-preview-primary",payload.color_primario);
+    pagina.style.setProperty("--tpl-preview-secondary",payload.color_secundario);
+    pagina.style.setProperty("--tpl-preview-accent",payload.color_acento);
+    pagina.style.setProperty("--tpl-preview-text",payload.color_texto);
+    pagina.style.setProperty("--tpl-preview-background",payload.color_fondo);
+    pagina.style.setProperty("--tpl-preview-title-font",fuenteCSSPreview(payload.fuente_titulos));
+    pagina.style.setProperty("--tpl-preview-body-font",fuenteCSSPreview(payload.fuente_texto));
+
+    const logo=byId("tplStylePreviewLogo");
+    const organizacion=byId("tplStylePreviewOrg");
+    const urlLogo=payload.logo_url;
+    const logoSolicitado=payload.mostrar_logo&&/^https:\/\//i.test(urlLogo);
+    if(logo){
+      logo.classList.remove("size-pequeno","size-mediano","size-grande");
+      logo.classList.add("size-"+payload.logo_tamano.toLowerCase());
+      if(logoSolicitado){
+        logo.classList.remove("hidden");
+        if(logo.getAttribute("src")!==urlLogo)logo.setAttribute("src",urlLogo);
+      }else{
+        logo.classList.add("hidden");
+        logo.removeAttribute("src");
+      }
+      logo.onerror=function(){
+        logo.classList.add("hidden");
+        if(organizacion&&payload.mostrar_organizacion)organizacion.classList.remove("hidden");
+      };
+    }
+    const mostrarOrganizacion=!logoSolicitado&&payload.mostrar_organizacion;
+    if(organizacion){
+      organizacion.textContent=payload.nombre_organizacion_visible||"Organización";
+      organizacion.classList.toggle("hidden",!mostrarOrganizacion);
+    }
+    const marca=logo&&logo.parentElement;
+    if(marca)marca.classList.toggle("hidden",!logoSolicitado&&!mostrarOrganizacion);
+
+    const encabezado=byId("tplStylePreviewHeader");
+    if(encabezado){encabezado.textContent=payload.texto_encabezado;encabezado.classList.toggle("hidden",!payload.texto_encabezado);}
+    const pie=byId("tplStylePreviewFooter");
+    if(pie){pie.textContent=payload.texto_pie;pie.classList.toggle("hidden",!payload.texto_pie);}
+    const confidencial=byId("tplStylePreviewConfidential");
+    if(confidencial)confidencial.classList.toggle("hidden",!payload.marca_confidencial);
+    const paginaNumero=byId("tplStylePreviewPageNumber");
+    if(paginaNumero)paginaNumero.classList.toggle("hidden",!payload.numerar_paginas);
+  }
+
+  async function abrirWizardNuevo(baseID,detalleConocido){
+    mostrarCargando(true);
+    try{
+      await cargarOpciones(false);
+      let base=detalleConocido||null;
+      if(baseID&&!base)base=await obtenerDetalle(baseID);
+      limpiarWizard();
+      estado.wizard.crearDesde=baseID||"";
+      if(base){
+        if(byId("tplNombre"))byId("tplNombre").value="Copia de "+(base.nombre||"plantilla");
+        if(byId("tplDescripcion"))byId("tplDescripcion").value=base.descripcion||"";
+        seleccionarValores(byId("tplCotizadores"),base.calculadora_ids||[]);
+        seleccionarValores(byId("tplTiposPropuesta"),base.tipos_propuesta||[]);
+        if(byId("tplOrganizacion"))byId("tplOrganizacion").value=base.organizacion_id||"";
+        if(byId("tplDisponible"))byId("tplDisponible").checked=base.disponible_nuevas_propuestas!==false;
+        if(byId("tplPermiteDuplicar"))byId("tplPermiteDuplicar").checked=base.permite_duplicar!==false;
+      }
+      sincronizarCamposWizard();
+      mostrarWizard();
+      await mostrarPaso(1);
+    }catch(error){toast(error&&error.message?error.message:"No fue posible preparar la nueva plantilla.");}
+    finally{mostrarCargando(false);}
+  }
+
+  async function abrirWizardEdicion(id){
+    mostrarCargando(true);
+    try{
+      const resultados=await Promise.all([cargarOpciones(false),obtenerDetalle(id)]);
+      const detalle=resultados[1];limpiarWizard();
+      estado.wizard.plantillaId=detalle.plantilla_id||id;
+      estado.wizard.detalle=detalle;
+      if(byId("tplNombre"))byId("tplNombre").value=detalle.nombre||"";
+      if(byId("tplDescripcion"))byId("tplDescripcion").value=detalle.descripcion||"";
+      if(byId("tplCodigo"))byId("tplCodigo").value=detalle.codigo||"";
+      if(byId("tplEstado"))byId("tplEstado").value=detalle.estado||"Borrador";
+      if(byId("tplDisponible"))byId("tplDisponible").checked=detalle.disponible_nuevas_propuestas!==false;
+      if(byId("tplPermiteDuplicar"))byId("tplPermiteDuplicar").checked=detalle.permite_duplicar!==false;
+      seleccionarValores(byId("tplCotizadores"),detalle.calculadora_ids||[]);
+      seleccionarValores(byId("tplTiposPropuesta"),detalle.tipos_propuesta||[]);
+      if(byId("tplOrganizacion"))byId("tplOrganizacion").value=detalle.organizacion_id||"";
+      sincronizarCamposWizard();mostrarWizard();await mostrarPaso(1);
+    }catch(error){toast(error&&error.message?error.message:"No fue posible abrir la plantilla.");}
+    finally{mostrarCargando(false);}
+  }
+
+  function limpiarWizard(){
+    Object.keys((estado.wizard.estructura&&estado.wizard.estructura.timers)||{}).forEach(function(clave){clearTimeout(estado.wizard.estructura.timers[clave]);});
+    estado.wizard={plantillaId:"",crearDesde:"",paso:1,sucio:false,guardando:false,detalle:null,estructura:nuevoEstadoEstructura(),mapeo:nuevoEstadoMapeo()};
+    if(byId("tplNombre"))byId("tplNombre").value="";
+    if(byId("tplDescripcion"))byId("tplDescripcion").value="";
+    if(byId("tplCodigo"))byId("tplCodigo").value="";
+    if(byId("tplEstado"))byId("tplEstado").value="Borrador";
+    if(byId("tplDisponible"))byId("tplDisponible").checked=true;
+    if(byId("tplPermiteDuplicar"))byId("tplPermiteDuplicar").checked=true;
+    seleccionarValores(byId("tplCotizadores"),[]);seleccionarValores(byId("tplTiposPropuesta"),[]);
+    if(byId("tplOrganizacion"))byId("tplOrganizacion").value="";
+  }
+  function sincronizarCamposWizard(){
+    if(byId("tplPlantillaId"))byId("tplPlantillaId").value=estado.wizard.plantillaId;
+    if(byId("tplPlantillaBaseId"))byId("tplPlantillaBaseId").value=estado.wizard.crearDesde;
+    setTexto("tplWizardNombreCabecera",byId("tplNombre")&&byId("tplNombre").value.trim()||"Nueva plantilla");
+    const editando=!!estado.wizard.plantillaId;
+    const titulo=document.querySelector("#tplWizardView .tpl-title-line h1");if(titulo)titulo.textContent=editando?"Editar plantilla de propuesta":"Crear plantilla de propuesta";
+    const botonPreview=byId("tplBtnVistaPreviaWizard");if(botonPreview)botonPreview.classList.toggle("hidden",!editando);
+    const badge=byId("tplWizardEstadoBadge");const estadoActual=(byId("tplEstado")&&byId("tplEstado").value)||"Borrador";
+    if(badge){badge.textContent=estadoActual;badge.classList.toggle("tpl-badge-published",estadoActual==="Publicada");badge.classList.toggle("tpl-badge-draft",estadoActual!=="Publicada");}
+    actualizarContadorDescripcion();renderBasesPublicadas();estado.wizard.sucio=false;
+  }
+  function mostrarWizard(){
+    const galeria=byId("tplGalleryView"),wizard=byId("tplWizardView");
+    if(galeria)galeria.classList.add("hidden");if(wizard)wizard.classList.remove("hidden");
+  }
+  async function volverGaleria(){
+    cerrarPreview();const galeria=byId("tplGalleryView"),wizard=byId("tplWizardView");
+    if(wizard)wizard.classList.add("hidden");if(galeria)galeria.classList.remove("hidden");
+    await cargarGaleria();
+  }
+  function actualizarContadorDescripcion(){const largo=byId("tplDescripcion")?byId("tplDescripcion").value.length:0;setTexto("tplDescripcionContador",largo+" / 500");}
+
+  function renderBasesPublicadas(){
+    const contenedor=byId("tplBaseOptions");if(!contenedor)return;
+    const seleccion=estado.wizard.crearDesde||"";const editando=!!estado.wizard.plantillaId;
+    const vacia='<button class="tpl-base-option '+(!seleccion?'selected':'')+'" data-base-id="" type="button" '+(editando?'disabled':'')+'><strong>Plantilla vacía</strong><span>Comenzar sin estructura previa</span></button>';
+    contenedor.innerHTML=vacia+(estado.publicadas||[]).map(function(item){
+      return '<button class="tpl-base-option '+(seleccion===item.plantilla_id?'selected':'')+'" data-base-id="'+escapar(item.plantilla_id)+'" type="button" '+(editando?'disabled':'')+'><strong>'+escapar(item.nombre||"Plantilla")+'</strong><span>'+escapar(item.descripcion||"Versión publicada")+'</span></button>';
+    }).join("");
+  }
+  function manejarSeleccionBase(evento){
+    const boton=evento.target.closest("[data-base-id]");if(!boton||boton.disabled)return;
+    estado.wizard.crearDesde=boton.dataset.baseId||"";estado.wizard.sucio=true;
+    if(byId("tplPlantillaBaseId"))byId("tplPlantillaBaseId").value=estado.wizard.crearDesde;
+    renderBasesPublicadas();
+  }
+
+  function payloadPasoUno(){
+    return {
+      nombre:byId("tplNombre")?byId("tplNombre").value.trim():"",
+      descripcion:byId("tplDescripcion")?byId("tplDescripcion").value.trim():"",
+      calculadora_ids:valoresSeleccionados(byId("tplCotizadores")),
+      tipos_propuesta:valoresSeleccionados(byId("tplTiposPropuesta")),
+      organizacion_id:byId("tplOrganizacion")?byId("tplOrganizacion").value:"",
+      disponible_nuevas_propuestas:!!(byId("tplDisponible")&&byId("tplDisponible").checked),
+      permite_duplicar:!!(byId("tplPermiteDuplicar")&&byId("tplPermiteDuplicar").checked)
+    };
+  }
+  function validarPasoUno(payload){
+    if(!payload.nombre)throw new Error("Debe indicar el nombre de la plantilla.");
+    if(!payload.calculadora_ids.length)throw new Error("Seleccione al menos un cotizador asociado.");
+    if(!payload.tipos_propuesta.length)throw new Error("Seleccione al menos un tipo de propuesta.");
+    if(estado.organizaciones.length&&!payload.organizacion_id)throw new Error("Seleccione una organización.");
+  }
+  async function guardarPasoUno(){
+    if(estado.wizard.guardando)return false;
+    const payload=payloadPasoUno();
+    try{validarPasoUno(payload);}catch(error){toast(error.message);return false;}
+    estado.wizard.guardando=true;mostrarCargando(true);
+    try{
+      let data;
+      if(estado.wizard.plantillaId){
+        data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      }else{
+        if(estado.wizard.crearDesde)payload.crear_desde=estado.wizard.crearDesde;
+        data=await solicitarJSON("/api/plantillas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+        estado.wizard.plantillaId=data.plantilla_id||"";
+        if(byId("tplCodigo"))byId("tplCodigo").value=data.codigo||"";
+      }
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      estado.wizard.sucio=false;sincronizarCamposWizard();
+      if(byId("tplEstado"))byId("tplEstado").value=estado.wizard.detalle.estado||"Borrador";
+      setTexto("tplWizardEstadoBadge",estado.wizard.detalle.estado||"Borrador");
+      toast(data.mensaje||"Borrador guardado.");return true;
+    }catch(error){toast(error&&error.message?error.message:"No fue posible guardar la plantilla.");return false;}
+    finally{estado.wizard.guardando=false;mostrarCargando(false);}
+  }
+  async function guardarBorrador(){
+    if(estado.wizard.paso===1){await guardarPasoUno();return;}
+    if(!estado.wizard.plantillaId){toast("Guarde primero los datos básicos de la plantilla.");return;}
+    toast("El borrador no tiene cambios pendientes en este paso.");
+  }
+
+  async function irAPaso(paso,guardarActual){
+    if(paso<1||paso>5||paso===estado.wizard.paso)return;
+    if(guardarActual&&estado.wizard.paso===1&&(estado.wizard.sucio||!estado.wizard.plantillaId)){
+      const guardado=await guardarPasoUno();if(!guardado)return;
+    }
+    if(paso>1&&!estado.wizard.plantillaId){toast("Guarde primero los datos básicos de la plantilla.");return;}
+    await mostrarPaso(paso);
+  }
+  async function mostrarPaso(paso){
+    estado.wizard.paso=paso;
+    [1,2,3,4,5].forEach(function(numero){const panel=byId("tplStep"+["","One","Two","Three","Four","Five"][numero]);if(panel)panel.classList.toggle("hidden",numero!==paso);});
+    document.querySelectorAll("#section-plantillas .tpl-step").forEach(function(boton){
+      const numero=Number(boton.dataset.tplStep||0);
+      boton.classList.toggle("active",numero===paso);
+      boton.classList.toggle("completed",numero<paso);
+      if(numero===paso)boton.setAttribute("aria-current","step");else boton.removeAttribute("aria-current");
+    });
+    const descripciones=["","Defina la información general y las asociaciones de la plantilla.","Organice secciones, columnas y bloques de contenido.","Conecte los bloques con datos reales de cada cotizador.","Aplique la identidad visual y configure la salida web y PDF.","Compruebe la configuración completa antes de publicar."];
+    setTexto("tplWizardDescripcionCabecera",descripciones[paso]);
+    window.scrollTo({top:0,left:0,behavior:"auto"});
+    const principal=byId("tplBtnGuardarContinuar");
+    if(principal){principal.textContent=["","Guardar y continuar a Estructura →","Continuar a Vincular datos →","Continuar a Estilo visual →","Continuar a Revisar y publicar →","Publicar plantilla"][paso];}
+    if(paso===2)await cargarEstructura();
+    if(paso===3)await cargarMapeo();
+    if(paso===4)await cargarEstilo();
+    if(paso===5)await cargarResumenRevision();
+  }
+  async function accionPrincipalWizard(){
+    const paso=estado.wizard.paso;
+    if(paso===1){const ok=await guardarPasoUno();if(ok)await mostrarPaso(2);return;}
+    if(paso<5){await mostrarPaso(paso+1);return;}
+    await publicarPlantilla();
+  }
+
+  async function cargarResumenRevision(){
+    if(!estado.wizard.plantillaId)return;
+    mostrarCargando(true);
+    try{
+      const detalle=await obtenerDetalle(estado.wizard.plantillaId);estado.wizard.detalle=detalle;
+      const secciones=detalle.secciones||[];
+      const bloques=secciones.reduce(function(total,seccion){return total+(seccion.bloques||[]).length;},0);
+      const estilo=detalle.estilo&&detalle.estilo.tema?detalle.estilo.tema:"Sin estilo definido";
+      setTexto("tplReviewVersion","Versión "+(detalle.version||1));
+      const resumen=byId("tplReviewSummary");if(resumen)resumen.innerHTML=
+        '<dl><div><dt>Plantilla</dt><dd>'+escapar(detalle.nombre||"—")+'</dd></div><div><dt>Estructura</dt><dd>'+secciones.length+' secciones · '+bloques+' bloques</dd></div><div><dt>Cotizadores</dt><dd>'+escapar(nombresCotizadores(detalle.calculadora_ids))+'</dd></div><div><dt>Tipos de propuesta</dt><dd>'+escapar((detalle.tipos_propuesta||[]).join(", ")||"Sin tipos asociados")+'</dd></div><div><dt>Estilo</dt><dd>'+escapar(estilo)+'</dd></div></dl>';
+      renderEstructuraSimplificada(detalle,byId("tplReviewPreviewPage"));
+      renderValidacionesRevision(detalle,secciones,bloques);
+      setTexto("tplReviewState",detalle.estado==="Publicada"?"Publicada":"Lista para revisión");
+    }catch(error){
+      toast(error&&error.message?error.message:"No fue posible cargar el resumen.");
+    }finally{mostrarCargando(false);}
+  }
+  function renderValidacionesRevision(detalle,secciones,bloques){
+    const validaciones=[
+      {ok:!!detalle.nombre,texto:"Datos básicos completos"},
+      {ok:(detalle.calculadora_ids||[]).length>0,texto:"Cotizadores asociados"},
+      {ok:(detalle.tipos_propuesta||[]).length>0,texto:"Tipos de propuesta asociados"},
+      {ok:secciones.length>0&&bloques>0,texto:"Al menos una sección con un bloque"},
+      {ok:!!detalle.estilo,texto:"Estilo visual configurado"}
+    ];
+    const lista=byId("tplReviewValidationList");if(lista)lista.innerHTML=validaciones.map(function(item){return '<div><strong>'+(item.ok?'✓':'!')+' '+escapar(item.texto)+'</strong><span>'+(item.ok?'Correcto':'Pendiente')+'</span></div>';}).join("");
+    const correctas=validaciones.filter(function(item){return item.ok;}).length;
+    setTexto("tplReviewValidationSummary",correctas+" de "+validaciones.length+" correctas");
+  }
+  async function publicarPlantilla(){
+    if(!estado.wizard.plantillaId){toast("Guarde primero la plantilla.");return;}
+    mostrarCargando(true);
+    try{
+      const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/publicar",{method:"POST"});
+      toast(data.mensaje||"Plantilla publicada.");
+      await cargarOpciones(true);await volverGaleria();
+    }catch(error){
+      const mensaje=error&&error.message?error.message:"No fue posible publicar la plantilla.";
+      toast(mensaje);setTexto("tplReviewState","Requiere ajustes");setTexto("tplReviewValidationSummary","No se pudo publicar");
+      const lista=byId("tplReviewValidationList");if(lista)lista.innerHTML='<div><strong>! No se pudo publicar</strong><span>'+escapar(mensaje)+'</span></div>';
+    }finally{mostrarCargando(false);}
+  }
+  function cambiarCanalRevision(canal){
+    document.querySelectorAll("#section-plantillas [data-preview-channel]").forEach(function(boton){boton.classList.toggle("active",boton.dataset.previewChannel===canal);});
+    const escenario=byId("tplReviewPreviewStage");if(escenario){escenario.classList.toggle("channel-web",canal==="WEB");escenario.classList.toggle("channel-pdf",canal==="PDF");}
+    setTexto("tplReviewPreviewHint","Datos de ejemplo · "+(canal==="PDF"?"PDF":"Propuesta web"));
+  }
+  function nombresCotizadores(ids){
+    const mapa={};estado.calculadoras.forEach(function(calc){mapa[String(calc.calculadora_id||"")]=calc.nombre_calculadora||calc.calculadora_id;});
+    return (ids||[]).map(function(id){return mapa[String(id)]||id;}).join(", ")||"Sin cotizadores asociados";
+  }
+
+  window.CotizaPlantillas={cargarGaleria:cargarGaleria,abrirNueva:abrirWizardNuevo};
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",iniciar);else iniciar();
+})();
+</script>

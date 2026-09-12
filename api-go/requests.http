@@ -1,0 +1,201 @@
+### Cotiza API — requests de prueba
+### Requiere la extensión "REST Client" (humao.rest-client) en VSCode.
+### Con el API corriendo (docker compose up, o modo debug local),
+### hacer click en "Send Request" arriba de cada bloque.
+
+@baseUrl = http://localhost:8080
+
+### Health check — debe responder {"status":"ok","database":"ok"}
+### Pública, no requiere token.
+GET {{baseUrl}}/api/health
+
+
+### ---------------------------------------------------------
+### Sprint 3 — Sesión y autorización
+### ---------------------------------------------------------
+### Desde este sprint, TODO bajo /api exige "Authorization: Bearer
+### <token>" salvo /api/health y POST /api/auth/login. Correr el login
+### de acá abajo primero, copiar el "token" de la respuesta y pegarlo
+### en la variable @token — el REST Client de VSCode no encadena
+### variables entre requests automáticamente.
+@token = PEGAR_AQUI_EL_TOKEN_DEL_LOGIN
+
+### Login correcto — 200 {"ok":true,"usuario":{...},"token":"..."}
+### Usar el correo y PIN de un usuario realmente migrado (o
+### demo.admin@exceltecgroup.com / PIN 1234 con el seed de 0002).
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "usuario@exceltecgroup.com",
+  "pin": "1234"
+}
+
+### Cerrar sesión — borra el token de la tabla sesiones. Tras esto,
+### volver a usar @token da 401.
+DELETE {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{token}}
+
+### Un endpoint protegido sin token — 401
+### {"ok":false,"error":"Sesión inválida o expirada. Inicie sesión de nuevo."}
+GET {{baseUrl}}/api/usuarios
+
+### Catálogos activos del diseñador
+GET {{baseUrl}}/api/catalogos/designer?modo=solo_catalogos
+Authorization: Bearer {{token}}
+
+### Valores activos de un catálogo
+GET {{baseUrl}}/api/catalogos/designer?modo=valores_catalogo&catalogo_id=CTZ-CAT-001
+Authorization: Bearer {{token}}
+
+### Crear o editar un catálogo
+POST {{baseUrl}}/api/catalogos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "catalogo_id": "CAT-DEMO",
+  "nombre_catalogo": "Catálogo demo",
+  "alcance": "COTIZADOR",
+  "descripcion": "Creado desde requests.http",
+  "activo": true,
+  "catalogo_padre_id": "",
+  "orden": 1
+}
+
+### Crear o editar un valor
+POST {{baseUrl}}/api/catalogos/valores
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "valor_id": "CATV-DEMO-UNO",
+  "catalogo_id": "CAT-DEMO",
+  "clave": "UNO",
+  "texto_visible": "Opción uno",
+  "valor_sistema": "UNO",
+  "descripcion": "",
+  "orden": 1,
+  "activo": true
+}
+
+### ---------------------------------------------------------
+### Sprint 5 — Runtime del Cotizador
+### ---------------------------------------------------------
+
+### Estructura compilada y valores de la versión actual
+GET {{baseUrl}}/api/cotizador/runtime/cot-demo-001
+Authorization: Bearer {{token}}
+
+### Guardar valores simples de una cotización
+POST {{baseUrl}}/api/cotizador/runtime/cot-demo-001/valores
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "version": 1,
+  "valores": {
+    "EL-NOMBRE-CLIENTE": "Cliente Demo",
+    "EL-TIPO-SERVICIO": "CONSULTORIA"
+  }
+}
+
+
+### PIN incorrecto — 401 {"ok":false,"error":"Correo o PIN incorrectos."}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "usuario@exceltecgroup.com",
+  "pin": "0000"
+}
+
+
+### Correo inexistente — 401 con el MISMO mensaje que el caso anterior
+### (a propósito: no se debe poder distinguir un caso del otro).
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "nadie@exceltecgroup.com",
+  "pin": "1234"
+}
+
+
+### Campos vacíos — 400 {"ok":false,"error":"Debe indicar correo y PIN."}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "",
+  "pin": ""
+}
+
+
+### ---------------------------------------------------------
+### Sprint 1 — Usuarios y Permisos (implementado)
+### Desde la auditoría de QA (Tanda 1), /api/roles y /api/usuarios
+### exigen rol Administrador (@token de acá abajo debe ser el de
+### demo.admin@exceltecgroup.com u otro Administrador). Un Vendedor
+### recibe 403 en ambos — para selectores de "responsable" desde
+### otras pantallas usar GET /api/usuarios/activos, sin ese gate.
+### ---------------------------------------------------------
+
+### Roles disponibles (para el <select> del formulario) — exige Administrador
+GET {{baseUrl}}/api/roles
+Authorization: Bearer {{token}}
+
+### Listado de usuarios — nunca incluye pin_hash — exige Administrador
+GET {{baseUrl}}/api/usuarios
+Authorization: Bearer {{token}}
+
+### Selector acotado (usuario_id + nombre, solo Activos) — cualquier sesión
+GET {{baseUrl}}/api/usuarios/activos
+Authorization: Bearer {{token}}
+
+### Crear usuario — 201 con el usuario creado (sin el PIN)
+POST {{baseUrl}}/api/usuarios
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Usuario de prueba",
+  "correo": "usuario.prueba@exceltecgroup.com",
+  "pin": "1234",
+  "rol": "Vendedor",
+  "estado": "Activo"
+}
+
+### Crear con un rol que no existe — 400 {"ok":false,"error":"El rol indicado no existe."}
+POST {{baseUrl}}/api/usuarios
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Usuario de prueba",
+  "correo": "usuario.rol.malo@exceltecgroup.com",
+  "pin": "1234",
+  "rol": "Rol Que No Existe"
+}
+
+### Editar nombre/rol/estado sin tocar el PIN — usar un usuario_id real
+PATCH {{baseUrl}}/api/usuarios/usr-demo-vendedor
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Vendedor Demo",
+  "rol": "Vendedor",
+  "estado": "Activo"
+}
+
+### Desactivar (mismo PATCH, solo cambia estado) — usar un usuario_id real
+PATCH {{baseUrl}}/api/usuarios/usr-demo-vendedor
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Vendedor Demo",
+  "rol": "Vendedor",
+  "estado": "Inactivo"
+}

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cotiza - Sistema de Gestión de Cotizaciones Exceltec</title>
+
+  <style>
+    <?!= include('Cotiza_Styles'); ?>
+    <?!= include('Cotiza_Style_Catalogos'); ?>
+    <?!= include('Cotiza_Style_Cotizador'); ?>
+    <?!= include('Cotiza_Style_Solicitudes'); ?>
+    <?!= include('Cotiza_Style_Plantillas'); ?>
+  </style>
+</head>
+
+<body>
+  <?!= include('Cotiza_Login'); ?>
+
+  <section id="appView" class="app hidden">
+    <?!= include('Cotiza_Sidebar'); ?>
+
+    <main class="main">
+      <?!= include('Cotiza_Dashboard'); ?>
+      <?!= include('Cotiza_Cotizaciones'); ?>
+      <?!= include('Cotiza_Solicitudes'); ?>
+      <?!= include('Cotiza_Clientes'); ?>
+      <?!= include('Cotizador_App'); ?>
+      <?!= include('Cotiza_Usuarios'); ?>
+      <?!= include('Cotiza_Reportes'); ?>
+      <?!= include('Plantillas_App'); ?>
+      <?!= include('Cotiza_Configuracion'); ?>
+    </main>
+  </section>
+
+  <?!= include('Cotiza_Modals'); ?>
+
+  <div id="cotizaProcessOverlay" class="cotiza-process-overlay" aria-live="polite" aria-busy="true">
+    <div class="cotiza-process-card">
+      <div class="cotiza-process-spinner"></div>
+      <h3 id="cotizaProcessTitle">Cargando información</h3>
+      <p id="cotizaProcessText">Espere por favor, Cotiza está procesando la solicitud.</p>
+    </div>
+  </div>
+
+  <script>
+    const COTIZA_WEBAPP_URL = <?!= COTIZA_WEBAPP_URL ?>;
+    window.addEventListener('error', function(e){
+      var msg = document.getElementById('loginMessage');
+      if(msg){
+        msg.className = 'message message-error';
+        msg.textContent = 'Error cargando JavaScript: ' + (e.message || 'Revise Cotiza_Scripts.html');
+      }
+    });
+  </script>
+  <?!= include('Cotiza_Scripts'); ?>
+  <?!= include('Cotiza_Script_Solicitudes'); ?>
+  <?!= include('Cotiza_Script_Plantillas'); ?>
+  <?!= include('Cotiza_Script_Reglas'); ?>
+  <?!= include('Cotiza_Script_Mantenimiento_Reglas'); ?>
+  <?!= include('Cotiza_Script_Compilador_Cotizador'); ?>
+</body>
+</html>

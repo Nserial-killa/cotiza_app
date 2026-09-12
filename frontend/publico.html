@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Vista previa de propuesta | Exceltec</title>
+  <style>
+    :root{color-scheme:light;--navy:#0d2b52;--blue:#246df5;--ink:#12233d;--muted:#65758b;--line:#dbe3ee;--surface:#fff;--background:#f3f6fa}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--background);color:var(--ink);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+    .shell{width:min(980px,calc(100% - 32px));margin:32px auto 56px}
+    .brand{display:flex;align-items:center;gap:12px;color:#fff}
+    .brand-mark{display:grid;width:38px;height:38px;place-items:center;border:2px solid #fff;border-radius:50%;font-size:22px;font-weight:800}
+    .brand strong{display:block;font-size:22px;line-height:1}.brand small{display:block;margin-top:4px;font-size:10px;letter-spacing:.08em;opacity:.8}
+    .hero{overflow:hidden;border-radius:20px;background:linear-gradient(135deg,var(--navy),#174f91);box-shadow:0 18px 45px rgba(20,46,83,.16)}
+    .hero-top{display:flex;align-items:center;justify-content:space-between;padding:26px 32px;border-bottom:1px solid rgba(255,255,255,.15)}
+    .hero-body{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:end;padding:38px 32px;color:#fff}
+    .eyebrow{margin:0 0 7px;color:#9ec5ff;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    h1{margin:0;font-size:clamp(30px,5vw,48px);letter-spacing:-.04em}.client{margin:10px 0 0;color:#dceafe;font-size:17px}
+    .total{text-align:right}.total span{display:block;color:#bcd5f7;font-size:12px;font-weight:700;text-transform:uppercase}.total strong{display:block;margin-top:3px;font-size:clamp(30px,5vw,45px);white-space:nowrap}
+    .meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0 28px}
+    .meta div,.section{border:1px solid var(--line);background:var(--surface);box-shadow:0 8px 22px rgba(21,44,76,.05)}
+    .meta div{padding:16px 18px;border-radius:12px}.meta span{display:block;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase}.meta strong{display:block;margin-top:3px;font-size:14px}
+    .sections{display:grid;gap:16px}.section{overflow:hidden;border-radius:15px}.section h2{margin:0;padding:18px 22px;border-bottom:1px solid var(--line);font-size:18px}
+    .fields{margin:0}.field-row{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(0,1.4fr);gap:28px;padding:15px 22px;border-top:1px solid #edf1f6}.field-row:first-child{border-top:0}
+    dt{color:var(--muted);font-size:13px;font-weight:700}dd{margin:0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .empty{padding:20px 22px;color:var(--muted)}
+    .status{display:grid;min-height:66vh;place-items:center;text-align:center}.status-card{width:min(520px,100%);padding:42px 30px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 15px 42px rgba(21,44,76,.08)}
+    .status-icon{display:grid;width:54px;height:54px;margin:0 auto 18px;place-items:center;border-radius:50%;background:#eaf1ff;color:var(--blue);font-size:24px;font-weight:800}.status h1{font-size:24px}.status p{margin:10px 0 0;color:var(--muted)}
+    footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center}
+    [hidden]{display:none!important}
+    @media(max-width:680px){.shell{margin-top:16px}.hero-top,.hero-body{padding:22px}.hero-body{grid-template-columns:1fr}.total{text-align:left}.meta{grid-template-columns:1fr}.field-row{grid-template-columns:1fr;gap:5px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section id="estado" class="status" aria-live="polite">
+      <div class="status-card"><div class="status-icon">E</div><h1 id="estadoTitulo">Cargando propuesta…</h1><p id="estadoTexto">Estamos preparando la información.</p></div>
+    </section>
+    <div id="propuesta" hidden>
+      <header class="hero">
+        <div class="hero-top"><div class="brand"><span class="brand-mark">e</span><span><strong>Exceltec</strong><small>BUSINESS SOLUTIONS</small></span></div></div>
+        <div class="hero-body"><div><p class="eyebrow">Propuesta comercial</p><h1 id="codigoOferta"></h1><p id="cliente" class="client"></p></div><div class="total"><span>Precio total</span><strong id="precioTotal"></strong></div></div>
+      </header>
+      <section class="meta" aria-label="Datos de la propuesta">
+        <div><span>Empresa</span><strong id="empresa"></strong></div>
+        <div><span>Cotizador</span><strong id="cotizador"></strong></div>
+        <div><span>Tipo de propuesta</span><strong id="tipoPropuesta"></strong></div>
+      </section>
+      <div id="secciones" class="sections"></div>
+      <footer>Documento de vista previa generado por Exceltec Business Solutions.</footer>
+    </div>
+  </main>
+  <script>
+    (function(){
+      "use strict";
+      var estado=document.getElementById("estado"),propuesta=document.getElementById("propuesta");
+      function texto(valor){
+        if(valor===null||valor===undefined||valor==="")return "—";
+        if(typeof valor==="boolean")return valor?"Sí":"No";
+        if(Array.isArray(valor))return valor.map(texto).join(", ");
+        if(typeof valor==="object")return Object.keys(valor).map(function(k){return k+": "+texto(valor[k]);}).join(" · ");
+        return String(valor);
+      }
+      function poner(id,valor){document.getElementById(id).textContent=texto(valor);}
+      function dinero(valor,moneda){
+        var numero=Number(valor||0);var simbolo=texto(moneda||"US$");
+        return simbolo+" "+numero.toLocaleString("es-CR",{minimumFractionDigits:2,maximumFractionDigits:2});
+      }
+      function mostrarError(){
+        document.getElementById("estadoTitulo").textContent="Este enlace no es válido o ya venció.";
+        document.getElementById("estadoTexto").textContent="Solicite un enlace nuevo a la persona que le compartió la propuesta.";
+      }
+      function render(data){
+        poner("codigoOferta",data.codigo_oferta||"Propuesta");poner("cliente",data.cliente);poner("empresa",data.empresa||data.cliente);
+        poner("cotizador",data.cotizador_nombre);poner("tipoPropuesta",data.tipo_propuesta);document.getElementById("precioTotal").textContent=dinero(data.total_precio,data.moneda);
+        var contenedor=document.getElementById("secciones"),tabs=Array.isArray(data.tabs)?data.tabs:[];contenedor.textContent="";
+        tabs.forEach(function(tab){
+          var section=document.createElement("section");section.className="section";var titulo=document.createElement("h2");titulo.textContent=texto(tab.nombre||"Sección");section.appendChild(titulo);
+          var elementos=Array.isArray(tab.elementos)?tab.elementos:[];
+          if(!elementos.length){var vacio=document.createElement("p");vacio.className="empty";vacio.textContent="No hay información registrada en esta sección.";section.appendChild(vacio);}
+          else{var lista=document.createElement("dl");lista.className="fields";elementos.forEach(function(elemento){var fila=document.createElement("div");fila.className="field-row";var dt=document.createElement("dt"),dd=document.createElement("dd");dt.textContent=texto(elemento.etiqueta||"Información");dd.textContent=texto(elemento.valor);fila.append(dt,dd);lista.appendChild(fila);});section.appendChild(lista);}
+          contenedor.appendChild(section);
+        });
+        if(!tabs.length){var vacia=document.createElement("section");vacia.className="section empty";vacia.textContent="Esta propuesta todavía no contiene secciones para mostrar.";contenedor.appendChild(vacia);}
+        estado.hidden=true;propuesta.hidden=false;document.title=texto(data.codigo_oferta||"Propuesta")+" | Exceltec";
+      }
+      var token=new URLSearchParams(window.location.search).get("token");
+      if(!token){mostrarError();return;}
+      fetch("/api/publico/cotizacion/"+encodeURIComponent(token),{method:"GET",credentials:"omit",headers:{Accept:"application/json"}})
+        .then(function(resp){return resp.json().catch(function(){return null;}).then(function(data){if(!resp.ok||!data||!data.ok)throw new Error("invalid");return data;});})
+        .then(render).catch(mostrarError);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<section id="section-reportes" class="section reportes-page">
+  <div class="reportes-head">
+    <div>
+      <span class="gestor-eyebrow">ANÁLISIS COMERCIAL</span>
+      <h1>Reportes</h1>
+      <p>Consulte las cotizaciones reales, aplique filtros y exporte el resultado.</p>
+    </div>
+    <button id="btnExportarReporteCotizaciones" class="btn btn-primary reportes-export" type="button">↓ Exportar CSV</button>
+  </div>
+
+  <div class="card reportes-card">
+    <div class="reportes-filters">
+      <div class="field"><label for="reporteFechaDesde">Fecha desde</label><input id="reporteFechaDesde" class="input" type="date"></div>
+      <div class="field"><label for="reporteFechaHasta">Fecha hasta</label><input id="reporteFechaHasta" class="input" type="date"></div>
+      <div class="field"><label for="reporteVendedor">Vendedor</label><select id="reporteVendedor" class="select"><option value="">Todos</option></select></div>
+      <div class="field"><label for="reporteCalculadora">Cotizador</label><select id="reporteCalculadora" class="select"><option value="">Todos</option></select></div>
+      <div class="field"><label for="reporteEstado">Estado</label><select id="reporteEstado" class="select"><option value="">Todos</option></select></div>
+      <button id="btnAplicarFiltrosReporte" class="btn btn-primary reportes-apply" type="button">Aplicar filtros</button>
+      <button id="btnLimpiarFiltrosReporte" class="btn btn-light reportes-clear" type="button">Limpiar</button>
+    </div>
+
+    <div class="reportes-table-meta">
+      <strong id="reportesTotalFilas">0 cotizaciones</strong>
+      <span>Los importes corresponden a la versión actual de cada cotización.</span>
+    </div>
+
+    <div class="table-wrap reportes-table-wrap">
+      <table class="reportes-table">
+        <thead><tr id="reportesCotizacionesHead"></tr></thead>
+        <tbody id="reportesCotizacionesBody"><tr><td>Cargando reporte...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
