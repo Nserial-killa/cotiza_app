@@ -18,3 +18,9 @@ migration-python/data/*.csv
 
 # Sistema
 .DS_Store
+
+# Datos de demostración generados por scripts/seed_demo.sh — la clave
+# de API es de un solo uso y el resumen cambia en cada corrida, nunca
+# se versionan.
+scripts/demo_api_key.txt
+scripts/demo_resumen.txt

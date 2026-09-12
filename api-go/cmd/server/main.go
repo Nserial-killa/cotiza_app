@@ -146,6 +146,7 @@ func main() {
 			r.Get("/reportes/cotizaciones/exportar", reportes.Exportar)
 			r.Get("/roles", usuarios.ListarRoles)
 			r.Get("/calculadoras", calculadoras.Listar)
+			r.Post("/calculadoras", calculadoras.Crear)
 			r.Route("/clientes", func(r chi.Router) {
 				r.Get("/", cotizaciones.ListarClientes)
 				r.Get("/gestion", clientes.Listar)

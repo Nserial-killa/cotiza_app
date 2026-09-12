@@ -48,8 +48,48 @@ services:
     volumes:
       # El propio Go sirve los estáticos del frontend (ver internal/handlers).
       - ./frontend:/app/static:ro
+    healthcheck:
+      # wget viene en la imagen base (busybox de alpine); evita agregar
+      # curl solo para esto. Lo usa el propio "api" y también "seed"
+      # (depends_on condition: service_healthy) para no arrancar contra
+      # un servidor que todavía no escucha.
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     networks:
       - cotiza_net
+
+  # Datos de demostración reales (no JSON compilado a mano): llama al
+  # API real con la misma secuencia de pasos que seguiría una persona
+  # en el navegador — login, catálogo, cotizador, validar/compilar,
+  # clientes, cotizaciones, plantilla, integración + solicitud externa.
+  # Ver scripts/seed_demo.sh. Corre una sola vez por arranque y es
+  # idempotente: si el volumen de Postgres ya tiene estos datos (por
+  # ejemplo, un "docker compose up" sin "-v" sobre un proyecto que ya
+  # se había levantado antes), los detecta y no los duplica.
+  seed:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    container_name: cotiza_seed
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_BASE_URL: http://api:8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-cotiza_admin}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-cotiza}?sslmode=disable
+      # Base para el link público que se imprime en el resumen final —
+      # el puerto real expuesto en el host (ver API_PORT más arriba).
+      PUBLIC_BASE_URL: http://localhost:${API_PORT:-8080}
+    volumes:
+      # rw: el script guarda acá la clave de API generada
+      # (demo_api_key.txt) y el resumen final — nunca se versionan
+      # (ver .gitignore).
+      - ./scripts:/scripts:rw
+    networks:
+      - cotiza_net
+    restart: "no"
 
   # --- Herramientas de apoyo (no se inician con "docker compose up") ---
   # Uso: docker compose --profile tools run --rm migration

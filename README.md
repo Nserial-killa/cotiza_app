@@ -79,6 +79,34 @@ para el detalle de qué falta reemplazar en el Sprint 1 (los 25
    # http://localhost:5050
    ```
 
+## Datos de demostración
+
+`docker compose up --build` levanta, además de `postgres` y `api`, un
+servicio `seed` que corre una sola vez: espera a que el API esté
+saludable y llama a `scripts/seed_demo.sh`, que arma un caso de uso
+real llamando al API REST igual que lo haría una persona desde el
+navegador (login, catálogo, cotizador, validar/compilar, clientes,
+cotizaciones, plantilla, integración + solicitud) — nunca insertando
+JSON compilado a mano. Es idempotente: correr `docker compose up` otra
+vez sobre el mismo volumen no duplica nada.
+
+Al terminar deja, ya explorables en la pantalla:
+
+- El cotizador **Consultoría de Implementación TI**, publicado, con su
+  catálogo "Tipo de Servicio".
+- 3 cotizaciones de ejemplo: una en Borrador, una Enviada al Cliente
+  (con su link público) y una Aceptada.
+- La plantilla de propuesta **Propuesta Estándar de Consultoría TI**,
+  publicada.
+- Una integración de API con una solicitud de ejemplo en estado Nueva.
+
+El resumen completo (usuario para entrar, la URL del link público,
+dónde quedó la clave de API) se imprime al final de
+`docker compose logs seed` y también queda guardado en
+`scripts/demo_resumen.txt` (no se versiona, cambia en cada corrida).
+La clave de API en sí queda en `scripts/demo_api_key.txt`, que tampoco
+se versiona — solo se puede leer del API una vez, al crearla.
+
 ## Nota sobre `go.sum`
 
 Este esqueleto se generó sin acceso al proxy de módulos de Go, así
