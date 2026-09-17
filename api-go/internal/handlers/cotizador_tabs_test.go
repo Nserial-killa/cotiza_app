@@ -278,6 +278,191 @@ func TestCotizadorElementos_CajaValorValidaCampoFuente(t *testing.T) {
 	}
 }
 
+// TestCotizadorElementos_CampoCalculadoValidaOperandos cubre la Ronda 2 del
+// Diseñador (migración 0018): un Campo Calculado con dos operandos CAMPO
+// numéricos válidos se guarda; sin operandos suficientes, con un operando
+// inexistente, de otro tab, o no numérico (CAMPO texto), se rechaza.
+func TestCotizadorElementos_CampoCalculadoValidaOperandos(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-CALC-" + sufijoUnico()
+	otroTabID := "TEST-TAB-CALC-OTRO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Cálculo", "activo": true,
+	})
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": otroTabID, "calculadora_id": calculadoraID, "nombre": "Otro tab", "activo": true,
+	})
+
+	campoNumericoID := "TEST-EL-NUM-A-" + sufijoUnico()
+	campoNumericoBID := "TEST-EL-NUM-B-" + sufijoUnico()
+	campoTextoID := "TEST-EL-TXT-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoNumericoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Costo",
+		"configuracion": map[string]any{"tipo_campo": "MONEDA"}, "activo": true,
+	})
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoNumericoBID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Margen",
+		"configuracion": map[string]any{"tipo_campo": "PORCENTAJE"}, "activo": true,
+	})
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoTextoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Nombre",
+		"configuracion": map[string]any{"tipo_campo": "TEXTO"}, "activo": true,
+	})
+	campoOtroTabID := "TEST-EL-OTRO-TAB-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoOtroTabID, "tab_id": otroTabID, "tipo": "CAMPO", "etiqueta": "De otro tab",
+		"configuracion": map[string]any{"tipo_campo": "NUMERO"}, "activo": true,
+	})
+
+	casos := []struct {
+		nombre    string
+		operandos []string
+		operacion string
+		esperaOK  bool
+	}{
+		{"dos operandos numéricos válidos", []string{campoNumericoID, campoNumericoBID}, "SUMA", true},
+		{"un solo operando en SUMA (mínimo 2)", []string{campoNumericoID}, "SUMA", false},
+		{"un solo operando en PROMEDIO sí alcanza", []string{campoNumericoID}, "PROMEDIO", true},
+		{"operando inexistente", []string{campoNumericoID, "NO-EXISTE-" + sufijoUnico()}, "SUMA", false},
+		{"operando de otro tab", []string{campoNumericoID, campoOtroTabID}, "SUMA", false},
+		{"operando de tipo texto", []string{campoNumericoID, campoTextoID}, "SUMA", false},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+				"elemento_id": "TEST-EL-CALC-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO_CALCULADO",
+				"etiqueta": "Calculado", "configuracion": map[string]any{
+					"operacion": c.operacion, "tipo_resultado": "MONEDA", "decimales": 2, "operandos": c.operandos,
+				}, "activo": true,
+			})
+			if c.esperaOK && rec.Code != http.StatusOK {
+				t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+			}
+			if !c.esperaOK && rec.Code != http.StatusBadRequest {
+				t.Fatalf("esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+// TestCotizadorElementos_CampoCalculadoAnidadoYCircular cubre dependencia de
+// 2 niveles (B depende de A, C depende de B) y el rechazo de un ciclo (A
+// pasa a depender de C, que depende de B, que depende de A).
+func TestCotizadorElementos_CampoCalculadoAnidadoYCircular(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-CIRC-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Circular", "activo": true,
+	})
+	campoBaseID := "TEST-EL-BASE-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoBaseID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Base",
+		"configuracion": map[string]any{"tipo_campo": "NUMERO"}, "activo": true,
+	})
+	calcAID := "TEST-EL-CALC-A-" + sufijoUnico()
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": calcAID, "tab_id": tabID, "tipo": "CAMPO_CALCULADO", "etiqueta": "A",
+		"configuracion": map[string]any{"operacion": "PROMEDIO", "tipo_resultado": "NUMERO", "decimales": 2, "operandos": []string{campoBaseID}}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear A: %s", rec.Body.String())
+	}
+	calcBID := "TEST-EL-CALC-B-" + sufijoUnico()
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": calcBID, "tab_id": tabID, "tipo": "CAMPO_CALCULADO", "etiqueta": "B (depende de A)",
+		"configuracion": map[string]any{"operacion": "PROMEDIO", "tipo_resultado": "NUMERO", "decimales": 2, "operandos": []string{calcAID}}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear B: %s", rec.Body.String())
+	}
+	calcCID := "TEST-EL-CALC-C-" + sufijoUnico()
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": calcCID, "tab_id": tabID, "tipo": "CAMPO_CALCULADO", "etiqueta": "C (depende de B)",
+		"configuracion": map[string]any{"operacion": "PROMEDIO", "tipo_resultado": "NUMERO", "decimales": 2, "operandos": []string{calcBID}}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear C (anidado 2 niveles): %s", rec.Body.String())
+	}
+
+	// Ahora A pasa a depender de C: A -> C -> B -> A, ciclo.
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": calcAID, "tab_id": tabID, "tipo": "CAMPO_CALCULADO", "etiqueta": "A",
+		"configuracion": map[string]any{"operacion": "PROMEDIO", "tipo_resultado": "NUMERO", "decimales": 2, "operandos": []string{calcCID}}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("referencia circular: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCotizadorElementos_FuncionCampoUnicaPorCotizadorNoGlobal cubre que la
+// unicidad de funcion_campo (distinta de NORMAL) es por calculadora_id, no
+// global: el mismo rol se rechaza dos veces en el mismo cotizador pero se
+// permite en cotizadores distintos.
+func TestCotizadorElementos_FuncionCampoUnicaPorCotizadorNoGlobal(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	_, otraCalculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-FUNC-" + sufijoUnico()
+	otroTabID := "TEST-TAB-FUNC-OTRA-CALC-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Función", "activo": true,
+	})
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": otroTabID, "calculadora_id": otraCalculadoraID, "nombre": "Función otra calc", "activo": true,
+	})
+
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-FUNC-1-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Total 1",
+		"funcion_campo": "TOTAL_PRECIO_OFERTA", "configuracion": map[string]any{"tipo_campo": "MONEDA"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("primer TOTAL_PRECIO_OFERTA: %s", rec.Body.String())
+	}
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-FUNC-2-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Total 2",
+		"funcion_campo": "TOTAL_PRECIO_OFERTA", "configuracion": map[string]any{"tipo_campo": "MONEDA"}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("segundo TOTAL_PRECIO_OFERTA en el mismo cotizador: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-FUNC-OTRA-CALC-" + sufijoUnico(), "tab_id": otroTabID, "tipo": "CAMPO", "etiqueta": "Total otra calc",
+		"funcion_campo": "TOTAL_PRECIO_OFERTA", "configuracion": map[string]any{"tipo_campo": "MONEDA"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("mismo rol en otro cotizador debería permitirse: %d: %s", rec.Code, rec.Body.String())
+	}
+	// NORMAL sí puede repetirse libremente.
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-NORMAL-1-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Normal 1", "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("normal 1: %s", rec.Body.String())
+	}
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-NORMAL-2-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Normal 2", "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("NORMAL repetido debería permitirse: %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCotizadorElementos_FuncionCampoSoloEnTiposConValorPropio cubre que
+// funcion_campo (distinta de NORMAL) se rechaza en TITULO/CONTENEDOR/etc.
+func TestCotizadorElementos_FuncionCampoSoloEnTiposConValorPropio(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-FUNC-TIPO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Función por tipo", "activo": true,
+	})
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-TITULO-FUNC-" + sufijoUnico(), "tab_id": tabID, "tipo": "TITULO", "etiqueta": "Título",
+		"funcion_campo": "TOTAL_PRECIO_OFERTA", "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("TITULO con funcion_campo: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCotizadorTabs_EliminarInactivaTabYElementos(t *testing.T) {
 	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	tabID := "TEST-TAB-DELETE-" + sufijoUnico()

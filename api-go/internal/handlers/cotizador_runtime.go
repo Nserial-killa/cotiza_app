@@ -70,12 +70,13 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las opciones de catálogo."})
 		return
 	}
-	valores, err := h.leerValores(ctx, cotizacionID, runtime.Version)
+	valores, err := h.leerValores(ctx, h.DB, cotizacionID, runtime.Version)
 	if err != nil {
 		log.Printf("cotizador runtime: error leyendo valores de %s: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar los valores de la cotización."})
 		return
 	}
+	resolverCamposCalculados(indexarElementosCompletoRuntime(runtime.Estructura), valores)
 	incluirValoresCajaValor(runtime.Estructura, valores)
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": valores, "version": runtime.Version})
 }
@@ -150,6 +151,9 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 	comentario := fmt.Sprintf("Se actualizaron %d valor(es) del cotizador.", len(req.Valores))
 	if err == nil {
 		err = insertarHistorial(ctx, tx, cotizacionID, &req.Version, "valores_actualizados", nil, nil, comentario, usuarioID)
+	}
+	if err == nil {
+		err = h.actualizarTotalesCotizacionVersion(ctx, tx, runtime.Estructura, cotizacionID, req.Version)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
@@ -339,8 +343,243 @@ func incluirValoresCajaValorRecursivo(elementos []any, valores map[string]any) {
 	}
 }
 
-func (h *CotizadorRuntimeHandler) leerValores(ctx context.Context, cotizacionID string, version int) (map[string]any, error) {
-	rows, err := h.DB.Query(ctx, `SELECT elemento_id, valor FROM cotizacion_valores WHERE cotizacion_id=$1 AND version=$2`, cotizacionID, version)
+// consultadorRuntime lo satisfacen tanto *pgxpool.Pool como pgx.Tx: leer
+// valores necesita funcionar contra la conexión suelta (GET normal) y contra
+// la misma transacción que los acaba de escribir (POST, para que el
+// recálculo de totales vea los valores recién guardados sin esperar a que
+// el commit termine).
+type consultadorRuntime interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// indexarElementosCompletoRuntime arma un índice elemento_id -> el mapa
+// completo del elemento (no solo tipo/catalogo_id, como indexarElementosRuntime)
+// porque resolverCamposCalculados necesita leer su "configuracion"
+// (operacion, decimales, operandos) para calcular su valor.
+func indexarElementosCompletoRuntime(estructura map[string]any) map[string]map[string]any {
+	resultado := make(map[string]map[string]any)
+	tabs, _ := estructura["tabs"].([]any)
+	for _, tabRaw := range tabs {
+		tab, _ := tabRaw.(map[string]any)
+		elementos, _ := tab["elementos"].([]any)
+		indexarElementosCompletoRecursivo(elementos, resultado)
+	}
+	return resultado
+}
+
+func indexarElementosCompletoRecursivo(elementos []any, resultado map[string]map[string]any) {
+	for _, elementoRaw := range elementos {
+		elemento, _ := elementoRaw.(map[string]any)
+		id := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
+		if id != "" {
+			resultado[id] = elemento
+		}
+		if hijos, ok := elemento["hijos"].([]any); ok {
+			indexarElementosCompletoRecursivo(hijos, resultado)
+		}
+	}
+}
+
+// numeroDesdeValor interpreta un valor guardado en cotizacion_valores (o ya
+// resuelto de otro Campo Calculado) como float64. Los valores de CAMPO
+// llegan como string (así los manda el Motor de Ejecución); un Campo
+// Calculado que ya se resolvió llega directo como float64.
+func numeroDesdeValor(valor any) (float64, bool) {
+	switch v := valor.(type) {
+	case float64:
+		return v, true
+	case string:
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return 0, false
+		}
+		numero, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, false
+		}
+		return numero, true
+	default:
+		return 0, false
+	}
+}
+
+// resolverCamposCalculados calcula el valor de cada CAMPO_CALCULADO de la
+// estructura (recursivo: un operando puede ser otro CAMPO_CALCULADO, que se
+// resuelve primero) y lo deja en "valor_resuelto" de ese elemento, mismo
+// patrón que incluirValoresCajaValor. Devuelve además un mapa elemento_id ->
+// valor resuelto (float64) para que actualizarTotalesCotizacionVersion no
+// tenga que volver a recorrer la estructura. Un operando sin valor guardado
+// todavía, un ciclo (no debería pasar, GuardarElemento ya lo rechaza al
+// guardar) o una división entre cero dejan el campo sin resolver (nil) en
+// vez de inventar un número — más "controlado" es no calcular que calcular mal.
+func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores map[string]any) map[string]float64 {
+	resueltos := make(map[string]float64)
+	enProceso := make(map[string]bool)
+
+	var resolver func(id string) (float64, bool)
+	resolver = func(id string) (float64, bool) {
+		if v, ok := resueltos[id]; ok {
+			return v, true
+		}
+		elemento, existe := elementosPorID[id]
+		if !existe {
+			return 0, false
+		}
+		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) != "CAMPO_CALCULADO" {
+			return numeroDesdeValor(valores[id])
+		}
+		if enProceso[id] {
+			return 0, false
+		}
+		enProceso[id] = true
+		defer delete(enProceso, id)
+
+		cfg, _ := elemento["configuracion"].(map[string]any)
+		if cfg == nil {
+			return 0, false
+		}
+		operandos := operandosDesdeConfiguracion(cfg)
+		valoresOperandos := make([]float64, 0, len(operandos))
+		for _, opID := range operandos {
+			valorOp, ok := resolver(opID)
+			if !ok {
+				return 0, false
+			}
+			valoresOperandos = append(valoresOperandos, valorOp)
+		}
+		operacion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["operacion"])))
+		decimales, ok := enteroDesdeConfiguracion(cfg, "decimales")
+		if !ok {
+			decimales = 2
+		}
+		resultado, err := calcularOperacion(valoresOperandos, operacion, decimales)
+		if err != nil {
+			return 0, false
+		}
+		resueltos[id] = resultado
+		return resultado, true
+	}
+
+	for id, elemento := range elementosPorID {
+		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) != "CAMPO_CALCULADO" {
+			continue
+		}
+		if valor, ok := resolver(id); ok {
+			elemento["valor_resuelto"] = valor
+		} else {
+			elemento["valor_resuelto"] = nil
+		}
+	}
+	return resueltos
+}
+
+// columnaPorFuncionCampo mapea cada rol de "Función del campo" (Ronda 2,
+// migración 0018) a su columna en cotizacion_versiones. NORMAL no mapea a
+// nada — no actualiza totales.
+var columnaPorFuncionCampo = map[string]string{
+	"TOTAL_PRECIO_OFERTA":    "total_precio",
+	"TOTAL_COSTO_INTERNO":    "total_costo",
+	"TOTAL_GANANCIA_INTERNA": "total_ganancia",
+	"MARGEN_TOTAL":           "margen_total",
+	"MONEDA_OFERTA":          "moneda",
+	"TIPO_CAMBIO":            "tipo_cambio",
+	"SUBTOTAL_OFERTA":        "subtotal",
+	"DESCUENTO_OFERTA":       "descuento",
+	"IMPUESTOS_OFERTA":       "impuestos",
+}
+
+// columnasFuncionCampoTexto son las columnas de columnaPorFuncionCampo que
+// son TEXT (moneda) en vez de NUMERIC — el resto se convierte con
+// numeroDesdeValor antes de guardar.
+var columnasFuncionCampoTexto = map[string]bool{"moneda": true}
+
+// actualizarTotalesCotizacionVersion recorre la estructura buscando
+// elementos con funcion_campo distinto de NORMAL, resuelve su valor (el ya
+// calculado de resolverCamposCalculados para CAMPO_CALCULADO, o el valor
+// crudo recién guardado para CAMPO/CAMPO_CATALOGO) y actualiza la columna
+// correspondiente de cotizacion_versiones — en la misma transacción que
+// GuardarValores usa para los valores, así ambos quedan atómicos. Un valor
+// sin resolver (operando faltante, ciclo, texto no numérico) simplemente no
+// actualiza esa columna esta vez; no es un error de la petición.
+func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context.Context, tx pgx.Tx, estructura map[string]any, cotizacionID string, version int) error {
+	valores, err := h.leerValores(ctx, tx, cotizacionID, version)
+	if err != nil {
+		return err
+	}
+	elementosPorID := indexarElementosCompletoRuntime(estructura)
+	resolverCamposCalculados(elementosPorID, valores)
+
+	for id, elemento := range elementosPorID {
+		funcion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["funcion_campo"])))
+		if funcion == "" || funcion == "NORMAL" {
+			continue
+		}
+		columna, ok := columnaPorFuncionCampo[funcion]
+		if !ok {
+			continue
+		}
+		var valorCrudo any
+		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "CAMPO_CALCULADO" {
+			valorCrudo = elemento["valor_resuelto"]
+		} else {
+			valorCrudo = valores[id]
+		}
+		if valorCrudo == nil {
+			continue
+		}
+		if columnasFuncionCampoTexto[columna] {
+			texto := strings.TrimSpace(fmt.Sprint(valorCrudo))
+			if texto == "" {
+				continue
+			}
+			if err := actualizarColumnaCotizacionVersion(ctx, tx, cotizacionID, version, columna, texto); err != nil {
+				return err
+			}
+			continue
+		}
+		numero, ok := numeroDesdeValor(valorCrudo)
+		if !ok {
+			continue
+		}
+		if err := actualizarColumnaCotizacionVersion(ctx, tx, cotizacionID, version, columna, numero); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// actualizarColumnaCotizacionVersion hace el UPDATE de una sola columna de
+// cotizacion_versiones. Va con un switch de columnas literales (no con el
+// nombre de columna interpolado en el SQL) a propósito: "columna" nunca debe
+// construir la sentencia dinámicamente, aunque hoy solo llegue desde el mapa
+// fijo columnaPorFuncionCampo.
+func actualizarColumnaCotizacionVersion(ctx context.Context, tx pgx.Tx, cotizacionID string, version int, columna string, valor any) error {
+	var err error
+	switch columna {
+	case "total_precio":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET total_precio=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "total_costo":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET total_costo=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "total_ganancia":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET total_ganancia=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "margen_total":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET margen_total=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "moneda":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET moneda=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "tipo_cambio":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET tipo_cambio=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "subtotal":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET subtotal=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "descuento":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET descuento=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	case "impuestos":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET impuestos=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	}
+	return err
+}
+
+func (h *CotizadorRuntimeHandler) leerValores(ctx context.Context, q consultadorRuntime, cotizacionID string, version int) (map[string]any, error) {
+	rows, err := q.Query(ctx, `SELECT elemento_id, valor FROM cotizacion_valores WHERE cotizacion_id=$1 AND version=$2`, cotizacionID, version)
 	if err != nil {
 		return nil, err
 	}

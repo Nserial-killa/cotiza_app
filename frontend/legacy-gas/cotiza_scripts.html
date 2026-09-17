@@ -1536,6 +1536,23 @@ window.CotizaApp = (function(){
             '<div class="runtime-caja-valor-display">' + escapeHtml(String(cfg.prefijo || "")) + escapeHtml(textoValor) + escapeHtml(String(cfg.sufijo || "")) + '</div>' +
             '</div>';
         }
+        if(el.tipo === "CAMPO_CALCULADO"){
+          const crudo = el.valor_resuelto;
+          const tipoResultado = String(cfg.tipo_resultado || "NUMERO").toUpperCase();
+          const decimalesRaw = Number(cfg.decimales);
+          const decimales = Number.isFinite(decimalesRaw) ? decimalesRaw : 2;
+          let texto = "—";
+          if(crudo !== null && crudo !== undefined && crudo !== ""){
+            const numero = Number(crudo);
+            if(tipoResultado === "MONEDA") texto = formatoMoneda(numero);
+            else if(tipoResultado === "PORCENTAJE") texto = numero.toLocaleString("es-CR",{minimumFractionDigits:decimales,maximumFractionDigits:decimales}) + "%";
+            else texto = numero.toLocaleString("es-CR",{minimumFractionDigits:decimales,maximumFractionDigits:decimales});
+          }
+          return '<div class="field runtime-field runtime-campo-calculado" ' + estiloSpan + '>' +
+            '<label>' + escapeHtml(el.etiqueta || "") + '</label>' +
+            '<div class="runtime-caja-valor-display">' + escapeHtml(texto) + '</div>' +
+            '</div>';
+        }
         if(el.tipo === "CAMPO_CATALOGO"){
           const opciones = el.opciones || [];
           const optionsHtml = '<option value="">Seleccione...</option>' + opciones.map(function(op){

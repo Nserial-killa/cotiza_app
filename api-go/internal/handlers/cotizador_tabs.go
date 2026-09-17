@@ -41,6 +41,7 @@ type elementoTabCotizador struct {
 	CatalogoID        *string        `json:"catalogo_id"`
 	ComponentePadreID *string        `json:"componente_padre_id"`
 	CampoFuenteID     *string        `json:"campo_fuente_id"`
+	FuncionCampo      string         `json:"funcion_campo"`
 	ColumnasAncho     int            `json:"columnas_ancho"`
 	Orden             int            `json:"orden"`
 	Requerido         bool           `json:"requerido"`
@@ -70,6 +71,7 @@ type guardarElementoTabRequest struct {
 	CatalogoID        *string         `json:"catalogo_id"`
 	ComponentePadreID *string         `json:"componente_padre_id"`
 	CampoFuenteID     *string         `json:"campo_fuente_id"`
+	FuncionCampo      string          `json:"funcion_campo"`
 	ColumnasAncho     enteroFlexible  `json:"columnas_ancho"`
 	Orden             enteroFlexible  `json:"orden"`
 	Requerido         bool            `json:"requerido"`
@@ -79,14 +81,30 @@ type guardarElementoTabRequest struct {
 }
 
 // tiposElementoSimple es el conjunto de tipos que GuardarElemento acepta.
-// Ronda 1 del Diseñador (migración 0017) agrega TITULO, CONTENEDOR y
-// CAJA_VALOR a los 4 tipos simples del Sprint 2. TABLA y el resto de tipos
-// que ya tiene el frontend armados en el HTML (CAMPO_CALCULADO,
-// LISTA_PRECIOS, ESCENARIOS, SECCIONES_ADICIONALES) llegan en rondas
-// posteriores — no tocar esto sin su propia migración de esquema.
+// Ronda 1 del Diseñador (migración 0017) agregó TITULO, CONTENEDOR y
+// CAJA_VALOR a los 4 tipos simples del Sprint 2; Ronda 2 (migración 0018)
+// agrega CAMPO_CALCULADO. LISTA_PRECIOS, ESCENARIOS y SECCIONES_ADICIONALES
+// (ya armados en el HTML) llegan en rondas posteriores — no tocar esto sin
+// su propia migración de esquema.
 var tiposElementoSimple = map[string]bool{
 	"CAMPO": true, "CAMPO_CATALOGO": true, "LEYENDA": true, "TEXTO_INFORMATIVO": true,
-	"TITULO": true, "CONTENEDOR": true, "CAJA_VALOR": true,
+	"TITULO": true, "CONTENEDOR": true, "CAJA_VALOR": true, "CAMPO_CALCULADO": true,
+}
+
+// tiposConFuncionCampo son los únicos tipos donde "Función del campo" tiene
+// sentido: alimentan un valor propio (numérico o de catálogo) que puede
+// mapearse a un total de cotizacion_versiones. TITULO/CONTENEDOR/CAJA_VALOR/
+// LEYENDA/TEXTO_INFORMATIVO no tienen un valor propio que exportar así.
+var tiposConFuncionCampo = map[string]bool{
+	"CAMPO": true, "CAMPO_CATALOGO": true, "CAMPO_CALCULADO": true,
+}
+
+// funcionesCampoValidas son los 9 roles de "Función del campo" (Ronda 2) más
+// NORMAL (sin función especial, el caso común, único que puede repetirse).
+var funcionesCampoValidas = map[string]bool{
+	"NORMAL": true, "MONEDA_OFERTA": true, "TIPO_CAMBIO": true, "SUBTOTAL_OFERTA": true,
+	"DESCUENTO_OFERTA": true, "IMPUESTOS_OFERTA": true, "TOTAL_PRECIO_OFERTA": true,
+	"TOTAL_COSTO_INTERNO": true, "TOTAL_GANANCIA_INTERNA": true, "MARGEN_TOTAL": true,
 }
 
 func (h *CotizadorTabsHandler) ListarTabs(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +194,7 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 	defer cancel()
 	rows, err := h.DB.Query(ctx, `
 		SELECT elemento_id, tab_id, tipo, COALESCE(etiqueta, ''), catalogo_id,
-		       componente_padre_id, campo_fuente_id,
+		       componente_padre_id, campo_fuente_id, funcion_campo,
 		       columnas_ancho, orden, requerido, configuracion, activo
 		FROM elementos_tab_cotizador WHERE tab_id = $1 ORDER BY orden, elemento_id`, tabID)
 	if err != nil {
@@ -188,7 +206,7 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 	elementos := make([]elementoTabCotizador, 0)
 	for rows.Next() {
 		var el elementoTabCotizador
-		if err := rows.Scan(&el.ElementoID, &el.TabID, &el.Tipo, &el.Etiqueta, &el.CatalogoID, &el.ComponentePadreID, &el.CampoFuenteID, &el.ColumnasAncho, &el.Orden, &el.Requerido, &el.Configuracion, &el.Activo); err != nil {
+		if err := rows.Scan(&el.ElementoID, &el.TabID, &el.Tipo, &el.Etiqueta, &el.CatalogoID, &el.ComponentePadreID, &el.CampoFuenteID, &el.FuncionCampo, &el.ColumnasAncho, &el.Orden, &el.Requerido, &el.Configuracion, &el.Activo); err != nil {
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer los elementos."})
 			return
 		}
@@ -270,8 +288,143 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	req.FuncionCampo = strings.ToUpper(strings.TrimSpace(req.FuncionCampo))
+	if req.FuncionCampo == "" {
+		req.FuncionCampo = "NORMAL"
+	}
+	if !funcionesCampoValidas[req.FuncionCampo] {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "funcion_campo no es un valor válido."})
+		return
+	}
+	if req.FuncionCampo != "NORMAL" && !tiposConFuncionCampo[req.Tipo] {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "funcion_campo solo aplica a Campo, Campo Catálogo o Campo Calculado."})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
+
+	if req.FuncionCampo != "NORMAL" {
+		var calculadoraID string
+		err := h.DB.QueryRow(ctx, `SELECT calculadora_id FROM tabs_cotizador WHERE tab_id=$1`, req.TabID).Scan(&calculadoraID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El tab_id indicado no existe."})
+			return
+		}
+		if err != nil {
+			log.Printf("cotizador elementos: error resolviendo calculadora de %s: %v", req.TabID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar funcion_campo."})
+			return
+		}
+		var otroElementoID string
+		err = h.DB.QueryRow(ctx, `
+			SELECT e.elemento_id FROM elementos_tab_cotizador e
+			JOIN tabs_cotizador t ON t.tab_id = e.tab_id
+			WHERE t.calculadora_id = $1 AND e.activo = true AND e.funcion_campo = $2 AND e.elemento_id <> $3
+			LIMIT 1`, calculadoraID, req.FuncionCampo, req.ElementoID).Scan(&otroElementoID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			log.Printf("cotizador elementos: error validando unicidad de funcion_campo: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar funcion_campo."})
+			return
+		}
+		if otroElementoID != "" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El elemento %s ya tiene la función %s en este cotizador.", otroElementoID, req.FuncionCampo)})
+			return
+		}
+	}
+
+	if req.Tipo == "CAMPO_CALCULADO" {
+		tipoFormula := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["tipo_formula"])))
+		if tipoFormula == "" || tipoFormula == "<NIL>" {
+			tipoFormula = "SIMPLE"
+		}
+		if tipoFormula != "SIMPLE" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_formula debe ser SIMPLE (todavía no hay fórmula avanzada)."})
+			return
+		}
+		configuracion["tipo_formula"] = tipoFormula
+
+		operacion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["operacion"])))
+		if !operacionesCalculoValidas[operacion] {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "operacion debe ser SUMA, RESTA, MULTIPLICACION, DIVISION o PROMEDIO."})
+			return
+		}
+		configuracion["operacion"] = operacion
+
+		tipoResultado := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["tipo_resultado"])))
+		if tipoResultado != "NUMERO" && tipoResultado != "MONEDA" && tipoResultado != "PORCENTAJE" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_resultado debe ser NUMERO, MONEDA o PORCENTAJE."})
+			return
+		}
+		configuracion["tipo_resultado"] = tipoResultado
+
+		decimales, ok := enteroDesdeConfiguracion(configuracion, "decimales")
+		if !ok {
+			decimales = 2
+		}
+		if decimales < 0 || decimales > 4 {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "decimales debe estar entre 0 y 4."})
+			return
+		}
+		configuracion["decimales"] = decimales
+
+		operandos := operandosDesdeConfiguracion(configuracion)
+		minimoOperandos := 2
+		if operacion == "PROMEDIO" {
+			minimoOperandos = 1
+		}
+		if len(operandos) < minimoOperandos {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("La operación %s necesita al menos %d operando(s).", operacion, minimoOperandos)})
+			return
+		}
+		for _, opID := range operandos {
+			if opID == req.ElementoID {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Campo Calculado no puede tener a sí mismo como operando."})
+				return
+			}
+			var tipoOp, tabOp string
+			var activoOp bool
+			var configOp map[string]any
+			err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo, configuracion FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &tabOp, &activoOp, &configOp)
+			if errors.Is(err, pgx.ErrNoRows) {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no existe.", opID)})
+				return
+			}
+			if err != nil {
+				log.Printf("cotizador elementos: error validando operando %s: %v", opID, err)
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
+				return
+			}
+			if !activoOp {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s está inactivo.", opID)})
+				return
+			}
+			if tabOp != req.TabID {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe pertenecer a la misma sección (tab_id).", opID)})
+				return
+			}
+			if tipoOp == "CAMPO" {
+				tipoCampo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configOp["tipo_campo"])))
+				if tipoCampo != "NUMERO" && tipoCampo != "MONEDA" && tipoCampo != "PORCENTAJE" {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico (Número, Moneda o Porcentaje).", opID)})
+					return
+				}
+			} else if tipoOp != "CAMPO_CALCULADO" {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico o un Campo Calculado.", opID)})
+				return
+			}
+		}
+		circular, err := h.tieneReferenciaCircular(ctx, req.ElementoID, operandos, map[string]bool{})
+		if err != nil {
+			log.Printf("cotizador elementos: error detectando referencia circular en %s: %v", req.ElementoID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
+			return
+		}
+		if circular {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Los operandos generan una referencia circular: un Campo Calculado no puede depender de sí mismo, ni directa ni indirectamente."})
+			return
+		}
+	}
 
 	if padreID != "" {
 		if padreID == req.ElementoID {
@@ -333,15 +486,16 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 
 	_, err = h.DB.Exec(ctx, `
 		INSERT INTO elementos_tab_cotizador
-			(elemento_id, tab_id, tipo, etiqueta, catalogo_id, componente_padre_id, campo_fuente_id, columnas_ancho, orden, requerido, configuracion, activo)
-		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11, $12)
+			(elemento_id, tab_id, tipo, etiqueta, catalogo_id, componente_padre_id, campo_fuente_id, funcion_campo, columnas_ancho, orden, requerido, configuracion, activo)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11, $12, $13)
 		ON CONFLICT (elemento_id) DO UPDATE SET
 			tab_id = EXCLUDED.tab_id, tipo = EXCLUDED.tipo, etiqueta = EXCLUDED.etiqueta,
 			catalogo_id = EXCLUDED.catalogo_id, componente_padre_id = EXCLUDED.componente_padre_id,
-			campo_fuente_id = EXCLUDED.campo_fuente_id, columnas_ancho = EXCLUDED.columnas_ancho,
+			campo_fuente_id = EXCLUDED.campo_fuente_id, funcion_campo = EXCLUDED.funcion_campo,
+			columnas_ancho = EXCLUDED.columnas_ancho,
 			orden = EXCLUDED.orden, requerido = EXCLUDED.requerido,
 			configuracion = EXCLUDED.configuracion, activo = EXCLUDED.activo`,
-		req.ElementoID, req.TabID, req.Tipo, req.Etiqueta, catalogoID, padreID, fuenteID, columnas,
+		req.ElementoID, req.TabID, req.Tipo, req.Etiqueta, catalogoID, padreID, fuenteID, req.FuncionCampo, columnas,
 		int(req.Orden), req.Requerido, configuracion, req.Activo)
 	if err != nil {
 		log.Printf("cotizador elementos: error guardando %s: %v", req.ElementoID, err)
@@ -349,6 +503,56 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		return
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Elemento guardado.", "elemento_id": req.ElementoID})
+}
+
+// operandosDesdeConfiguracion lee configuracion["operandos"] (un array de
+// elemento_id) tolerando lo que json.Unmarshal produce: []any de strings.
+func operandosDesdeConfiguracion(configuracion map[string]any) []string {
+	raw, _ := configuracion["operandos"].([]any)
+	operandos := make([]string, 0, len(raw))
+	for _, v := range raw {
+		id := strings.ToUpper(strings.TrimSpace(fmt.Sprint(v)))
+		if id != "" {
+			operandos = append(operandos, id)
+		}
+	}
+	return operandos
+}
+
+// tieneReferenciaCircular recorre, en profundidad, la cadena de operandos de
+// un Campo Calculado (siguiendo solo los operandos que a su vez son otro
+// CAMPO_CALCULADO ya guardado) buscando si en algún punto se vuelve a
+// encontrar elementoID — el elemento que se está guardando ahora mismo. Los
+// operandos ya guardados no pueden tener ciclos entre sí (se validaron al
+// guardarse), así que "visitados" solo hace falta para no recorrer el mismo
+// nodo dos veces en el mismo árbol, no para cortar un ciclo preexistente.
+func (h *CotizadorTabsHandler) tieneReferenciaCircular(ctx context.Context, elementoID string, operandos []string, visitados map[string]bool) (bool, error) {
+	for _, opID := range operandos {
+		if opID == elementoID {
+			return true, nil
+		}
+		if visitados[opID] {
+			continue
+		}
+		visitados[opID] = true
+		var tipoOp string
+		var configOp map[string]any
+		err := h.DB.QueryRow(ctx, `SELECT tipo, configuracion FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &configOp)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if tipoOp != "CAMPO_CALCULADO" {
+			continue
+		}
+		circular, err := h.tieneReferenciaCircular(ctx, elementoID, operandosDesdeConfiguracion(configOp), visitados)
+		if err != nil || circular {
+			return circular, err
+		}
+	}
+	return false, nil
 }
 
 // enteroDesdeConfiguracion lee una clave numérica de la configuración JSON de

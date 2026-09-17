@@ -39,6 +39,7 @@ type elementoCompilado struct {
 	Tipo          string              `json:"tipo"`
 	Etiqueta      *string             `json:"etiqueta"`
 	CatalogoID    *string             `json:"catalogo_id"`
+	FuncionCampo  string              `json:"funcion_campo,omitempty"`
 	ColumnasAncho int                 `json:"columnas_ancho"`
 	Orden         int                 `json:"orden"`
 	Requerido     bool                `json:"requerido"`
@@ -185,7 +186,7 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	rows, err := h.DB.Query(ctx, `
 		SELECT t.tab_id, t.nombre, t.descripcion, t.alcance, t.orden,
 		       e.elemento_id, e.tipo, e.etiqueta, e.catalogo_id,
-		       e.componente_padre_id, e.campo_fuente_id,
+		       e.componente_padre_id, e.campo_fuente_id, e.funcion_campo,
 		       e.columnas_ancho, e.orden, e.requerido, e.configuracion,
 		       CASE WHEN e.catalogo_id IS NULL THEN NULL ELSE c.activo END
 		FROM tabs_cotizador t
@@ -204,12 +205,12 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		var orden int
 		var elementoID, tipo *string
 		var etiqueta, catalogoID *string
-		var componentePadreID, campoFuenteID *string
+		var componentePadreID, campoFuenteID, funcionCampo *string
 		var columnasAncho, elementoOrden *int
 		var requerido *bool
 		var configuracion map[string]any
 		var catalogoActivo *bool
-		if err := rows.Scan(&tabID, &nombre, &descripcion, &alcance, &orden, &elementoID, &tipo, &etiqueta, &catalogoID, &componentePadreID, &campoFuenteID, &columnasAncho, &elementoOrden, &requerido, &configuracion, &catalogoActivo); err != nil {
+		if err := rows.Scan(&tabID, &nombre, &descripcion, &alcance, &orden, &elementoID, &tipo, &etiqueta, &catalogoID, &componentePadreID, &campoFuenteID, &funcionCampo, &columnasAncho, &elementoOrden, &requerido, &configuracion, &catalogoActivo); err != nil {
 			return resultado, err
 		}
 		indice, existe := tabsPorID[tabID]
@@ -225,7 +226,11 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		if cfg == nil {
 			cfg = map[string]any{}
 		}
-		el := elementoCompilado{ElementoID: *elementoID, Tipo: valorString(tipo), Etiqueta: etiqueta, CatalogoID: catalogoID, ColumnasAncho: valorInt(columnasAncho), Orden: valorInt(elementoOrden), Requerido: valorBool(requerido), Configuracion: cfg, componentePadreID: valorString(componentePadreID)}
+		funcion := valorString(funcionCampo)
+		if funcion == "NORMAL" {
+			funcion = ""
+		}
+		el := elementoCompilado{ElementoID: *elementoID, Tipo: valorString(tipo), Etiqueta: etiqueta, CatalogoID: catalogoID, FuncionCampo: funcion, ColumnasAncho: valorInt(columnasAncho), Orden: valorInt(elementoOrden), Requerido: valorBool(requerido), Configuracion: cfg, componentePadreID: valorString(componentePadreID)}
 		if el.Tipo == "CAJA_VALOR" {
 			if fuente := valorString(campoFuenteID); fuente != "" {
 				el.Configuracion["campo_fuente_id"] = fuente
