@@ -59,11 +59,13 @@ func (n *numeroFlexible) UnmarshalJSON(data []byte) error {
 }
 
 // listaPreciosItem es la forma completa de un ítem — incluye
-// costo_interno/margen_porcentaje a propósito: la usan ListarElementos
-// (Diseñador, quien configura el precio SÍ debe verlos) y este handler.
+// costo_interno/margen_porcentaje a propósito: quien configura el precio
+// (un rol con puede_ver_price) SÍ debe verlos desde ListarElementos.
 // compilador.go/cotizador_runtime.go arman su PROPIA versión sin esas dos
 // claves para lo que llega al Motor de Ejecución (ver el comentario en
-// incluirItemsListaPrecios).
+// incluirItemsListaPrecios) — acá, en cambio, el mismo struct sirve para
+// ambos casos: ListarElementos prende OcultarPrecioInterno por sesión
+// cuando el rol no tiene puede_ver_price.
 type listaPreciosItem struct {
 	ItemID           string  `json:"item_id"`
 	ElementoID       string  `json:"elemento_id"`
@@ -77,6 +79,41 @@ type listaPreciosItem struct {
 	MargenPorcentaje float64 `json:"margen_porcentaje"`
 	Orden            int     `json:"orden"`
 	Activo           bool    `json:"activo"`
+
+	// OcultarPrecioInterno no se serializa nunca (json:"-"): es la señal
+	// que ListarElementos prende para que MarshalJSON directamente NO
+	// escriba costo_interno/margen_porcentaje en el JSON de salida —
+	// ausentes, no en 0 ni null (mismo criterio que sesionPuedeVerPrice ya
+	// aplica en cotizaciones.go/dashboard.go).
+	OcultarPrecioInterno bool `json:"-"`
+}
+
+// MarshalJSON es la única forma limpia de "borrar" costo_interno/
+// margen_porcentaje de un struct tipado antes de responder — el resto del
+// proyecto lo hace con delete() sobre un map[string]any armado a mano
+// (cotizaciones.go), pero acá el item viaja tipado dentro de
+// elementoTabCotizador.Items, así que el mismo criterio se aplica acá.
+func (item listaPreciosItem) MarshalJSON() ([]byte, error) {
+	if !item.OcultarPrecioInterno {
+		type alias listaPreciosItem
+		return json.Marshal(alias(item))
+	}
+	return json.Marshal(struct {
+		ItemID      string  `json:"item_id"`
+		ElementoID  string  `json:"elemento_id"`
+		Codigo      string  `json:"codigo"`
+		Nombre      string  `json:"nombre"`
+		Descripcion *string `json:"descripcion"`
+		Precio      float64 `json:"precio"`
+		Moneda      string  `json:"moneda"`
+		UnidadCobro *string `json:"unidad_cobro"`
+		Orden       int     `json:"orden"`
+		Activo      bool    `json:"activo"`
+	}{
+		ItemID: item.ItemID, ElementoID: item.ElementoID, Codigo: item.Codigo, Nombre: item.Nombre,
+		Descripcion: item.Descripcion, Precio: item.Precio, Moneda: item.Moneda, UnidadCobro: item.UnidadCobro,
+		Orden: item.Orden, Activo: item.Activo,
+	})
 }
 
 type crearItemListaPreciosRequest struct {
@@ -123,8 +160,23 @@ func (h *ListaPreciosItemsHandler) Crear(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	// costo_interno/margen_porcentaje son precio interno: si la sesión no
+	// tiene puede_ver_price, se ignoran esos dos campos en particular (el
+	// ítem se crea igual, con ambos en su valor por defecto) en vez de
+	// rechazar el pedido completo.
+	puedeVerPrice, err := (&CotizacionesHandler{DB: h.DB}).sesionPuedeVerPrice(ctx, r)
+	if err != nil {
+		log.Printf("lista precios items: error validando permiso de precio: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return
+	}
+	if !puedeVerPrice {
+		req.CostoInterno = 0
+		req.MargenPorcentaje = 0
+	}
+
 	var tipo string
-	err := h.DB.QueryRow(ctx, `SELECT tipo FROM elementos_tab_cotizador WHERE elemento_id=$1`, elementoID).Scan(&tipo)
+	err = h.DB.QueryRow(ctx, `SELECT tipo FROM elementos_tab_cotizador WHERE elemento_id=$1`, elementoID).Scan(&tipo)
 	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El elemento indicado no existe."})
 		return
@@ -186,6 +238,22 @@ func (h *ListaPreciosItemsHandler) Editar(w http.ResponseWriter, r *http.Request
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
 		return
+	}
+
+	ctxPermiso, cancelPermiso := context.WithTimeout(r.Context(), 5*time.Second)
+	puedeVerPrice, err := (&CotizacionesHandler{DB: h.DB}).sesionPuedeVerPrice(ctxPermiso, r)
+	cancelPermiso()
+	if err != nil {
+		log.Printf("lista precios items: error validando permiso de precio: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return
+	}
+	if !puedeVerPrice {
+		// Igual que con rol/estado para un Vendedor en UsuariosHandler.Editar,
+		// pero acá se ignora en silencio en vez de rechazar: el resto del
+		// guardado (precio, nombre, moneda, etc.) sigue su curso.
+		req.CostoInterno = nil
+		req.MargenPorcentaje = nil
 	}
 
 	columnas := make([]string, 0, 9)

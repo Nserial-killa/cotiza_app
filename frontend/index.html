@@ -492,6 +492,12 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .runtime-lp-table tr { border: 1px solid #eef1f6; border-radius: 8px; margin-bottom: 8px; padding: 6px; }
 }
 
+/* Ronda 4 de tipos nuevos: Tabla (migración 0020) — reusa .runtime-lp-table/
+   .runtime-lp-total/.runtime-lp-empty de Lista de Precios (Ronda 3), mismo
+   look de filas dinámicas con total al pie. */
+.runtime-tabla { grid-column: 1/-1; }
+.runtime-lp-table-wrap { overflow-x: auto; }
+
 /* ---------- Solicitudes de Propuesta ---------- */
 .solicitudes-page { --request-border:#d7e1ee; --request-ink:#082650; --request-muted:#7b899d; }
 
@@ -4907,6 +4913,8 @@ table tr:last-child td { border-bottom: none; }
                       <option value="CONTENEDOR">Contenedor</option>
                       <option value="CAJA_VALOR">Caja de valor</option>
                       <option value="CAMPO_CALCULADO">Campo Calculado</option>
+                      <option value="LISTA_PRECIOS">Lista de Precios</option>
+                      <option value="TABLA">Tabla</option>
                     </select>
                   </div>
 
@@ -5488,8 +5496,6 @@ table tr:last-child td { border-bottom: none; }
                         <label for="designerCotizadorTablaTipoTabla">Tipo de tabla</label>
                         <select id="designerCotizadorTablaTipoTabla" class="select">
                           <option value="SIMPLE">Tabla simple</option>
-                          <option value="TOTALES">Tabla con totales</option>
-                          <option value="JERARQUICA">Tabla jerárquica / plan de trabajo</option>
                         </select>
                       </div>
                       <div class="field" style="margin-bottom:0;">
@@ -5547,31 +5553,12 @@ table tr:last-child td { border-bottom: none; }
                         <select id="designerCotizadorTablaColumnaTipo" class="select">
                           <option value="TEXTO">Texto</option>
                           <option value="NUMERO">Número</option>
-                          <option value="CATALOGO">Catálogo</option>
-                        </select>
-                        <select id="designerCotizadorTablaColumnaFormato" class="select">
-                          <option value="NORMAL">Normal</option>
                           <option value="MONEDA">Moneda</option>
                           <option value="PORCENTAJE">Porcentaje</option>
-                          <option value="HORAS">Horas</option>
-                        </select>
-                        <select id="designerCotizadorTablaColumnaCatalogo" class="select">
-                          <option value="">Catálogo asociado...</option>
-                        </select>
-                        <select id="designerCotizadorTablaColumnaValorCatalogo" class="select">
-                          <option value="VALOR_SISTEMA">Valor del sistema</option>
-                          <option value="CLAVE">Clave</option>
-                          <option value="TEXTO_VISIBLE">Texto visible</option>
                         </select>
                         <button id="btnDesignerAgregarColumnaPropiaTabla" class="btn btn-light-blue btn-mini" type="button">Agregar columna</button>
                       </div>
-                      <div class="cotizador-table-column-options">
-                        <label class="param-switch"><input id="designerCotizadorTablaColumnaObligatoria" type="checkbox"> Obligatoria</label>
-                        <label class="param-switch"><input id="designerCotizadorTablaColumnaEditable" type="checkbox" checked> Editable</label>
-                        <label class="param-switch"><input id="designerCotizadorTablaColumnaTotalizar" type="checkbox"> Totalizar columna</label>
-                        <input id="designerCotizadorTablaColumnaEtiquetaTotal" class="input cotizador-table-column-total-label" type="text" placeholder="Etiqueta total de columna">
-                      </div>
-                      <span class="param-field-help">Use columnas propias para datos simples de la tabla como Perfil, Cantidad, Catálogo, Observación, Monto, Porcentaje u Horas.</span>
+                      <span class="param-field-help">Use columnas propias para datos simples como Perfil, Cantidad, Observación, Monto o Porcentaje. El total al pie de la tabla suma la primera columna Número o Moneda, en el orden en que aparecen.</span>
                     </div>
                     <div id="designerCotizadorTablaColumnasLista" class="cotizador-mini-list"></div>
                   </div>
@@ -10082,6 +10069,38 @@ window.CotizaApp = (function(){
             renderRuntimeCotizador();
           });
         });
+
+        // TABLA (Ronda 4): mismo criterio que Lista de Precios MULTIPLE —
+        // agregar/quitar cambia la cantidad de filas, así que se captura lo
+        // que ya había antes de re-renderizar completo. El total al pie
+        // (valor_resuelto) se recalcula solo, no hace falta tocarlo acá.
+        contenido.querySelectorAll(".runtime-tabla-agregar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            if(!id) return;
+            rt.valores[id] = rt.valores[id] || {};
+            if(!Array.isArray(rt.valores[id].filas)) rt.valores[id].filas = [];
+            rt.valores[id].filas.push({});
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-tabla-quitar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            const idx = Number(btn.dataset.fila);
+            if(!id || !rt.valores[id] || !Array.isArray(rt.valores[id].filas)) return;
+            rt.valores[id].filas.splice(idx, 1);
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-tabla-celda").forEach(function(input){
+          input.addEventListener("change", function(){
+            leerValoresFormularioActual();
+            renderRuntimeCotizador();
+          });
+        });
       }
 
       // CAMPO -> input de texto. CAMPO_CATALOGO -> select con las
@@ -10152,6 +10171,9 @@ window.CotizaApp = (function(){
         }
         if(el.tipo === "LISTA_PRECIOS"){
           return renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido);
+        }
+        if(el.tipo === "TABLA"){
+          return renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido);
         }
         if(el.tipo === "CAMPO_CATALOGO"){
           const opciones = el.opciones || [];
@@ -10256,6 +10278,50 @@ window.CotizaApp = (function(){
           + '</div>';
       }
 
+      // Un <input> por celda según tipo_dato de la columna — Número/Moneda/
+      // Porcentaje son numéricos, el resto (Texto) es texto libre.
+      function celdaTablaRuntime_(tipoDato, valor, elementoID, columnaID, fila){
+        const esNumerico = ["NUMERO", "MONEDA", "PORCENTAJE"].indexOf(String(tipoDato || "").toUpperCase()) >= 0;
+        const val = (valor === null || valor === undefined) ? "" : valor;
+        return '<input type="' + (esNumerico ? "number" : "text") + '" class="input runtime-tabla-celda" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + fila + '" data-columna-id="' + escapeHtml(columnaID) + '" value="' + escapeHtml(String(val)) + '"' + (esNumerico ? ' step="any"' : '') + '>';
+      }
+
+      // TABLA (Ronda 4): filas dinámicas, un input por celda según el tipo
+      // de su columna (ya normalizado por el compilado, sea CAMPO_EXISTENTE
+      // o PROPIA — ver incluirColumnasTabla en compilador.go), botones de
+      // agregar/quitar fila solo si el Diseñador los permitió, y el total
+      // (ya resuelto por el backend en valor_resuelto, misma idea que Lista
+      // de Precios y Campo Calculado) al pie si hay una columna numérica.
+      function renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido){
+        const elementoID = el.elemento_id;
+        const columnas = (Array.isArray(cfg.columnas) ? cfg.columnas.slice() : []).sort(function(a, b){ return (a.orden || 0) - (b.orden || 0); });
+        const filas = (valorGuardado && Array.isArray(valorGuardado.filas)) ? valorGuardado.filas : [];
+        const permitirAgregar = cfg.permitir_agregar_filas !== false;
+        const permitirEliminar = cfg.permitir_eliminar_filas !== false;
+
+        const th = columnas.map(function(c){ return '<th>' + escapeHtml(c.etiqueta || "Columna") + '</th>'; }).join("") + (permitirEliminar ? '<th></th>' : '');
+        const colspan = columnas.length + (permitirEliminar ? 1 : 0);
+        const filasHtml = filas.length ? filas.map(function(fila, idx){
+          const celdas = columnas.map(function(c){ return '<td>' + celdaTablaRuntime_(c.tipo_dato, fila[c.columna_id], elementoID, c.columna_id, idx) + '</td>'; }).join("");
+          const quitar = permitirEliminar ? '<td><button type="button" class="btn btn-ghost btn-mini runtime-tabla-quitar" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">Quitar</button></td>' : '';
+          return '<tr>' + celdas + quitar + '</tr>';
+        }).join("") : ('<tr><td colspan="' + Math.max(colspan, 1) + '" class="runtime-lp-empty">Sin filas agregadas.</td></tr>');
+
+        const totalRaw = el.valor_resuelto;
+        let totalHtml = "";
+        if(totalRaw !== null && totalRaw !== undefined){
+          const unidad = cfg.unidad ? (" " + cfg.unidad) : "";
+          totalHtml = '<div class="runtime-lp-total">' + escapeHtml(cfg.etiqueta_total || "TOTAL") + ': ' + escapeHtml(formatoNumero(totalRaw)) + escapeHtml(unidad) + '</div>';
+        }
+
+        return '<div class="field runtime-field runtime-tabla" ' + estiloSpan + ' data-tabla-id="' + escapeHtml(elementoID) + '">'
+          + '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>'
+          + '<div class="runtime-lp-table-wrap"><table class="runtime-lp-table"><thead><tr>' + th + '</tr></thead><tbody>' + filasHtml + '</tbody></table></div>'
+          + (permitirAgregar ? '<button type="button" class="btn btn-ghost btn-mini runtime-tabla-agregar" data-elemento-id="' + escapeHtml(elementoID) + '">+ Agregar fila</button>' : '')
+          + totalHtml
+          + '</div>';
+      }
+
       // Vuelca lo que hay ahora mismo en pantalla (de la tab activa)
       // a state.cotizadorRuntime.valores, sin tocar los valores de las
       // demás tabs (que ya quedaron guardados ahí en su propio turno).
@@ -10292,16 +10358,32 @@ window.CotizaApp = (function(){
           });
           rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
         });
+        // TABLA (Ronda 4): una fila por <tr>, columna_id como clave —
+        // mismo criterio de índice por posición que Lista de Precios MULTIPLE.
+        document.querySelectorAll("#gestorRuntimeContenido [data-tabla-id]").forEach(function(cont){
+          const id = cont.dataset.tablaId;
+          if(!id) return;
+          const filas = [];
+          cont.querySelectorAll(".runtime-tabla-celda").forEach(function(input){
+            const idx = Number(input.dataset.fila);
+            const columnaId = input.dataset.columnaId;
+            if(!columnaId) return;
+            filas[idx] = filas[idx] || {};
+            filas[idx][columnaId] = input.value;
+          });
+          rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
+        });
       }
 
       // Recorre elementos y sus "hijos" (componentes dentro de un
-      // CONTENEDOR) marcando cuáles son guardables: solo CAMPO y
-      // CAMPO_CATALOGO tienen valor propio. TITULO/CONTENEDOR/LEYENDA/
-      // TEXTO_INFORMATIVO/CAJA_VALOR no se guardan (Caja de valor
-      // refleja otro campo, no tiene input propio).
+      // CONTENEDOR) marcando cuáles son guardables: solo CAMPO,
+      // CAMPO_CATALOGO, LISTA_PRECIOS y TABLA tienen valor propio.
+      // TITULO/CONTENEDOR/LEYENDA/TEXTO_INFORMATIVO/CAJA_VALOR/
+      // CAMPO_CALCULADO no se guardan (son de solo lectura o reflejan otro
+      // campo, no tienen input propio).
       function recolectarElementosGuardablesRuntimeCotizador_(elementos, destino){
         (elementos || []).forEach(function(el){
-          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS") destino[el.elemento_id] = true;
+          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS" || el.tipo === "TABLA") destino[el.elemento_id] = true;
           if(Array.isArray(el.hijos)) recolectarElementosGuardablesRuntimeCotizador_(el.hijos, destino);
         });
       }
@@ -15742,7 +15824,7 @@ window.CotizaApp = (function(){
           catalogosDefinicion:[],
           camposModelo:[],
           reglasModelo:[],
-          tablaColumnasTemp:[],
+          tablaColumnasActual:[],
           campoReglasTemp:[],
           calculadoOperandosTemp:[],
           listaPreciosItemsActual:[],
@@ -15888,6 +15970,9 @@ window.CotizaApp = (function(){
         bind("designerCotizadorCampoTipoCampo","change",actualizarOpcionesFechaCampoCotizadorFase1_);
         bind("designerCotizadorCampoCatalogoId","change",actualizarMensajeCatalogoHijoCotizadorFase1_);
         bind("btnDesignerAgregarColumnaTabla","click",agregarColumnaTablaCotizadorFase1_);
+        bind("btnDesignerAgregarColumnaPropiaTabla","click",agregarColumnaPropiaTablaCotizadorFase1_);
+        bind("designerCotizadorTablaModoCampoExistente","change",actualizarModoColumnaTablaCotizadorFase1_);
+        bind("designerCotizadorTablaModoColumnaPropia","change",actualizarModoColumnaTablaCotizadorFase1_);
         bind("btnDesignerAgregarReglaCampo","click",agregarReglaCampoCotizadorFase1_);
         bind("btnDesignerAgregarReglaCampoCatalogo","click",agregarReglaCampoCatalogoCotizadorFase1_);
         bind("btnDesignerAgregarCampoCatalogoHijo","click",agregarCampoCatalogoHijoCotizadorFase1_);
@@ -16461,12 +16546,22 @@ window.CotizaApp = (function(){
         });
       }
 
+      // Las columnas de una Tabla (Ronda 4) viven en la base
+      // (tabla_columnas), no en configuracion — llegan en e.columnas, tal
+      // como las embebe GET /api/cotizador/elementos. Una CAMPO_EXISTENTE
+      // no trae su propia etiqueta (la tiene el campo que integra), así que
+      // se resuelve contra st.elementos.
       function renderTablaPreviewCotizadorFase1_(e, cfg, etiqueta, desc){
-        const cols = Array.isArray(cfg.columnas) ? cfg.columnas : [];
-        let heads = cols.map(function(c){ return escapeHtml(c.etiqueta || c.nombre || c.elemento_id || c.campo_id || "Columna"); });
-        if(!heads.length) heads = ["Columna 1","Columna 2"];
+        const st = getCotizadorFase1State_();
+        const cols = Array.isArray(e.columnas) ? e.columnas : [];
+        let heads = cols.map(function(c){
+          if(String(c.origen || "").toUpperCase() === "PROPIA") return escapeHtml(c.etiqueta || "Columna");
+          const campo = (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === String(c.campo_existente_id || "").trim(); });
+          return escapeHtml(campo ? (campo.etiqueta || campo.nombre_elemento || c.campo_existente_id) : (c.campo_existente_id || "Columna"));
+        });
+        if(!heads.length) heads = ["Sin columnas todavía"];
         const th = heads.map(function(h){ return '<th>'+h+'</th>'; }).join("");
-        const td = heads.map(function(){ return '<td>&nbsp;</td>'; }).join("");
+        const td = cols.length ? cols.map(function(){ return '<td>&nbsp;</td>'; }).join("") : "";
         return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'+(desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div><div class="cotizador-preview-table-wrap"><table class="cotizador-preview-table"><thead><tr>'+th+'</tr></thead><tbody><tr>'+td+'</tr></tbody></table></div>';
       }
 
@@ -16698,6 +16793,12 @@ window.CotizaApp = (function(){
         return label + (id && label !== id ? " (" + id + ")" : "");
       }
 
+      // Campos que se pueden "integrar" en otro componente (columna de
+      // Tabla — Ronda 4 — o campo fuente de Caja de Valor): CAMPO,
+      // CAMPO_CATALOGO o CAMPO_CALCULADO de la misma sección, activos, sin
+      // contarse a sí mismo. Ni otra TABLA ni una LISTA_PRECIOS ni un
+      // CONTENEDOR — evita anidar tablas dentro de tablas (mismo criterio
+      // que tiposOperandoComoColumnaValidos en tabla_columnas.go).
       function camposDisponiblesTablaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const actual = String(st.elementoId || "").trim();
@@ -16705,14 +16806,16 @@ window.CotizaApp = (function(){
           const tab = String(el.tab_id || "").trim();
           const id = String(el.elemento_id || "").trim();
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
-          return tab === st.tabId && id && id !== actual && (tipo === "CAMPO" || tipo === "CAMPO_CATALOGO") && normalizarActivoCotizadorFase1_(el.activo);
+          return tab === st.tabId && id && id !== actual && (tipo === "CAMPO" || tipo === "CAMPO_CATALOGO" || tipo === "CAMPO_CALCULADO") && normalizarActivoCotizadorFase1_(el.activo);
         }).sort(function(a,b){ return numeroOrdenCotizadorFase1_(a.orden)-numeroOrdenCotizadorFase1_(b.orden); });
       }
 
-      // Operandos válidos de un Campo Calculado (Ronda 2): CAMPO numérico
-      // (Número/Moneda/Porcentaje) u otro CAMPO_CALCULADO, de la misma
-      // sección, activos, sin contarse a sí mismo ni los ya agregados —
-      // Campo Catálogo queda fuera todavía (no tiene precio asociado).
+      // Operandos válidos de un Campo Calculado (Ronda 2 + Ronda 3 + Ronda
+      // 4): CAMPO numérico (Número/Moneda/Porcentaje), o un CAMPO_CALCULADO,
+      // LISTA_PRECIOS o TABLA (todos son, en los hechos, otra fuente
+      // numérica: su total ya viene resuelto), de la misma sección, activos,
+      // sin contarse a sí mismo ni los ya agregados — Campo Catálogo queda
+      // fuera todavía (no tiene precio asociado).
       function operandosDisponiblesCalculadoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const actual = String(st.elementoId || "").trim();
@@ -16723,7 +16826,7 @@ window.CotizaApp = (function(){
           const id = String(el.elemento_id || "").trim();
           if(tab !== st.tabId || !id || id === actual || yaAgregados[id] || !normalizarActivoCotizadorFase1_(el.activo)) return false;
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
-          if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS") return true;
+          if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS" || tipo === "TABLA") return true;
           if(tipo !== "CAMPO") return false;
           const cfg = parseConfigElementoCotizadorFase1_(el.config_json || el.configuracion);
           const tipoCampo = String(cfg.tipo_campo || "").trim().toUpperCase();
@@ -16875,7 +16978,7 @@ window.CotizaApp = (function(){
         const padreWrap = byId("designerCotizadorElementoPadreWrap");
         if(padreWrap){
           const hayContenedores = elementosDeTabCotizadorFase1_().some(function(e){ return String(e.tipo_elemento || "").toUpperCase() === "CONTENEDOR" && String(e.elemento_id || "") !== String(getCotizadorFase1State_().elementoId || ""); });
-          padreWrap.classList.toggle("hidden", !hayContenedores || tipo === "CONTENEDOR" || tipo === "TABLA");
+          padreWrap.classList.toggle("hidden", !hayContenedores || tipo === "CONTENEDOR");
         }
         const funcionCampoBox = byId("designerCotizadorFuncionCampoBox");
         if(funcionCampoBox){
@@ -16899,8 +17002,10 @@ window.CotizaApp = (function(){
       }
 
       // Editor de operandos del Campo Calculado (Ronda 2): mismo patrón de
-      // "lista temporal + Agregar/Quitar" que ya usan columnas de Tabla y
-      // reglas de Campo (st.tablaColumnasTemp / st.campoReglasTemp).
+      // "lista temporal + Agregar/Quitar" que ya usa reglas de Campo
+      // (st.campoReglasTemp) — las columnas de Tabla (Ronda 4), en cambio,
+      // son filas reales en la base apenas se agregan, ver
+      // renderColumnasTablaCotizadorFase1_.
       function renderOperandosCalculadoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const cont = byId("designerCotizadorCalculadoOperandosLista");
@@ -17106,42 +17211,107 @@ window.CotizaApp = (function(){
           .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar el ítem."); });
       }
 
+      // ---------------------------------------------------------------
+      // Columnas de Tabla (Ronda 4, migración 0020). Mismo criterio que los
+      // ítems de Lista de Precios (Ronda 3): las columnas tienen sus
+      // propios endpoints y existen apenas se crean, así que el elemento
+      // TABLA tiene que estar guardado (elemento_id real) antes de poder
+      // agregarle columnas.
+      // ---------------------------------------------------------------
+
+      function tablaPuedeEditarColumnas_(){
+        const st = getCotizadorFase1State_();
+        return !!(st.elementoId && getElementoActualCotizadorFase1_());
+      }
+
+      function actualizarModoColumnaTablaCotizadorFase1_(){
+        const esPropia = byId("designerCotizadorTablaModoColumnaPropia") && byId("designerCotizadorTablaModoColumnaPropia").checked;
+        if(byId("designerCotizadorTablaBloqueCampoExistente")) byId("designerCotizadorTablaBloqueCampoExistente").classList.toggle("hidden", esPropia);
+        if(byId("designerCotizadorTablaBloqueColumnaPropia")) byId("designerCotizadorTablaBloqueColumnaPropia").classList.toggle("hidden", !esPropia);
+      }
+
       function renderColumnasTablaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const cont = byId("designerCotizadorTablaColumnasLista");
-        if(!cont) return;
-        const cols = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
-        if(!cols.length){ cont.innerHTML = '<div class="cotizador-mini-empty">Sin columnas agregadas.</div>'; return; }
-        cont.innerHTML = cols.map(function(c,idx){
-          const elementoId = String(c.elemento_id || c.campo_id || "").trim();
-          const elemento = (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === elementoId; });
-          const txt = c.etiqueta || (elemento ? labelElementoCampoCotizadorFase1_(elemento) : elementoId);
-          return '<div class="cotizador-mini-row"><span>'+(idx+1)+'. '+escapeHtml(txt)+'</span><button type="button" class="btn btn-ghost btn-mini" data-quitar-columna="'+idx+'">Quitar</button></div>';
-        }).join("");
-        cont.querySelectorAll("[data-quitar-columna]").forEach(function(btn){
-          btn.addEventListener("click",function(){
-            const idx = Number(btn.getAttribute("data-quitar-columna"));
-            st.tablaColumnasTemp.splice(idx,1);
-            renderColumnasTablaCotizadorFase1_();
-          });
-        });
+        const cols = Array.isArray(st.tablaColumnasActual) ? st.tablaColumnasActual : [];
+        if(!tablaPuedeEditarColumnas_()){
+          if(cont) cont.innerHTML = '<div class="cotizador-mini-empty">Guarde el componente antes de agregar columnas.</div>';
+        } else if(cont){
+          if(!cols.length){
+            cont.innerHTML = '<div class="cotizador-mini-empty">Sin columnas agregadas.</div>';
+          } else {
+            cont.innerHTML = cols.map(function(c, idx){
+              const esPropia = String(c.origen || "").toUpperCase() === "PROPIA";
+              const elemento = esPropia ? null : (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === String(c.campo_existente_id || "").trim(); });
+              const txt = esPropia ? (c.etiqueta || "Columna propia") + " (" + (c.tipo_dato || "TEXTO") + ")" : (elemento ? labelElementoCampoCotizadorFase1_(elemento) : (c.campo_existente_id || "Campo"));
+              return '<div class="cotizador-mini-row"><span>'+(idx+1)+'. '+escapeHtml(txt)+'</span><button type="button" class="btn btn-ghost btn-mini" data-quitar-columna="'+escapeHtml(c.columna_id)+'">Quitar</button></div>';
+            }).join("");
+            cont.querySelectorAll("[data-quitar-columna]").forEach(function(btn){
+              btn.addEventListener("click", function(){
+                eliminarColumnaTablaCotizadorFase1_(btn.getAttribute("data-quitar-columna"));
+              });
+            });
+          }
+        }
+        const btnCampo = byId("btnDesignerAgregarColumnaTabla");
+        const btnPropia = byId("btnDesignerAgregarColumnaPropiaTabla");
+        if(btnCampo) btnCampo.disabled = !tablaPuedeEditarColumnas_();
+        if(btnPropia) btnPropia.disabled = !tablaPuedeEditarColumnas_();
+      }
+
+      // Igual que refrescarItemsListaPreciosCotizadorFase1_: vuelve a pedir
+      // los elementos del tab para traer las columnas ya guardadas, en vez
+      // de llevar la cuenta a mano.
+      function refrescarColumnasTablaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        listarElementosCotizadorApiFase1_(st.tabId, function(res){
+          st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
+          const actual = getElementoActualCotizadorFase1_();
+          st.tablaColumnasActual = (actual && Array.isArray(actual.columnas)) ? actual.columnas : [];
+          renderColumnasTablaCotizadorFase1_();
+          llenarSelectCamposYReglasCotizadorFase1_();
+        }, function(err){ mostrarToast("No se pudieron recargar las columnas: " + ((err && err.message) || err)); });
       }
 
       function agregarColumnaTablaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(!tablaPuedeEditarColumnas_()){ mostrarToast("Guarde el componente antes de agregar columnas."); return; }
         const sel = byId("designerCotizadorTablaCampoDisponible");
-        const elementoId = String(sel ? sel.value : "").trim();
-        if(!elementoId){ mostrarToast("Seleccione un campo para agregarlo como columna."); return; }
-        st.tablaColumnasTemp = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
-        if(st.tablaColumnasTemp.some(function(c){ return String(c.elemento_id || c.campo_id) === elementoId; })){ mostrarToast("Ese campo ya está agregado como columna."); return; }
-        const elemento = (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === elementoId; });
-        st.tablaColumnasTemp.push({
-          elemento_id: elementoId,
-          tipo_elemento: elemento ? String(elemento.tipo_elemento || "CAMPO").toUpperCase() : "CAMPO",
-          etiqueta: elemento ? String(elemento.etiqueta || elemento.nombre_elemento || elementoId) : elementoId,
-          orden: st.tablaColumnasTemp.length + 1
-        });
-        renderColumnasTablaCotizadorFase1_();
+        const campoExistenteId = String(sel ? sel.value : "").trim();
+        if(!campoExistenteId){ mostrarToast("Seleccione un campo para integrarlo como columna."); return; }
+        fetchAutenticado("/api/cotizador/elementos/" + encodeURIComponent(st.elementoId) + "/columnas", {
+          method: "POST", headers: {"Accept":"application/json","Content-Type":"application/json"},
+          body: JSON.stringify({origen: "CAMPO_EXISTENTE", campo_existente_id: campoExistenteId})
+        }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo agregar la columna."); return data; }); })
+          .then(function(){ mostrarToast("Columna agregada."); refrescarColumnasTablaCotizadorFase1_(); })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo agregar la columna."); });
+      }
+
+      function agregarColumnaPropiaTablaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        if(!tablaPuedeEditarColumnas_()){ mostrarToast("Guarde el componente antes de agregar columnas."); return; }
+        const nombre = String(byId("designerCotizadorTablaColumnaNombre") ? byId("designerCotizadorTablaColumnaNombre").value : "").trim();
+        const tipoDato = byId("designerCotizadorTablaColumnaTipo") ? byId("designerCotizadorTablaColumnaTipo").value : "TEXTO";
+        if(!nombre){ mostrarToast("Indique el nombre de la columna propia."); return; }
+        fetchAutenticado("/api/cotizador/elementos/" + encodeURIComponent(st.elementoId) + "/columnas", {
+          method: "POST", headers: {"Accept":"application/json","Content-Type":"application/json"},
+          body: JSON.stringify({origen: "PROPIA", tipo_dato: tipoDato, etiqueta: nombre})
+        }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo agregar la columna."); return data; }); })
+          .then(function(){
+            mostrarToast("Columna agregada.");
+            if(byId("designerCotizadorTablaColumnaNombre")) byId("designerCotizadorTablaColumnaNombre").value = "";
+            refrescarColumnasTablaCotizadorFase1_();
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo agregar la columna."); });
+      }
+
+      function eliminarColumnaTablaCotizadorFase1_(columnaId){
+        if(!columnaId) return;
+        if(!window.confirm("¿Desea eliminar esta columna? Si alguna cotización ya tiene datos guardados con ella, no se podrá eliminar.")) return;
+        fetchAutenticado("/api/cotizador/columnas/" + encodeURIComponent(columnaId), {method:"DELETE", headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo eliminar la columna."); return data; }); })
+          .then(function(){ mostrarToast("Columna eliminada."); refrescarColumnasTablaCotizadorFase1_(); })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar la columna."); });
       }
       function renderReglasCampoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
@@ -17254,10 +17424,20 @@ window.CotizaApp = (function(){
         if(byId("designerCotizadorCalculadoTipoResultado")) byId("designerCotizadorCalculadoTipoResultado").value = cfg.tipo_resultado || "NUMERO";
         if(byId("designerCotizadorCalculadoDecimales")) byId("designerCotizadorCalculadoDecimales").value = (cfg.decimales === undefined || cfg.decimales === null) ? 2 : cfg.decimales;
 
-        st.tablaColumnasTemp = Array.isArray(cfg.columnas) ? cfg.columnas.slice() : [];
+        if(byId("designerCotizadorTablaEtiquetaTotal")) byId("designerCotizadorTablaEtiquetaTotal").value = cfg.etiqueta_total || "TOTAL";
+        if(byId("designerCotizadorTablaUnidad")) byId("designerCotizadorTablaUnidad").value = cfg.unidad || "";
+        setCheckedCotizadorFase1_("designerCotizadorTablaPermiteAgregar", cfg.permitir_agregar_filas !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaPermiteEliminar", cfg.permitir_eliminar_filas !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaEditableUsuario", cfg.tabla_editable !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaEditable", cfg.editable !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaObligatorio", cfg.obligatorio === true);
+        setCheckedCotizadorFase1_("designerCotizadorTablaVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaVisibleOferta", cfg.visible_oferta !== false);
+        actualizarModoColumnaTablaCotizadorFase1_();
+        renderColumnasTablaCotizadorFase1_();
+
         st.campoReglasTemp = Array.isArray(cfg.reglas) ? cfg.reglas.slice() : [];
         st.calculadoOperandosTemp = Array.isArray(cfg.operandos) ? cfg.operandos.slice() : [];
-        renderColumnasTablaCotizadorFase1_();
         renderReglasCampoCotizadorFase1_();
         renderOperandosCalculadoCotizadorFase1_();
         actualizarPropiedadesPorTipoComponenteCotizadorFase1_();
@@ -17332,9 +17512,14 @@ window.CotizaApp = (function(){
           cfg.item_seleccionado_por_defecto = byId("designerCotizadorListaPreciosCodigoDefault") ? (byId("designerCotizadorListaPreciosCodigoDefault").value || "PRIMERO_ACTIVO") : "PRIMERO_ACTIVO";
         }
         if(tipo === "TABLA"){
-          cfg.columnas = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
-          cfg.permite_agregar_filas = byId("designerCotizadorTablaPermiteAgregar") ? byId("designerCotizadorTablaPermiteAgregar").checked : true;
-          cfg.permite_eliminar_filas = byId("designerCotizadorTablaPermiteEliminar") ? byId("designerCotizadorTablaPermiteEliminar").checked : true;
+          // Las columnas NO van acá: son filas reales en tabla_columnas
+          // (Ronda 4), administradas por su propio CRUD — ver
+          // agregarColumnaTablaCotizadorFase1_/agregarColumnaPropiaTablaCotizadorFase1_.
+          cfg.tipo_tabla = "SIMPLE";
+          cfg.etiqueta_total = byId("designerCotizadorTablaEtiquetaTotal") ? byId("designerCotizadorTablaEtiquetaTotal").value : "TOTAL";
+          cfg.unidad = byId("designerCotizadorTablaUnidad") ? byId("designerCotizadorTablaUnidad").value : "";
+          cfg.permitir_agregar_filas = byId("designerCotizadorTablaPermiteAgregar") ? byId("designerCotizadorTablaPermiteAgregar").checked : true;
+          cfg.permitir_eliminar_filas = byId("designerCotizadorTablaPermiteEliminar") ? byId("designerCotizadorTablaPermiteEliminar").checked : true;
           cfg.tabla_editable = byId("designerCotizadorTablaEditableUsuario") ? byId("designerCotizadorTablaEditableUsuario").checked : true;
           cfg.editable = byId("designerCotizadorTablaEditable") ? byId("designerCotizadorTablaEditable").checked : true;
           cfg.obligatorio = byId("designerCotizadorTablaObligatorio") ? byId("designerCotizadorTablaObligatorio").checked : false;
@@ -17351,7 +17536,7 @@ window.CotizaApp = (function(){
         if(byId("designerCotizadorFuncionCampo")) byId("designerCotizadorFuncionCampo").value = "NORMAL";
         if(byId("designerCotizadorElementoActivo")) byId("designerCotizadorElementoActivo").checked = true;
         if(byId("btnDesignerEliminarComponenteCotizador")) byId("btnDesignerEliminarComponenteCotizador").classList.add("hidden");
-        st.tablaColumnasTemp = [];
+        st.tablaColumnasActual = [];
         st.campoReglasTemp = [];
         st.calculadoOperandosTemp = [];
         st.listaPreciosItemsActual = [];
@@ -17365,6 +17550,7 @@ window.CotizaApp = (function(){
         if(!el){ limpiarPropsComponenteCotizadorFase1_(); return; }
         st.listaPreciosItemsActual = Array.isArray(el.items) ? el.items : [];
         st.listaPreciosItemEditId = "";
+        st.tablaColumnasActual = Array.isArray(el.columnas) ? el.columnas : [];
         if(byId("designerCotizadorElementoIdOriginal")) byId("designerCotizadorElementoIdOriginal").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoId")) byId("designerCotizadorElementoId").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoTipo")) byId("designerCotizadorElementoTipo").value = String(el.tipo_elemento || "CAMPO").trim().toUpperCase();
@@ -17408,7 +17594,7 @@ window.CotizaApp = (function(){
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
@@ -17473,7 +17659,7 @@ window.CotizaApp = (function(){
         if(!sel) return;
         const actual = sel.value;
         sel.innerHTML = '<option value="">Sin componente padre</option>';
-        (els || []).filter(function(e){ return ["CONTENEDOR","TABLA"].indexOf(String(e.tipo_elemento||"").toUpperCase())>=0; }).forEach(function(e){
+        (els || []).filter(function(e){ return String(e.tipo_elemento||"").toUpperCase() === "CONTENEDOR"; }).forEach(function(e){
           const opt = document.createElement("option");
           opt.value = String(e.elemento_id || "").trim();
           opt.textContent = String(e.etiqueta || e.nombre_elemento || e.elemento_id || "Componente").trim();

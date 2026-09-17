@@ -484,6 +484,12 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .runtime-lp-table tr { border: 1px solid #eef1f6; border-radius: 8px; margin-bottom: 8px; padding: 6px; }
 }
 
+/* Ronda 4 de tipos nuevos: Tabla (migración 0020) — reusa .runtime-lp-table/
+   .runtime-lp-total/.runtime-lp-empty de Lista de Precios (Ronda 3), mismo
+   look de filas dinámicas con total al pie. */
+.runtime-tabla { grid-column: 1/-1; }
+.runtime-lp-table-wrap { overflow-x: auto; }
+
 /* ---------- Solicitudes de Propuesta ---------- */
 .solicitudes-page { --request-border:#d7e1ee; --request-ink:#082650; --request-muted:#7b899d; }
 

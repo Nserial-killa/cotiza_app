@@ -49,6 +49,7 @@ type elementoTabCotizador struct {
 	ConfigJSON        map[string]any     `json:"config_json"`
 	Activo            bool               `json:"activo"`
 	Items             []listaPreciosItem `json:"items,omitempty"`
+	Columnas          []tablaColumna     `json:"columnas,omitempty"`
 }
 
 type guardarTabCotizadorRequest struct {
@@ -84,32 +85,38 @@ type guardarElementoTabRequest struct {
 // tiposElementoSimple es el conjunto de tipos que GuardarElemento acepta.
 // Ronda 1 del Diseñador (migración 0017) agregó TITULO, CONTENEDOR y
 // CAJA_VALOR a los 4 tipos simples del Sprint 2; Ronda 2 (migración 0018)
-// agregó CAMPO_CALCULADO; Ronda 3 (migración 0019) agrega LISTA_PRECIOS.
-// ESCENARIOS y SECCIONES_ADICIONALES (ya armados en el HTML) llegan en
-// rondas posteriores — no tocar esto sin su propia migración de esquema.
+// agregó CAMPO_CALCULADO; Ronda 3 (migración 0019) agregó LISTA_PRECIOS;
+// Ronda 4 (migración 0020) agrega TABLA. ESCENARIOS y SECCIONES_ADICIONALES
+// (ya armados en el HTML) llegan en rondas posteriores — no tocar esto sin
+// su propia migración de esquema.
 var tiposElementoSimple = map[string]bool{
 	"CAMPO": true, "CAMPO_CATALOGO": true, "LEYENDA": true, "TEXTO_INFORMATIVO": true,
 	"TITULO": true, "CONTENEDOR": true, "CAJA_VALOR": true, "CAMPO_CALCULADO": true,
-	"LISTA_PRECIOS": true,
+	"LISTA_PRECIOS": true, "TABLA": true,
 }
 
 // tiposConFuncionCampo son los únicos tipos donde "Función del campo" tiene
 // sentido: alimentan un valor propio (numérico o de catálogo) que puede
 // mapearse a un total de cotizacion_versiones. Una Lista de Precios es, en
 // los hechos, otra fuente numérica (Ronda 3) — igual que un Campo numérico o
-// un Campo Calculado. TITULO/CONTENEDOR/CAJA_VALOR/LEYENDA/TEXTO_INFORMATIVO
-// no tienen un valor propio que exportar así.
+// un Campo Calculado. TABLA queda fuera a propósito: puede ser operando de
+// un Campo Calculado (Ronda 4, tarea 4), pero no se pidió que alimente
+// funcion_campo directamente. TITULO/CONTENEDOR/CAJA_VALOR/LEYENDA/
+// TEXTO_INFORMATIVO no tienen un valor propio que exportar así.
 var tiposConFuncionCampo = map[string]bool{
 	"CAMPO": true, "CAMPO_CATALOGO": true, "CAMPO_CALCULADO": true, "LISTA_PRECIOS": true,
 }
 
 // tiposOperandoCalculadoValidos son los tipos que un Campo Calculado puede
-// usar como operando (Ronda 2 + Ronda 3): un Campo numérico se valida aparte
-// por tipo_campo, así que acá solo van los tipos que no necesitan ese
-// chequeo extra. CAMPO_CATALOGO queda fuera todavía — sus valores no tienen
-// un precio asociado (ver migración 0019, tarea 3).
+// usar como operando (Ronda 2 + Ronda 3 + Ronda 4): un Campo numérico se
+// valida aparte por tipo_campo, así que acá solo van los tipos que no
+// necesitan ese chequeo extra. CAMPO_CATALOGO queda fuera todavía — sus
+// valores no tienen un precio asociado (ver migración 0019, tarea 3). TABLA
+// se suma en la Ronda 4 (tarea 4, "si el tiempo alcanza") — su total se
+// resuelve igual que el de una Lista de Precios, ver resolverCamposCalculados
+// en cotizador_runtime.go.
 var tiposOperandoCalculadoValidos = map[string]bool{
-	"CAMPO_CALCULADO": true, "LISTA_PRECIOS": true,
+	"CAMPO_CALCULADO": true, "LISTA_PRECIOS": true, "TABLA": true,
 }
 
 // funcionesCampoValidas son los 9 roles de "Función del campo" (Ronda 2) más
@@ -218,6 +225,7 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 	defer rows.Close()
 	elementos := make([]elementoTabCotizador, 0)
 	idsListaPrecios := make([]string, 0)
+	idsTablas := make([]string, 0)
 	for rows.Next() {
 		var el elementoTabCotizador
 		if err := rows.Scan(&el.ElementoID, &el.TabID, &el.Tipo, &el.Etiqueta, &el.CatalogoID, &el.ComponentePadreID, &el.CampoFuenteID, &el.FuncionCampo, &el.ColumnasAncho, &el.Orden, &el.Requerido, &el.Configuracion, &el.Activo); err != nil {
@@ -229,6 +237,9 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 		if el.Tipo == "LISTA_PRECIOS" {
 			idsListaPrecios = append(idsListaPrecios, el.ElementoID)
 		}
+		if el.Tipo == "TABLA" {
+			idsTablas = append(idsTablas, el.ElementoID)
+		}
 		elementos = append(elementos, el)
 	}
 	if err := rows.Err(); err != nil {
@@ -236,10 +247,20 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if len(idsListaPrecios) > 0 {
-		// El Diseñador (quien configura precios) ve TODOS los ítems,
-		// activos e inactivos — a diferencia de compilador.go/runtime,
-		// que solo exponen los activos y sin costo/margen (ver
-		// incluirItemsListaPrecios en compilador.go).
+		// El Diseñador ve TODOS los ítems, activos e inactivos — a
+		// diferencia de compilador.go/runtime, que solo exponen los
+		// activos. costo_interno/margen_porcentaje sí quedan detrás de
+		// puede_ver_price acá (mismo mecanismo que cotizaciones.go/
+		// dashboard.go): el Diseñador nunca tuvo restricción de rol, pero
+		// estos dos campos son precio interno igual que en cualquier otra
+		// pantalla — el resto del elemento (incluido el resto del ítem)
+		// sigue visible para cualquier sesión.
+		puedeVerPrice, err := (&CotizacionesHandler{DB: h.DB}).sesionPuedeVerPrice(ctx, r)
+		if err != nil {
+			log.Printf("cotizador elementos: error validando permiso de precio: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+			return
+		}
 		itemsRows, err := h.DB.Query(ctx, `
 			SELECT item_id::text, elemento_id, codigo, nombre, descripcion, precio, moneda,
 			       unidad_cobro, costo_interno, margen_porcentaje, orden, activo
@@ -257,6 +278,7 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer los ítems de las listas de precios."})
 				return
 			}
+			item.OcultarPrecioInterno = !puedeVerPrice
 			itemsPorElemento[item.ElementoID] = append(itemsPorElemento[item.ElementoID], item)
 		}
 		if err := itemsRows.Err(); err != nil {
@@ -268,6 +290,37 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 		for i := range elementos {
 			if elementos[i].Tipo == "LISTA_PRECIOS" {
 				elementos[i].Items = itemsPorElemento[elementos[i].ElementoID]
+			}
+		}
+	}
+	if len(idsTablas) > 0 {
+		columnasRows, err := h.DB.Query(ctx, `
+			SELECT columna_id::text, elemento_id, origen, campo_existente_id, tipo_dato, etiqueta, orden
+			FROM tabla_columnas WHERE elemento_id = ANY($1) ORDER BY elemento_id, orden`, idsTablas)
+		if err != nil {
+			log.Printf("cotizador elementos: error listando columnas de tabla: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar las columnas de las tablas."})
+			return
+		}
+		columnasPorElemento := make(map[string][]tablaColumna)
+		for columnasRows.Next() {
+			var col tablaColumna
+			if err := columnasRows.Scan(&col.ColumnaID, &col.ElementoID, &col.Origen, &col.CampoExistenteID, &col.TipoDato, &col.Etiqueta, &col.Orden); err != nil {
+				columnasRows.Close()
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer las columnas de las tablas."})
+				return
+			}
+			columnasPorElemento[col.ElementoID] = append(columnasPorElemento[col.ElementoID], col)
+		}
+		if err := columnasRows.Err(); err != nil {
+			columnasRows.Close()
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer las columnas de las tablas."})
+			return
+		}
+		columnasRows.Close()
+		for i := range elementos {
+			if elementos[i].Tipo == "TABLA" {
+				elementos[i].Columnas = columnasPorElemento[elementos[i].ElementoID]
 			}
 		}
 	}
@@ -528,6 +581,38 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			}
 		}
 		configuracion["item_seleccionado_por_defecto"] = itemDefecto
+	}
+
+	if req.Tipo == "TABLA" {
+		tipoTabla := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["tipo_tabla"])))
+		if tipoTabla == "" || tipoTabla == "<NIL>" {
+			tipoTabla = "SIMPLE"
+		}
+		if tipoTabla != "SIMPLE" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_tabla debe ser SIMPLE (todavía no hay otro tipo de tabla)."})
+			return
+		}
+		configuracion["tipo_tabla"] = tipoTabla
+
+		etiquetaTotal := strings.TrimSpace(fmt.Sprint(configuracion["etiqueta_total"]))
+		if etiquetaTotal == "" || etiquetaTotal == "<nil>" {
+			etiquetaTotal = "TOTAL"
+		}
+		configuracion["etiqueta_total"] = etiquetaTotal
+
+		unidad := strings.TrimSpace(fmt.Sprint(configuracion["unidad"]))
+		if unidad == "<nil>" {
+			unidad = ""
+		}
+		configuracion["unidad"] = unidad
+
+		configuracion["permitir_agregar_filas"] = boolDesdeConfiguracion(configuracion, "permitir_agregar_filas", true)
+		configuracion["permitir_eliminar_filas"] = boolDesdeConfiguracion(configuracion, "permitir_eliminar_filas", true)
+		configuracion["tabla_editable"] = boolDesdeConfiguracion(configuracion, "tabla_editable", true)
+		configuracion["editable"] = boolDesdeConfiguracion(configuracion, "editable", true)
+		configuracion["obligatorio"] = boolDesdeConfiguracion(configuracion, "obligatorio", false)
+		configuracion["visible_calculadora"] = boolDesdeConfiguracion(configuracion, "visible_calculadora", true)
+		configuracion["visible_oferta"] = boolDesdeConfiguracion(configuracion, "visible_oferta", true)
 	}
 
 	if padreID != "" {

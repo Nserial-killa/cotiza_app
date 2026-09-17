@@ -520,6 +520,144 @@ func TestCotizadorRuntime_ListaPreciosRechazaItemDeOtroElemento(t *testing.T) {
 	}
 }
 
+// fixtureTablaCompilada monta, con los endpoints reales (tabs, elementos,
+// columnas, compilador, cotización), una TABLA con 2 columnas propias
+// (NUMERO y TEXTO) y 1 columna CAMPO_EXISTENTE — Ronda 4 (migración 0020),
+// tarea 8.
+type fixtureTablaCompilada struct {
+	Runtime        *CotizadorRuntimeHandler
+	CotizacionID   string
+	TablaID        string
+	ColHorasID     string // PROPIA, NUMERO — la que se totaliza.
+	ColPerfilID    string // PROPIA, TEXTO.
+	ColClienteID   string // CAMPO_EXISTENTE, referencia CampoClienteID.
+	CampoClienteID string
+}
+
+func crearFixtureTablaCompilada(t *testing.T, permitirAgregarFilas, permitirEliminarFilas bool) fixtureTablaCompilada {
+	t.Helper()
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	columnasHandler := &TablaColumnasHandler{DB: tabsHandler.DB}
+	compilador := &CompiladorHandler{DB: tabsHandler.DB}
+	tabID := "TEST-TAB-TABLA-RT-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Perfiles", "activo": true,
+	})
+
+	campoClienteID := "TEST-EL-TABLA-CLIENTE-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoClienteID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Cliente",
+		"configuracion": map[string]any{"tipo_campo": "TEXTO"}, "activo": true,
+	})
+
+	tablaID := "TEST-EL-TABLA-" + sufijoUnico()
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": tablaID, "tab_id": tabID, "tipo": "TABLA", "etiqueta": "Perfiles del proyecto",
+		"configuracion": map[string]any{"permitir_agregar_filas": permitirAgregarFilas, "permitir_eliminar_filas": permitirEliminarFilas}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear tabla: %s", rec.Body.String())
+	}
+
+	_, resHoras := crearColumnaTabla(t, columnasHandler, tablaID, map[string]any{"origen": "PROPIA", "tipo_dato": "NUMERO", "etiqueta": "Horas", "orden": 1})
+	colHorasID, _ := resHoras["columna_id"].(string)
+	_, resPerfil := crearColumnaTabla(t, columnasHandler, tablaID, map[string]any{"origen": "PROPIA", "tipo_dato": "TEXTO", "etiqueta": "Perfil", "orden": 2})
+	colPerfilID, _ := resPerfil["columna_id"].(string)
+	_, resCliente := crearColumnaTabla(t, columnasHandler, tablaID, map[string]any{"origen": "CAMPO_EXISTENTE", "campo_existente_id": campoClienteID, "orden": 3})
+	colClienteID, _ := resCliente["columna_id"].(string)
+
+	recComp := postCatalogos(t, compilador.Compilar, "/api/cotizador/compilar", map[string]any{"calculadora_id": calculadoraID})
+	var resComp respuestaCompiladorTest
+	assertJSON(t, recComp.Body.Bytes(), &resComp)
+	if !resComp.OK || !resComp.Valido || !resComp.Compilado {
+		t.Fatalf("compilar: esperaba válido y compilado, obtuvo %+v", resComp)
+	}
+
+	cotizacionID, _, _ := crearCotizacionPrueba(t, tabsHandler.DB, "Borrador", "", "")
+	if _, err := tabsHandler.DB.Exec(context.Background(), `UPDATE cotizaciones SET calculadora_id=$1 WHERE cotizacion_id=$2`, calculadoraID, cotizacionID); err != nil {
+		t.Fatalf("no se pudo apuntar la cotización a la calculadora de prueba: %v", err)
+	}
+
+	return fixtureTablaCompilada{
+		Runtime: &CotizadorRuntimeHandler{DB: tabsHandler.DB}, CotizacionID: cotizacionID, TablaID: tablaID,
+		ColHorasID: colHorasID, ColPerfilID: colPerfilID, ColClienteID: colClienteID, CampoClienteID: campoClienteID,
+	}
+}
+
+func TestCotizadorRuntime_TablaGuardaFilasYSumaTotal(t *testing.T) {
+	fixture := crearFixtureTablaCompilada(t, true, true)
+	filas := []any{
+		map[string]any{fixture.ColHorasID: "10", fixture.ColPerfilID: "Junior", fixture.ColClienteID: "ACME"},
+		map[string]any{fixture.ColHorasID: 20.0, fixture.ColPerfilID: "Senior", fixture.ColClienteID: "ACME"},
+		map[string]any{fixture.ColHorasID: "5.5", fixture.ColPerfilID: "Lead", fixture.ColClienteID: "ACME"},
+	}
+	rt := fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}
+	rec := postValoresRuntime(t, rt, map[string]any{"version": 1, "valores": map[string]any{fixture.TablaID: map[string]any{"filas": filas}}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("guardar filas: %d: %s", rec.Code, rec.Body.String())
+	}
+
+	recGet := getRuntime(t, rt, "version=1")
+	if recGet.Code != http.StatusOK {
+		t.Fatalf("GET runtime: %d: %s", recGet.Code, recGet.Body.String())
+	}
+	var res struct {
+		Estructura map[string]any `json:"estructura"`
+	}
+	assertJSON(t, recGet.Body.Bytes(), &res)
+	elTabla := elementoPorIDEnEstructura(res.Estructura, fixture.TablaID)
+	if elTabla == nil {
+		t.Fatal("no se encontró la tabla en la estructura")
+	}
+	if elTabla["valor_resuelto"] != 35.5 {
+		t.Fatalf("esperaba total 35.5 (10+20+5.5), obtuvo %v", elTabla["valor_resuelto"])
+	}
+	columnas, _ := elTabla["configuracion"].(map[string]any)["columnas"].([]any)
+	if len(columnas) != 3 {
+		t.Fatalf("esperaba 3 columnas compiladas, obtuvo %d: %+v", len(columnas), columnas)
+	}
+}
+
+func TestCotizadorRuntime_TablaRechazaAgregarFilasSiNoPermitido(t *testing.T) {
+	fixture := crearFixtureTablaCompilada(t, false, true)
+	rt := fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}
+	rec := postValoresRuntime(t, rt, map[string]any{"version": 1, "valores": map[string]any{
+		fixture.TablaID: map[string]any{"filas": []any{map[string]any{fixture.ColHorasID: "1"}}},
+	}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("permitir_agregar_filas=false: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCotizadorRuntime_TablaRechazaColumnaAjena(t *testing.T) {
+	fixture := crearFixtureTablaCompilada(t, true, true)
+	otraFixture := crearFixtureTablaCompilada(t, true, true)
+	rt := fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}
+	rec := postValoresRuntime(t, rt, map[string]any{"version": 1, "valores": map[string]any{
+		fixture.TablaID: map[string]any{"filas": []any{map[string]any{otraFixture.ColHorasID: "1"}}},
+	}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("columna de otra tabla: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTablaColumnas_EliminarRechazaSiTieneDatosGuardados(t *testing.T) {
+	fixture := crearFixtureTablaCompilada(t, true, true)
+	rt := fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}
+	rec := postValoresRuntime(t, rt, map[string]any{"version": 1, "valores": map[string]any{
+		fixture.TablaID: map[string]any{"filas": []any{map[string]any{fixture.ColHorasID: "10"}}},
+	}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("guardar fila base: %d: %s", rec.Code, rec.Body.String())
+	}
+
+	columnasHandler := &TablaColumnasHandler{DB: fixture.Runtime.DB}
+	recDelete := deleteColumnaTabla(t, columnasHandler, fixture.ColHorasID)
+	if recDelete.Code != http.StatusBadRequest {
+		t.Fatalf("eliminar columna con datos guardados: esperaba 400, dio %d: %s", recDelete.Code, recDelete.Body.String())
+	}
+}
+
 func TestCotizadorRuntime_RechazaElementoAjeno(t *testing.T) {
 	fixture := crearFixtureRuntime(t)
 	rec := postValoresRuntime(t, fixture, map[string]any{"version": 1, "valores": map[string]any{"ELEMENTO-DE-OTRO-COTIZADOR": "valor"}})

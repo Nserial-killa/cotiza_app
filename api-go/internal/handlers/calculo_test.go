@@ -106,6 +106,33 @@ func TestUnitValorListaPrecios_Multiple(t *testing.T) {
 	}
 }
 
+func TestUnitValorTotalTabla(t *testing.T) {
+	cfg := map[string]any{"columnas": []any{
+		map[string]any{"columna_id": "COL-TXT", "tipo_dato": "TEXTO"},
+		map[string]any{"columna_id": "COL-NUM", "tipo_dato": "NUMERO"},
+	}}
+	valorGuardado := map[string]any{"filas": []any{
+		map[string]any{"COL-TXT": "Perfil A", "COL-NUM": "10"},
+		map[string]any{"COL-TXT": "Perfil B", "COL-NUM": 20.0},
+		map[string]any{"COL-TXT": "Perfil C", "COL-NUM": "5.5"},
+	}}
+	total, ok := valorTotalTabla(cfg, valorGuardado)
+	if !ok || total != 35.5 {
+		t.Fatalf("esperaba 35.5, obtuvo %v (ok=%v)", total, ok)
+	}
+
+	// sin columna numérica: no hay nada que totalizar.
+	cfgSoloTexto := map[string]any{"columnas": []any{map[string]any{"columna_id": "COL-TXT", "tipo_dato": "TEXTO"}}}
+	if _, ok := valorTotalTabla(cfgSoloTexto, valorGuardado); ok {
+		t.Fatal("esperaba ok=false sin columna numérica")
+	}
+
+	// sin filas: no hay nada que totalizar.
+	if _, ok := valorTotalTabla(cfg, map[string]any{"filas": []any{}}); ok {
+		t.Fatal("esperaba ok=false sin filas")
+	}
+}
+
 func TestUnitRedondear(t *testing.T) {
 	if v := redondear(3.14159, 2); v != 3.14 {
 		t.Fatalf("esperaba 3.14, obtuvo %v", v)

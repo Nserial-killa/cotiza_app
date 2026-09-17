@@ -2109,6 +2109,8 @@
                       <option value="CONTENEDOR">Contenedor</option>
                       <option value="CAJA_VALOR">Caja de valor</option>
                       <option value="CAMPO_CALCULADO">Campo Calculado</option>
+                      <option value="LISTA_PRECIOS">Lista de Precios</option>
+                      <option value="TABLA">Tabla</option>
                     </select>
                   </div>
 
@@ -2690,8 +2692,6 @@
                         <label for="designerCotizadorTablaTipoTabla">Tipo de tabla</label>
                         <select id="designerCotizadorTablaTipoTabla" class="select">
                           <option value="SIMPLE">Tabla simple</option>
-                          <option value="TOTALES">Tabla con totales</option>
-                          <option value="JERARQUICA">Tabla jerárquica / plan de trabajo</option>
                         </select>
                       </div>
                       <div class="field" style="margin-bottom:0;">
@@ -2749,31 +2749,12 @@
                         <select id="designerCotizadorTablaColumnaTipo" class="select">
                           <option value="TEXTO">Texto</option>
                           <option value="NUMERO">Número</option>
-                          <option value="CATALOGO">Catálogo</option>
-                        </select>
-                        <select id="designerCotizadorTablaColumnaFormato" class="select">
-                          <option value="NORMAL">Normal</option>
                           <option value="MONEDA">Moneda</option>
                           <option value="PORCENTAJE">Porcentaje</option>
-                          <option value="HORAS">Horas</option>
-                        </select>
-                        <select id="designerCotizadorTablaColumnaCatalogo" class="select">
-                          <option value="">Catálogo asociado...</option>
-                        </select>
-                        <select id="designerCotizadorTablaColumnaValorCatalogo" class="select">
-                          <option value="VALOR_SISTEMA">Valor del sistema</option>
-                          <option value="CLAVE">Clave</option>
-                          <option value="TEXTO_VISIBLE">Texto visible</option>
                         </select>
                         <button id="btnDesignerAgregarColumnaPropiaTabla" class="btn btn-light-blue btn-mini" type="button">Agregar columna</button>
                       </div>
-                      <div class="cotizador-table-column-options">
-                        <label class="param-switch"><input id="designerCotizadorTablaColumnaObligatoria" type="checkbox"> Obligatoria</label>
-                        <label class="param-switch"><input id="designerCotizadorTablaColumnaEditable" type="checkbox" checked> Editable</label>
-                        <label class="param-switch"><input id="designerCotizadorTablaColumnaTotalizar" type="checkbox"> Totalizar columna</label>
-                        <input id="designerCotizadorTablaColumnaEtiquetaTotal" class="input cotizador-table-column-total-label" type="text" placeholder="Etiqueta total de columna">
-                      </div>
-                      <span class="param-field-help">Use columnas propias para datos simples de la tabla como Perfil, Cantidad, Catálogo, Observación, Monto, Porcentaje u Horas.</span>
+                      <span class="param-field-help">Use columnas propias para datos simples como Perfil, Cantidad, Observación, Monto o Porcentaje. El total al pie de la tabla suma la primera columna Número o Moneda, en el orden en que aparecen.</span>
                     </div>
                     <div id="designerCotizadorTablaColumnasLista" class="cotizador-mini-list"></div>
                   </div>

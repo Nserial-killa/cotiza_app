@@ -40,7 +40,7 @@
           catalogosDefinicion:[],
           camposModelo:[],
           reglasModelo:[],
-          tablaColumnasTemp:[],
+          tablaColumnasActual:[],
           campoReglasTemp:[],
           calculadoOperandosTemp:[],
           listaPreciosItemsActual:[],
@@ -186,6 +186,9 @@
         bind("designerCotizadorCampoTipoCampo","change",actualizarOpcionesFechaCampoCotizadorFase1_);
         bind("designerCotizadorCampoCatalogoId","change",actualizarMensajeCatalogoHijoCotizadorFase1_);
         bind("btnDesignerAgregarColumnaTabla","click",agregarColumnaTablaCotizadorFase1_);
+        bind("btnDesignerAgregarColumnaPropiaTabla","click",agregarColumnaPropiaTablaCotizadorFase1_);
+        bind("designerCotizadorTablaModoCampoExistente","change",actualizarModoColumnaTablaCotizadorFase1_);
+        bind("designerCotizadorTablaModoColumnaPropia","change",actualizarModoColumnaTablaCotizadorFase1_);
         bind("btnDesignerAgregarReglaCampo","click",agregarReglaCampoCotizadorFase1_);
         bind("btnDesignerAgregarReglaCampoCatalogo","click",agregarReglaCampoCatalogoCotizadorFase1_);
         bind("btnDesignerAgregarCampoCatalogoHijo","click",agregarCampoCatalogoHijoCotizadorFase1_);
@@ -759,12 +762,22 @@
         });
       }
 
+      // Las columnas de una Tabla (Ronda 4) viven en la base
+      // (tabla_columnas), no en configuracion — llegan en e.columnas, tal
+      // como las embebe GET /api/cotizador/elementos. Una CAMPO_EXISTENTE
+      // no trae su propia etiqueta (la tiene el campo que integra), así que
+      // se resuelve contra st.elementos.
       function renderTablaPreviewCotizadorFase1_(e, cfg, etiqueta, desc){
-        const cols = Array.isArray(cfg.columnas) ? cfg.columnas : [];
-        let heads = cols.map(function(c){ return escapeHtml(c.etiqueta || c.nombre || c.elemento_id || c.campo_id || "Columna"); });
-        if(!heads.length) heads = ["Columna 1","Columna 2"];
+        const st = getCotizadorFase1State_();
+        const cols = Array.isArray(e.columnas) ? e.columnas : [];
+        let heads = cols.map(function(c){
+          if(String(c.origen || "").toUpperCase() === "PROPIA") return escapeHtml(c.etiqueta || "Columna");
+          const campo = (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === String(c.campo_existente_id || "").trim(); });
+          return escapeHtml(campo ? (campo.etiqueta || campo.nombre_elemento || c.campo_existente_id) : (c.campo_existente_id || "Columna"));
+        });
+        if(!heads.length) heads = ["Sin columnas todavía"];
         const th = heads.map(function(h){ return '<th>'+h+'</th>'; }).join("");
-        const td = heads.map(function(){ return '<td>&nbsp;</td>'; }).join("");
+        const td = cols.length ? cols.map(function(){ return '<td>&nbsp;</td>'; }).join("") : "";
         return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'+(desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div><div class="cotizador-preview-table-wrap"><table class="cotizador-preview-table"><thead><tr>'+th+'</tr></thead><tbody><tr>'+td+'</tr></tbody></table></div>';
       }
 
@@ -996,6 +1009,12 @@
         return label + (id && label !== id ? " (" + id + ")" : "");
       }
 
+      // Campos que se pueden "integrar" en otro componente (columna de
+      // Tabla — Ronda 4 — o campo fuente de Caja de Valor): CAMPO,
+      // CAMPO_CATALOGO o CAMPO_CALCULADO de la misma sección, activos, sin
+      // contarse a sí mismo. Ni otra TABLA ni una LISTA_PRECIOS ni un
+      // CONTENEDOR — evita anidar tablas dentro de tablas (mismo criterio
+      // que tiposOperandoComoColumnaValidos en tabla_columnas.go).
       function camposDisponiblesTablaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const actual = String(st.elementoId || "").trim();
@@ -1003,14 +1022,16 @@
           const tab = String(el.tab_id || "").trim();
           const id = String(el.elemento_id || "").trim();
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
-          return tab === st.tabId && id && id !== actual && (tipo === "CAMPO" || tipo === "CAMPO_CATALOGO") && normalizarActivoCotizadorFase1_(el.activo);
+          return tab === st.tabId && id && id !== actual && (tipo === "CAMPO" || tipo === "CAMPO_CATALOGO" || tipo === "CAMPO_CALCULADO") && normalizarActivoCotizadorFase1_(el.activo);
         }).sort(function(a,b){ return numeroOrdenCotizadorFase1_(a.orden)-numeroOrdenCotizadorFase1_(b.orden); });
       }
 
-      // Operandos válidos de un Campo Calculado (Ronda 2): CAMPO numérico
-      // (Número/Moneda/Porcentaje) u otro CAMPO_CALCULADO, de la misma
-      // sección, activos, sin contarse a sí mismo ni los ya agregados —
-      // Campo Catálogo queda fuera todavía (no tiene precio asociado).
+      // Operandos válidos de un Campo Calculado (Ronda 2 + Ronda 3 + Ronda
+      // 4): CAMPO numérico (Número/Moneda/Porcentaje), o un CAMPO_CALCULADO,
+      // LISTA_PRECIOS o TABLA (todos son, en los hechos, otra fuente
+      // numérica: su total ya viene resuelto), de la misma sección, activos,
+      // sin contarse a sí mismo ni los ya agregados — Campo Catálogo queda
+      // fuera todavía (no tiene precio asociado).
       function operandosDisponiblesCalculadoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const actual = String(st.elementoId || "").trim();
@@ -1021,7 +1042,7 @@
           const id = String(el.elemento_id || "").trim();
           if(tab !== st.tabId || !id || id === actual || yaAgregados[id] || !normalizarActivoCotizadorFase1_(el.activo)) return false;
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
-          if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS") return true;
+          if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS" || tipo === "TABLA") return true;
           if(tipo !== "CAMPO") return false;
           const cfg = parseConfigElementoCotizadorFase1_(el.config_json || el.configuracion);
           const tipoCampo = String(cfg.tipo_campo || "").trim().toUpperCase();
@@ -1173,7 +1194,7 @@
         const padreWrap = byId("designerCotizadorElementoPadreWrap");
         if(padreWrap){
           const hayContenedores = elementosDeTabCotizadorFase1_().some(function(e){ return String(e.tipo_elemento || "").toUpperCase() === "CONTENEDOR" && String(e.elemento_id || "") !== String(getCotizadorFase1State_().elementoId || ""); });
-          padreWrap.classList.toggle("hidden", !hayContenedores || tipo === "CONTENEDOR" || tipo === "TABLA");
+          padreWrap.classList.toggle("hidden", !hayContenedores || tipo === "CONTENEDOR");
         }
         const funcionCampoBox = byId("designerCotizadorFuncionCampoBox");
         if(funcionCampoBox){
@@ -1197,8 +1218,10 @@
       }
 
       // Editor de operandos del Campo Calculado (Ronda 2): mismo patrón de
-      // "lista temporal + Agregar/Quitar" que ya usan columnas de Tabla y
-      // reglas de Campo (st.tablaColumnasTemp / st.campoReglasTemp).
+      // "lista temporal + Agregar/Quitar" que ya usa reglas de Campo
+      // (st.campoReglasTemp) — las columnas de Tabla (Ronda 4), en cambio,
+      // son filas reales en la base apenas se agregan, ver
+      // renderColumnasTablaCotizadorFase1_.
       function renderOperandosCalculadoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const cont = byId("designerCotizadorCalculadoOperandosLista");
@@ -1404,42 +1427,107 @@
           .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar el ítem."); });
       }
 
+      // ---------------------------------------------------------------
+      // Columnas de Tabla (Ronda 4, migración 0020). Mismo criterio que los
+      // ítems de Lista de Precios (Ronda 3): las columnas tienen sus
+      // propios endpoints y existen apenas se crean, así que el elemento
+      // TABLA tiene que estar guardado (elemento_id real) antes de poder
+      // agregarle columnas.
+      // ---------------------------------------------------------------
+
+      function tablaPuedeEditarColumnas_(){
+        const st = getCotizadorFase1State_();
+        return !!(st.elementoId && getElementoActualCotizadorFase1_());
+      }
+
+      function actualizarModoColumnaTablaCotizadorFase1_(){
+        const esPropia = byId("designerCotizadorTablaModoColumnaPropia") && byId("designerCotizadorTablaModoColumnaPropia").checked;
+        if(byId("designerCotizadorTablaBloqueCampoExistente")) byId("designerCotizadorTablaBloqueCampoExistente").classList.toggle("hidden", esPropia);
+        if(byId("designerCotizadorTablaBloqueColumnaPropia")) byId("designerCotizadorTablaBloqueColumnaPropia").classList.toggle("hidden", !esPropia);
+      }
+
       function renderColumnasTablaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const cont = byId("designerCotizadorTablaColumnasLista");
-        if(!cont) return;
-        const cols = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
-        if(!cols.length){ cont.innerHTML = '<div class="cotizador-mini-empty">Sin columnas agregadas.</div>'; return; }
-        cont.innerHTML = cols.map(function(c,idx){
-          const elementoId = String(c.elemento_id || c.campo_id || "").trim();
-          const elemento = (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === elementoId; });
-          const txt = c.etiqueta || (elemento ? labelElementoCampoCotizadorFase1_(elemento) : elementoId);
-          return '<div class="cotizador-mini-row"><span>'+(idx+1)+'. '+escapeHtml(txt)+'</span><button type="button" class="btn btn-ghost btn-mini" data-quitar-columna="'+idx+'">Quitar</button></div>';
-        }).join("");
-        cont.querySelectorAll("[data-quitar-columna]").forEach(function(btn){
-          btn.addEventListener("click",function(){
-            const idx = Number(btn.getAttribute("data-quitar-columna"));
-            st.tablaColumnasTemp.splice(idx,1);
-            renderColumnasTablaCotizadorFase1_();
-          });
-        });
+        const cols = Array.isArray(st.tablaColumnasActual) ? st.tablaColumnasActual : [];
+        if(!tablaPuedeEditarColumnas_()){
+          if(cont) cont.innerHTML = '<div class="cotizador-mini-empty">Guarde el componente antes de agregar columnas.</div>';
+        } else if(cont){
+          if(!cols.length){
+            cont.innerHTML = '<div class="cotizador-mini-empty">Sin columnas agregadas.</div>';
+          } else {
+            cont.innerHTML = cols.map(function(c, idx){
+              const esPropia = String(c.origen || "").toUpperCase() === "PROPIA";
+              const elemento = esPropia ? null : (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === String(c.campo_existente_id || "").trim(); });
+              const txt = esPropia ? (c.etiqueta || "Columna propia") + " (" + (c.tipo_dato || "TEXTO") + ")" : (elemento ? labelElementoCampoCotizadorFase1_(elemento) : (c.campo_existente_id || "Campo"));
+              return '<div class="cotizador-mini-row"><span>'+(idx+1)+'. '+escapeHtml(txt)+'</span><button type="button" class="btn btn-ghost btn-mini" data-quitar-columna="'+escapeHtml(c.columna_id)+'">Quitar</button></div>';
+            }).join("");
+            cont.querySelectorAll("[data-quitar-columna]").forEach(function(btn){
+              btn.addEventListener("click", function(){
+                eliminarColumnaTablaCotizadorFase1_(btn.getAttribute("data-quitar-columna"));
+              });
+            });
+          }
+        }
+        const btnCampo = byId("btnDesignerAgregarColumnaTabla");
+        const btnPropia = byId("btnDesignerAgregarColumnaPropiaTabla");
+        if(btnCampo) btnCampo.disabled = !tablaPuedeEditarColumnas_();
+        if(btnPropia) btnPropia.disabled = !tablaPuedeEditarColumnas_();
+      }
+
+      // Igual que refrescarItemsListaPreciosCotizadorFase1_: vuelve a pedir
+      // los elementos del tab para traer las columnas ya guardadas, en vez
+      // de llevar la cuenta a mano.
+      function refrescarColumnasTablaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        listarElementosCotizadorApiFase1_(st.tabId, function(res){
+          st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
+          const actual = getElementoActualCotizadorFase1_();
+          st.tablaColumnasActual = (actual && Array.isArray(actual.columnas)) ? actual.columnas : [];
+          renderColumnasTablaCotizadorFase1_();
+          llenarSelectCamposYReglasCotizadorFase1_();
+        }, function(err){ mostrarToast("No se pudieron recargar las columnas: " + ((err && err.message) || err)); });
       }
 
       function agregarColumnaTablaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(!tablaPuedeEditarColumnas_()){ mostrarToast("Guarde el componente antes de agregar columnas."); return; }
         const sel = byId("designerCotizadorTablaCampoDisponible");
-        const elementoId = String(sel ? sel.value : "").trim();
-        if(!elementoId){ mostrarToast("Seleccione un campo para agregarlo como columna."); return; }
-        st.tablaColumnasTemp = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
-        if(st.tablaColumnasTemp.some(function(c){ return String(c.elemento_id || c.campo_id) === elementoId; })){ mostrarToast("Ese campo ya está agregado como columna."); return; }
-        const elemento = (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === elementoId; });
-        st.tablaColumnasTemp.push({
-          elemento_id: elementoId,
-          tipo_elemento: elemento ? String(elemento.tipo_elemento || "CAMPO").toUpperCase() : "CAMPO",
-          etiqueta: elemento ? String(elemento.etiqueta || elemento.nombre_elemento || elementoId) : elementoId,
-          orden: st.tablaColumnasTemp.length + 1
-        });
-        renderColumnasTablaCotizadorFase1_();
+        const campoExistenteId = String(sel ? sel.value : "").trim();
+        if(!campoExistenteId){ mostrarToast("Seleccione un campo para integrarlo como columna."); return; }
+        fetchAutenticado("/api/cotizador/elementos/" + encodeURIComponent(st.elementoId) + "/columnas", {
+          method: "POST", headers: {"Accept":"application/json","Content-Type":"application/json"},
+          body: JSON.stringify({origen: "CAMPO_EXISTENTE", campo_existente_id: campoExistenteId})
+        }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo agregar la columna."); return data; }); })
+          .then(function(){ mostrarToast("Columna agregada."); refrescarColumnasTablaCotizadorFase1_(); })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo agregar la columna."); });
+      }
+
+      function agregarColumnaPropiaTablaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        if(!tablaPuedeEditarColumnas_()){ mostrarToast("Guarde el componente antes de agregar columnas."); return; }
+        const nombre = String(byId("designerCotizadorTablaColumnaNombre") ? byId("designerCotizadorTablaColumnaNombre").value : "").trim();
+        const tipoDato = byId("designerCotizadorTablaColumnaTipo") ? byId("designerCotizadorTablaColumnaTipo").value : "TEXTO";
+        if(!nombre){ mostrarToast("Indique el nombre de la columna propia."); return; }
+        fetchAutenticado("/api/cotizador/elementos/" + encodeURIComponent(st.elementoId) + "/columnas", {
+          method: "POST", headers: {"Accept":"application/json","Content-Type":"application/json"},
+          body: JSON.stringify({origen: "PROPIA", tipo_dato: tipoDato, etiqueta: nombre})
+        }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo agregar la columna."); return data; }); })
+          .then(function(){
+            mostrarToast("Columna agregada.");
+            if(byId("designerCotizadorTablaColumnaNombre")) byId("designerCotizadorTablaColumnaNombre").value = "";
+            refrescarColumnasTablaCotizadorFase1_();
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo agregar la columna."); });
+      }
+
+      function eliminarColumnaTablaCotizadorFase1_(columnaId){
+        if(!columnaId) return;
+        if(!window.confirm("¿Desea eliminar esta columna? Si alguna cotización ya tiene datos guardados con ella, no se podrá eliminar.")) return;
+        fetchAutenticado("/api/cotizador/columnas/" + encodeURIComponent(columnaId), {method:"DELETE", headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo eliminar la columna."); return data; }); })
+          .then(function(){ mostrarToast("Columna eliminada."); refrescarColumnasTablaCotizadorFase1_(); })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar la columna."); });
       }
       function renderReglasCampoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
@@ -1552,10 +1640,20 @@
         if(byId("designerCotizadorCalculadoTipoResultado")) byId("designerCotizadorCalculadoTipoResultado").value = cfg.tipo_resultado || "NUMERO";
         if(byId("designerCotizadorCalculadoDecimales")) byId("designerCotizadorCalculadoDecimales").value = (cfg.decimales === undefined || cfg.decimales === null) ? 2 : cfg.decimales;
 
-        st.tablaColumnasTemp = Array.isArray(cfg.columnas) ? cfg.columnas.slice() : [];
+        if(byId("designerCotizadorTablaEtiquetaTotal")) byId("designerCotizadorTablaEtiquetaTotal").value = cfg.etiqueta_total || "TOTAL";
+        if(byId("designerCotizadorTablaUnidad")) byId("designerCotizadorTablaUnidad").value = cfg.unidad || "";
+        setCheckedCotizadorFase1_("designerCotizadorTablaPermiteAgregar", cfg.permitir_agregar_filas !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaPermiteEliminar", cfg.permitir_eliminar_filas !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaEditableUsuario", cfg.tabla_editable !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaEditable", cfg.editable !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaObligatorio", cfg.obligatorio === true);
+        setCheckedCotizadorFase1_("designerCotizadorTablaVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorTablaVisibleOferta", cfg.visible_oferta !== false);
+        actualizarModoColumnaTablaCotizadorFase1_();
+        renderColumnasTablaCotizadorFase1_();
+
         st.campoReglasTemp = Array.isArray(cfg.reglas) ? cfg.reglas.slice() : [];
         st.calculadoOperandosTemp = Array.isArray(cfg.operandos) ? cfg.operandos.slice() : [];
-        renderColumnasTablaCotizadorFase1_();
         renderReglasCampoCotizadorFase1_();
         renderOperandosCalculadoCotizadorFase1_();
         actualizarPropiedadesPorTipoComponenteCotizadorFase1_();
@@ -1630,9 +1728,14 @@
           cfg.item_seleccionado_por_defecto = byId("designerCotizadorListaPreciosCodigoDefault") ? (byId("designerCotizadorListaPreciosCodigoDefault").value || "PRIMERO_ACTIVO") : "PRIMERO_ACTIVO";
         }
         if(tipo === "TABLA"){
-          cfg.columnas = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
-          cfg.permite_agregar_filas = byId("designerCotizadorTablaPermiteAgregar") ? byId("designerCotizadorTablaPermiteAgregar").checked : true;
-          cfg.permite_eliminar_filas = byId("designerCotizadorTablaPermiteEliminar") ? byId("designerCotizadorTablaPermiteEliminar").checked : true;
+          // Las columnas NO van acá: son filas reales en tabla_columnas
+          // (Ronda 4), administradas por su propio CRUD — ver
+          // agregarColumnaTablaCotizadorFase1_/agregarColumnaPropiaTablaCotizadorFase1_.
+          cfg.tipo_tabla = "SIMPLE";
+          cfg.etiqueta_total = byId("designerCotizadorTablaEtiquetaTotal") ? byId("designerCotizadorTablaEtiquetaTotal").value : "TOTAL";
+          cfg.unidad = byId("designerCotizadorTablaUnidad") ? byId("designerCotizadorTablaUnidad").value : "";
+          cfg.permitir_agregar_filas = byId("designerCotizadorTablaPermiteAgregar") ? byId("designerCotizadorTablaPermiteAgregar").checked : true;
+          cfg.permitir_eliminar_filas = byId("designerCotizadorTablaPermiteEliminar") ? byId("designerCotizadorTablaPermiteEliminar").checked : true;
           cfg.tabla_editable = byId("designerCotizadorTablaEditableUsuario") ? byId("designerCotizadorTablaEditableUsuario").checked : true;
           cfg.editable = byId("designerCotizadorTablaEditable") ? byId("designerCotizadorTablaEditable").checked : true;
           cfg.obligatorio = byId("designerCotizadorTablaObligatorio") ? byId("designerCotizadorTablaObligatorio").checked : false;
@@ -1649,7 +1752,7 @@
         if(byId("designerCotizadorFuncionCampo")) byId("designerCotizadorFuncionCampo").value = "NORMAL";
         if(byId("designerCotizadorElementoActivo")) byId("designerCotizadorElementoActivo").checked = true;
         if(byId("btnDesignerEliminarComponenteCotizador")) byId("btnDesignerEliminarComponenteCotizador").classList.add("hidden");
-        st.tablaColumnasTemp = [];
+        st.tablaColumnasActual = [];
         st.campoReglasTemp = [];
         st.calculadoOperandosTemp = [];
         st.listaPreciosItemsActual = [];
@@ -1663,6 +1766,7 @@
         if(!el){ limpiarPropsComponenteCotizadorFase1_(); return; }
         st.listaPreciosItemsActual = Array.isArray(el.items) ? el.items : [];
         st.listaPreciosItemEditId = "";
+        st.tablaColumnasActual = Array.isArray(el.columnas) ? el.columnas : [];
         if(byId("designerCotizadorElementoIdOriginal")) byId("designerCotizadorElementoIdOriginal").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoId")) byId("designerCotizadorElementoId").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoTipo")) byId("designerCotizadorElementoTipo").value = String(el.tipo_elemento || "CAMPO").trim().toUpperCase();
@@ -1706,7 +1810,7 @@
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
@@ -1771,7 +1875,7 @@
         if(!sel) return;
         const actual = sel.value;
         sel.innerHTML = '<option value="">Sin componente padre</option>';
-        (els || []).filter(function(e){ return ["CONTENEDOR","TABLA"].indexOf(String(e.tipo_elemento||"").toUpperCase())>=0; }).forEach(function(e){
+        (els || []).filter(function(e){ return String(e.tipo_elemento||"").toUpperCase() === "CONTENEDOR"; }).forEach(function(e){
           const opt = document.createElement("option");
           opt.value = String(e.elemento_id || "").trim();
           opt.textContent = String(e.etiqueta || e.nombre_elemento || e.elemento_id || "Componente").trim();

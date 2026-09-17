@@ -33,6 +33,12 @@ type elementoRuntime struct {
 	Tipo             string
 	CatalogoID       string
 	TipoListaPrecios string
+
+	// Solo para TABLA (Ronda 4): columnas válidas de esta tabla (columna_id
+	// -> true) y si se permite agregar/quitar filas al guardar.
+	ColumnasTabla         map[string]bool
+	PermitirAgregarFilas  bool
+	PermitirEliminarFilas bool
 }
 
 type contextoRuntime struct {
@@ -154,6 +160,49 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 				}
 			}
 		}
+		if elemento.Tipo == "TABLA" {
+			var valorParsed map[string]any
+			if err := json.Unmarshal(valor, &valorParsed); err != nil {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El valor de %s debe ser un objeto {\"filas\":[...]}.", elementoID)})
+				return
+			}
+			filas, err := filasDesdeValorTabla(valorParsed)
+			if err != nil {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("%s: %s", elementoID, err.Error())})
+				return
+			}
+			for _, fila := range filas {
+				for columnaID := range fila {
+					if !elemento.ColumnasTabla[columnaID] {
+						escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("La columna %s no pertenece a la tabla %s.", columnaID, elementoID)})
+						return
+					}
+				}
+			}
+			var previoRaw []byte
+			errPrevio := h.DB.QueryRow(ctx, `SELECT valor FROM cotizacion_valores WHERE cotizacion_id=$1 AND version=$2 AND elemento_id=$3`, cotizacionID, req.Version, elementoID).Scan(&previoRaw)
+			previoFilas := 0
+			if errPrevio == nil {
+				var previoParsed map[string]any
+				if err := json.Unmarshal(previoRaw, &previoParsed); err == nil {
+					if pf, ok := previoParsed["filas"].([]any); ok {
+						previoFilas = len(pf)
+					}
+				}
+			} else if !errors.Is(errPrevio, pgx.ErrNoRows) {
+				log.Printf("cotizador runtime: error leyendo filas previas de %s: %v", elementoID, errPrevio)
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar las filas de la tabla."})
+				return
+			}
+			if len(filas) > previoFilas && !elemento.PermitirAgregarFilas {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("La tabla %s no permite agregar filas.", elementoID)})
+				return
+			}
+			if len(filas) < previoFilas && !elemento.PermitirEliminarFilas {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("La tabla %s no permite eliminar filas.", elementoID)})
+				return
+			}
+		}
 	}
 
 	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
@@ -268,14 +317,33 @@ func indexarElementosRuntimeRecursivo(elementos []any, resultado map[string]elem
 		elemento, _ := elementoRaw.(map[string]any)
 		id := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
 		if id != "" {
+			tipo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"])))
 			tipoListaPrecios := ""
+			var columnasTabla map[string]bool
+			permitirAgregar, permitirEliminar := true, true
 			if cfg, ok := elemento["configuracion"].(map[string]any); ok {
 				tipoListaPrecios = strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["tipo_lista_precios"])))
+				if tipo == "TABLA" {
+					permitirAgregar = boolDesdeConfiguracion(cfg, "permitir_agregar_filas", true)
+					permitirEliminar = boolDesdeConfiguracion(cfg, "permitir_eliminar_filas", true)
+					columnasRaw, _ := cfg["columnas"].([]any)
+					columnasTabla = make(map[string]bool, len(columnasRaw))
+					for _, colRaw := range columnasRaw {
+						col, _ := colRaw.(map[string]any)
+						columnaID := strings.TrimSpace(fmt.Sprint(col["columna_id"]))
+						if columnaID != "" {
+							columnasTabla[columnaID] = true
+						}
+					}
+				}
 			}
 			resultado[id] = elementoRuntime{
-				Tipo:             strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))),
-				CatalogoID:       strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"])),
-				TipoListaPrecios: tipoListaPrecios,
+				Tipo:                  tipo,
+				CatalogoID:            strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"])),
+				TipoListaPrecios:      tipoListaPrecios,
+				ColumnasTabla:         columnasTabla,
+				PermitirAgregarFilas:  permitirAgregar,
+				PermitirEliminarFilas: permitirEliminar,
 			}
 		}
 		if hijos, ok := elemento["hijos"].([]any); ok {
@@ -407,6 +475,23 @@ func itemIDsDesdeValorListaPrecios(tipoLista string, valorParsed map[string]any)
 	return []string{id}, nil
 }
 
+// filasDesdeValorTabla extrae las filas del valor guardado de una TABLA
+// ({"filas":[{columna_id: valor, ...}, ...]}), validando su forma. No toca
+// la base — GuardarValores valida pertenencia de columnas y límites de
+// filas aparte.
+func filasDesdeValorTabla(valorParsed map[string]any) ([]map[string]any, error) {
+	filasRaw, _ := valorParsed["filas"].([]any)
+	filas := make([]map[string]any, 0, len(filasRaw))
+	for _, filaRaw := range filasRaw {
+		fila, ok := filaRaw.(map[string]any)
+		if !ok {
+			return nil, errors.New(`cada fila debe ser un objeto {"columna_id": valor, ...}`)
+		}
+		filas = append(filas, fila)
+	}
+	return filas, nil
+}
+
 // consultadorRuntime lo satisfacen tanto *pgxpool.Pool como pgx.Tx: leer
 // valores necesita funcionar contra la conexión suelta (GET normal) y contra
 // la misma transacción que los acaba de escribir (POST, para que el
@@ -487,14 +572,15 @@ func precioPorItemDesdeConfiguracion(cfg map[string]any) map[string]float64 {
 	return resultado
 }
 
-// resolverCamposCalculados calcula el valor de cada CAMPO_CALCULADO y cada
-// LISTA_PRECIOS de la estructura y lo deja en "valor_resuelto" de ese
-// elemento, mismo patrón que incluirValoresCajaValor — así el Motor de
-// Ejecución muestra ambos de la misma forma (Ronda 4). Un Campo Calculado
-// puede depender de otro Campo Calculado o de una Lista de Precios (Ronda 3,
-// tarea 3); por eso ambos pasan por el mismo "resolver" recursivo: una Lista
-// de Precios nunca tiene ciclos (no depende de nada), así que la recursión
-// se corta sola ahí sin lógica extra. Devuelve además un mapa elemento_id ->
+// resolverCamposCalculados calcula el valor de cada CAMPO_CALCULADO, cada
+// LISTA_PRECIOS y cada TABLA de la estructura y lo deja en "valor_resuelto"
+// de ese elemento, mismo patrón que incluirValoresCajaValor — así el Motor
+// de Ejecución muestra los tres de la misma forma. Un Campo Calculado puede
+// depender de otro Campo Calculado, de una Lista de Precios (Ronda 3, tarea
+// 3) o de una Tabla (Ronda 4, tarea 4); por eso los tres pasan por el mismo
+// "resolver" recursivo: ni una Lista de Precios ni una Tabla dependen de
+// nada, así que la recursión se corta sola ahí sin lógica extra. Devuelve
+// además un mapa elemento_id ->
 // valor resuelto (float64) para que actualizarTotalesCotizacionVersion no
 // tenga que volver a recorrer la estructura. Un operando sin valor guardado
 // todavía, un ciclo (no debería pasar, GuardarElemento ya lo rechaza al
@@ -519,6 +605,16 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 			cfg, _ := elemento["configuracion"].(map[string]any)
 			valorGuardado, _ := valores[id].(map[string]any)
 			resultado, ok := valorListaPrecios(fmt.Sprint(cfg["tipo_lista_precios"]), valorGuardado, precioPorItemDesdeConfiguracion(cfg))
+			if ok {
+				resueltos[id] = resultado
+			}
+			return resultado, ok
+		}
+
+		if tipo == "TABLA" {
+			cfg, _ := elemento["configuracion"].(map[string]any)
+			valorGuardado, _ := valores[id].(map[string]any)
+			resultado, ok := valorTotalTabla(cfg, valorGuardado)
 			if ok {
 				resueltos[id] = resultado
 			}
@@ -562,7 +658,7 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 
 	for id, elemento := range elementosPorID {
 		tipo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"])))
-		if tipo != "CAMPO_CALCULADO" && tipo != "LISTA_PRECIOS" {
+		if tipo != "CAMPO_CALCULADO" && tipo != "LISTA_PRECIOS" && tipo != "TABLA" {
 			continue
 		}
 		if valor, ok := resolver(id); ok {

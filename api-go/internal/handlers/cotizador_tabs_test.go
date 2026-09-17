@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -556,6 +557,157 @@ func TestCotizadorElementos_CampoCalculadoAceptaListaPreciosComoOperando(t *test
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("Campo Calculado con Lista de Precios como operando: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCotizadorElementos_ListarOcultaCostoMargenSinPuedeVerPrice cubre el
+// fix de seguridad: GET /api/cotizador/elementos nunca tuvo restricción de
+// rol, pero costo_interno/margen_porcentaje de los ítems de Lista de
+// Precios (Ronda 3) son precio interno igual que en cualquier otra
+// pantalla — deben quedar AUSENTES del JSON (no en 0 ni null) para una
+// sesión sin puede_ver_price, y presentes para una que sí lo tiene.
+func TestCotizadorElementos_ListarOcultaCostoMargenSinPuedeVerPrice(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-LP-PERM-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Precios", "activo": true,
+	})
+	elementoID := crearElementoListaPreciosPrueba(t, handler, tabID)
+	itemsHandler := &ListaPreciosItemsHandler{DB: handler.DB}
+	_, resItem := crearItemListaPrecios(t, itemsHandler, elementoID, map[string]any{
+		"codigo": "A", "nombre": "Ítem A", "precio": 100, "costo_interno": 60, "margen_porcentaje": 40,
+	})
+	if resItem["ok"] != true {
+		t.Fatalf("crear ítem base: %+v", resItem)
+	}
+
+	vendedor := crearUsuarioPrueba(t, handler.DB, "vendedor.lp."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
+	admin := crearAdminActorPrueba(t, handler.DB)
+
+	itemsDeRespuesta := func(actorID string) map[string]json.RawMessage {
+		req := httptest.NewRequest(http.MethodGet, "/api/cotizador/elementos?tab_id="+url.QueryEscape(tabID), nil)
+		req = conActor(req, actorID)
+		rec := httptest.NewRecorder()
+		handler.ListarElementos(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("listar elementos: %d: %s", rec.Code, rec.Body.String())
+		}
+		var res struct {
+			Elementos []struct {
+				ElementoID string                       `json:"elemento_id"`
+				Items      []map[string]json.RawMessage `json:"items"`
+			} `json:"elementos"`
+		}
+		assertJSON(t, rec.Body.Bytes(), &res)
+		for _, el := range res.Elementos {
+			if el.ElementoID == elementoID {
+				if len(el.Items) != 1 {
+					t.Fatalf("esperaba 1 ítem para %s, obtuvo %d", elementoID, len(el.Items))
+				}
+				return el.Items[0]
+			}
+		}
+		t.Fatalf("no se encontró el elemento %s en la respuesta", elementoID)
+		return nil
+	}
+
+	itemVendedor := itemsDeRespuesta(vendedor)
+	if _, presente := itemVendedor["costo_interno"]; presente {
+		t.Error("costo_interno no debería venir para un Vendedor sin puede_ver_price")
+	}
+	if _, presente := itemVendedor["margen_porcentaje"]; presente {
+		t.Error("margen_porcentaje no debería venir para un Vendedor sin puede_ver_price")
+	}
+	if _, presente := itemVendedor["precio"]; !presente {
+		t.Error("precio debería seguir presente — no es el dato restringido")
+	}
+
+	itemAdmin := itemsDeRespuesta(admin)
+	if _, presente := itemAdmin["costo_interno"]; !presente {
+		t.Error("costo_interno debería venir para un Administrador (puede_ver_price=true)")
+	}
+	if _, presente := itemAdmin["margen_porcentaje"]; !presente {
+		t.Error("margen_porcentaje debería venir para un Administrador (puede_ver_price=true)")
+	}
+}
+
+// TestCotizadorElementos_TablaValidaConfiguracion cubre la Ronda 4 del
+// Diseñador (migración 0020): tipo_tabla, etiqueta_total, unidad y los
+// booleanos de comportamiento.
+func TestCotizadorElementos_TablaValidaConfiguracion(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-TABLA-VAL-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Tabla", "activo": true,
+	})
+
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-TABLA-BAD-TIPO-" + sufijoUnico(), "tab_id": tabID, "tipo": "TABLA",
+		"etiqueta": "Perfiles", "configuracion": map[string]any{"tipo_tabla": "JERARQUICA"}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("tipo_tabla inválido: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	elementoID := "TEST-EL-TABLA-OK-" + sufijoUnico()
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "TABLA", "etiqueta": "Perfiles",
+		"configuracion": map[string]any{"etiqueta_total": "TOTAL HORAS", "unidad": "horas", "permitir_agregar_filas": false}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear tabla válida: %d: %s", rec.Code, rec.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cotizador/elementos?tab_id="+url.QueryEscape(tabID), nil)
+	rec = httptest.NewRecorder()
+	handler.ListarElementos(rec, req)
+	var res struct {
+		Elementos []elementoTabCotizador `json:"elementos"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	for _, el := range res.Elementos {
+		if el.ElementoID != elementoID {
+			continue
+		}
+		if el.Configuracion["tipo_tabla"] != "SIMPLE" {
+			t.Errorf("esperaba tipo_tabla=SIMPLE por defecto, obtuvo %v", el.Configuracion["tipo_tabla"])
+		}
+		if el.Configuracion["etiqueta_total"] != "TOTAL HORAS" {
+			t.Errorf("esperaba etiqueta_total=TOTAL HORAS, obtuvo %v", el.Configuracion["etiqueta_total"])
+		}
+		if el.Configuracion["permitir_agregar_filas"] != false {
+			t.Errorf("esperaba permitir_agregar_filas=false, obtuvo %v", el.Configuracion["permitir_agregar_filas"])
+		}
+		if el.Configuracion["permitir_eliminar_filas"] != true {
+			t.Errorf("esperaba permitir_eliminar_filas=true (default), obtuvo %v", el.Configuracion["permitir_eliminar_filas"])
+		}
+	}
+}
+
+// TestCotizadorElementos_CampoCalculadoAceptaTablaComoOperando cubre la
+// extensión "si el tiempo alcanza" de la Ronda 4 a la validación de
+// operandos de Campo Calculado (Ronda 2).
+func TestCotizadorElementos_CampoCalculadoAceptaTablaComoOperando(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-TABLA-OPERANDO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Tabla", "activo": true,
+	})
+	tablaID := crearElementoTablaPrueba(t, handler, tabID)
+	campoID := "TEST-EL-TABLA-CAMPO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Descuento",
+		"configuracion": map[string]any{"tipo_campo": "MONEDA"}, "activo": true,
+	})
+
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-TABLA-CALC-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO_CALCULADO",
+		"etiqueta": "Total", "configuracion": map[string]any{
+			"operacion": "SUMA", "tipo_resultado": "MONEDA", "decimales": 2, "operandos": []string{tablaID, campoID},
+		}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Campo Calculado con Tabla como operando: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

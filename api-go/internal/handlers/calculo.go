@@ -131,3 +131,52 @@ func valorListaPrecios(tipoLista string, valorGuardado map[string]any, precioPor
 	}
 	return redondear(precio*cantidad, 2), true
 }
+
+// primeraColumnaNumericaTabla busca, en el orden en que vienen, la primera
+// columna con tipo_dato NUMERO o MONEDA — la misma que se totaliza al pie
+// de la tabla y la que alimenta un Campo Calculado que la use como
+// operando (Ronda 4). "columnas" es el array ya compilado (ver
+// incluirColumnasTabla en compilador.go), donde CAMPO_EXISTENTE y PROPIA ya
+// vienen normalizadas a la misma forma {columna_id, tipo_dato, ...}.
+func primeraColumnaNumericaTabla(columnas []any) string {
+	for _, colRaw := range columnas {
+		col, _ := colRaw.(map[string]any)
+		tipoDato := strings.ToUpper(strings.TrimSpace(fmt.Sprint(col["tipo_dato"])))
+		if tipoDato == "NUMERO" || tipoDato == "MONEDA" {
+			return strings.TrimSpace(fmt.Sprint(col["columna_id"]))
+		}
+	}
+	return ""
+}
+
+// valorTotalTabla suma, a través de todas las filas guardadas, la primera
+// columna numérica de la Tabla (Ronda 4) — mismo patrón que
+// valorListaPrecios: puro, sin acceso a base de datos, y con un segundo
+// valor de retorno que distingue "no hay nada que sumar todavía" (sin
+// columna numérica, o sin filas) de "el total da cero".
+func valorTotalTabla(cfg map[string]any, valorGuardado map[string]any) (float64, bool) {
+	if cfg == nil {
+		return 0, false
+	}
+	columnas, _ := cfg["columnas"].([]any)
+	columnaID := primeraColumnaNumericaTabla(columnas)
+	if columnaID == "" {
+		return 0, false
+	}
+	filasRaw, _ := valorGuardado["filas"].([]any)
+	if len(filasRaw) == 0 {
+		return 0, false
+	}
+	var total float64
+	huboAlMenosUna := false
+	for _, filaRaw := range filasRaw {
+		fila, _ := filaRaw.(map[string]any)
+		valor, ok := numeroDesdeValor(fila[columnaID])
+		if !ok {
+			continue
+		}
+		total += valor
+		huboAlMenosUna = true
+	}
+	return redondear(total, 2), huboAlMenosUna
+}

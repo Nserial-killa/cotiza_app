@@ -1524,6 +1524,38 @@ window.CotizaApp = (function(){
             renderRuntimeCotizador();
           });
         });
+
+        // TABLA (Ronda 4): mismo criterio que Lista de Precios MULTIPLE —
+        // agregar/quitar cambia la cantidad de filas, así que se captura lo
+        // que ya había antes de re-renderizar completo. El total al pie
+        // (valor_resuelto) se recalcula solo, no hace falta tocarlo acá.
+        contenido.querySelectorAll(".runtime-tabla-agregar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            if(!id) return;
+            rt.valores[id] = rt.valores[id] || {};
+            if(!Array.isArray(rt.valores[id].filas)) rt.valores[id].filas = [];
+            rt.valores[id].filas.push({});
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-tabla-quitar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            const idx = Number(btn.dataset.fila);
+            if(!id || !rt.valores[id] || !Array.isArray(rt.valores[id].filas)) return;
+            rt.valores[id].filas.splice(idx, 1);
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-tabla-celda").forEach(function(input){
+          input.addEventListener("change", function(){
+            leerValoresFormularioActual();
+            renderRuntimeCotizador();
+          });
+        });
       }
 
       // CAMPO -> input de texto. CAMPO_CATALOGO -> select con las
@@ -1594,6 +1626,9 @@ window.CotizaApp = (function(){
         }
         if(el.tipo === "LISTA_PRECIOS"){
           return renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido);
+        }
+        if(el.tipo === "TABLA"){
+          return renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido);
         }
         if(el.tipo === "CAMPO_CATALOGO"){
           const opciones = el.opciones || [];
@@ -1698,6 +1733,50 @@ window.CotizaApp = (function(){
           + '</div>';
       }
 
+      // Un <input> por celda según tipo_dato de la columna — Número/Moneda/
+      // Porcentaje son numéricos, el resto (Texto) es texto libre.
+      function celdaTablaRuntime_(tipoDato, valor, elementoID, columnaID, fila){
+        const esNumerico = ["NUMERO", "MONEDA", "PORCENTAJE"].indexOf(String(tipoDato || "").toUpperCase()) >= 0;
+        const val = (valor === null || valor === undefined) ? "" : valor;
+        return '<input type="' + (esNumerico ? "number" : "text") + '" class="input runtime-tabla-celda" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + fila + '" data-columna-id="' + escapeHtml(columnaID) + '" value="' + escapeHtml(String(val)) + '"' + (esNumerico ? ' step="any"' : '') + '>';
+      }
+
+      // TABLA (Ronda 4): filas dinámicas, un input por celda según el tipo
+      // de su columna (ya normalizado por el compilado, sea CAMPO_EXISTENTE
+      // o PROPIA — ver incluirColumnasTabla en compilador.go), botones de
+      // agregar/quitar fila solo si el Diseñador los permitió, y el total
+      // (ya resuelto por el backend en valor_resuelto, misma idea que Lista
+      // de Precios y Campo Calculado) al pie si hay una columna numérica.
+      function renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido){
+        const elementoID = el.elemento_id;
+        const columnas = (Array.isArray(cfg.columnas) ? cfg.columnas.slice() : []).sort(function(a, b){ return (a.orden || 0) - (b.orden || 0); });
+        const filas = (valorGuardado && Array.isArray(valorGuardado.filas)) ? valorGuardado.filas : [];
+        const permitirAgregar = cfg.permitir_agregar_filas !== false;
+        const permitirEliminar = cfg.permitir_eliminar_filas !== false;
+
+        const th = columnas.map(function(c){ return '<th>' + escapeHtml(c.etiqueta || "Columna") + '</th>'; }).join("") + (permitirEliminar ? '<th></th>' : '');
+        const colspan = columnas.length + (permitirEliminar ? 1 : 0);
+        const filasHtml = filas.length ? filas.map(function(fila, idx){
+          const celdas = columnas.map(function(c){ return '<td>' + celdaTablaRuntime_(c.tipo_dato, fila[c.columna_id], elementoID, c.columna_id, idx) + '</td>'; }).join("");
+          const quitar = permitirEliminar ? '<td><button type="button" class="btn btn-ghost btn-mini runtime-tabla-quitar" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">Quitar</button></td>' : '';
+          return '<tr>' + celdas + quitar + '</tr>';
+        }).join("") : ('<tr><td colspan="' + Math.max(colspan, 1) + '" class="runtime-lp-empty">Sin filas agregadas.</td></tr>');
+
+        const totalRaw = el.valor_resuelto;
+        let totalHtml = "";
+        if(totalRaw !== null && totalRaw !== undefined){
+          const unidad = cfg.unidad ? (" " + cfg.unidad) : "";
+          totalHtml = '<div class="runtime-lp-total">' + escapeHtml(cfg.etiqueta_total || "TOTAL") + ': ' + escapeHtml(formatoNumero(totalRaw)) + escapeHtml(unidad) + '</div>';
+        }
+
+        return '<div class="field runtime-field runtime-tabla" ' + estiloSpan + ' data-tabla-id="' + escapeHtml(elementoID) + '">'
+          + '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>'
+          + '<div class="runtime-lp-table-wrap"><table class="runtime-lp-table"><thead><tr>' + th + '</tr></thead><tbody>' + filasHtml + '</tbody></table></div>'
+          + (permitirAgregar ? '<button type="button" class="btn btn-ghost btn-mini runtime-tabla-agregar" data-elemento-id="' + escapeHtml(elementoID) + '">+ Agregar fila</button>' : '')
+          + totalHtml
+          + '</div>';
+      }
+
       // Vuelca lo que hay ahora mismo en pantalla (de la tab activa)
       // a state.cotizadorRuntime.valores, sin tocar los valores de las
       // demás tabs (que ya quedaron guardados ahí en su propio turno).
@@ -1734,16 +1813,32 @@ window.CotizaApp = (function(){
           });
           rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
         });
+        // TABLA (Ronda 4): una fila por <tr>, columna_id como clave —
+        // mismo criterio de índice por posición que Lista de Precios MULTIPLE.
+        document.querySelectorAll("#gestorRuntimeContenido [data-tabla-id]").forEach(function(cont){
+          const id = cont.dataset.tablaId;
+          if(!id) return;
+          const filas = [];
+          cont.querySelectorAll(".runtime-tabla-celda").forEach(function(input){
+            const idx = Number(input.dataset.fila);
+            const columnaId = input.dataset.columnaId;
+            if(!columnaId) return;
+            filas[idx] = filas[idx] || {};
+            filas[idx][columnaId] = input.value;
+          });
+          rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
+        });
       }
 
       // Recorre elementos y sus "hijos" (componentes dentro de un
-      // CONTENEDOR) marcando cuáles son guardables: solo CAMPO y
-      // CAMPO_CATALOGO tienen valor propio. TITULO/CONTENEDOR/LEYENDA/
-      // TEXTO_INFORMATIVO/CAJA_VALOR no se guardan (Caja de valor
-      // refleja otro campo, no tiene input propio).
+      // CONTENEDOR) marcando cuáles son guardables: solo CAMPO,
+      // CAMPO_CATALOGO, LISTA_PRECIOS y TABLA tienen valor propio.
+      // TITULO/CONTENEDOR/LEYENDA/TEXTO_INFORMATIVO/CAJA_VALOR/
+      // CAMPO_CALCULADO no se guardan (son de solo lectura o reflejan otro
+      // campo, no tienen input propio).
       function recolectarElementosGuardablesRuntimeCotizador_(elementos, destino){
         (elementos || []).forEach(function(el){
-          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS") destino[el.elemento_id] = true;
+          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS" || el.tipo === "TABLA") destino[el.elemento_id] = true;
           if(Array.isArray(el.hijos)) recolectarElementosGuardablesRuntimeCotizador_(el.hijos, destino);
         });
       }

@@ -266,6 +266,9 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	if err := h.incluirItemsListaPrecios(ctx, &resultado); err != nil {
 		return resultado, err
 	}
+	if err := h.incluirColumnasTabla(ctx, &resultado); err != nil {
+		return resultado, err
+	}
 	for i := range resultado.Tabs {
 		resultado.Tabs[i].Elementos = anidarHijosCompilado(resultado.Tabs[i].Elementos, &resultado)
 	}
@@ -336,6 +339,90 @@ func (h *CompiladorHandler) incluirItemsListaPrecios(ctx context.Context, result
 		}
 	}
 	return nil
+}
+
+// incluirColumnasTabla agrega, a la configuracion de cada elemento TABLA,
+// su lista de columnas bajo la clave "columnas" — cada una ya normalizada
+// a la misma forma {columna_id, origen, campo_existente_id, tipo_dato,
+// etiqueta, orden}, sea CAMPO_EXISTENTE (tipo_dato/etiqueta resueltos del
+// campo que referencia) o PROPIA (los suyos). Normalizar acá evita que el
+// Motor de Ejecución y valorTotalTabla (calculo.go) tengan que distinguir
+// el origen de cada columna.
+func (h *CompiladorHandler) incluirColumnasTabla(ctx context.Context, resultado *resultadoValidacion) error {
+	ids := make([]string, 0)
+	for _, tab := range resultado.Tabs {
+		for _, el := range tab.Elementos {
+			if el.Tipo == "TABLA" {
+				ids = append(ids, el.ElementoID)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := h.DB.Query(ctx, `
+		SELECT tc.elemento_id, tc.columna_id::text, tc.origen, tc.campo_existente_id, tc.tipo_dato, tc.etiqueta, tc.orden,
+		       ref.tipo, ref.etiqueta, ref.configuracion
+		FROM tabla_columnas tc
+		LEFT JOIN elementos_tab_cotizador ref ON ref.elemento_id = tc.campo_existente_id
+		WHERE tc.elemento_id = ANY($1)
+		ORDER BY tc.elemento_id, tc.orden`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	columnasPorElemento := make(map[string][]map[string]any)
+	for rows.Next() {
+		var elementoID, columnaID, origen string
+		var campoExistenteID, tipoDato, etiqueta *string
+		var orden int
+		var refTipo, refEtiqueta *string
+		var refConfig map[string]any
+		if err := rows.Scan(&elementoID, &columnaID, &origen, &campoExistenteID, &tipoDato, &etiqueta, &orden, &refTipo, &refEtiqueta, &refConfig); err != nil {
+			return err
+		}
+		tipoDatoFinal := valorString(tipoDato)
+		etiquetaFinal := valorString(etiqueta)
+		if origen == "CAMPO_EXISTENTE" {
+			tipoDatoFinal = tipoDatoDesdeElementoReferenciado(valorString(refTipo), refConfig)
+			etiquetaFinal = valorString(refEtiqueta)
+		}
+		columnasPorElemento[elementoID] = append(columnasPorElemento[elementoID], map[string]any{
+			"columna_id": columnaID, "origen": origen, "campo_existente_id": valorString(campoExistenteID),
+			"tipo_dato": tipoDatoFinal, "etiqueta": etiquetaFinal, "orden": orden,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range resultado.Tabs {
+		for j := range resultado.Tabs[i].Elementos {
+			el := &resultado.Tabs[i].Elementos[j]
+			if el.Tipo != "TABLA" {
+				continue
+			}
+			columnas := columnasPorElemento[el.ElementoID]
+			if columnas == nil {
+				columnas = make([]map[string]any, 0)
+			}
+			el.Configuracion["columnas"] = columnas
+		}
+	}
+	return nil
+}
+
+// tipoDatoDesdeElementoReferenciado resuelve el "tipo_dato" equivalente de
+// una columna CAMPO_EXISTENTE a partir del elemento que integra: CAMPO y
+// CAMPO_CATALOGO ya guardan su tipo en configuracion.tipo_campo (Sprint 2 /
+// Ronda 2), y CAMPO_CALCULADO en configuracion.tipo_resultado (Ronda 2).
+func tipoDatoDesdeElementoReferenciado(tipo string, cfg map[string]any) string {
+	switch tipo {
+	case "CAMPO", "CAMPO_CATALOGO":
+		return strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["tipo_campo"])))
+	case "CAMPO_CALCULADO":
+		return strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["tipo_resultado"])))
+	}
+	return ""
 }
 
 // anidarHijosCompilado saca de la lista plana de una sección los elementos
