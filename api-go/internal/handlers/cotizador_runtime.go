@@ -30,8 +30,9 @@ type guardarValoresRuntimeRequest struct {
 }
 
 type elementoRuntime struct {
-	Tipo       string
-	CatalogoID string
+	Tipo             string
+	CatalogoID       string
+	TipoListaPrecios string
 }
 
 type contextoRuntime struct {
@@ -127,6 +128,30 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 			if !permitido {
 				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El valor %s no es una opción activa del catálogo %s para el elemento %s.", valorSistema, elemento.CatalogoID, elementoID)})
 				return
+			}
+		}
+		if elemento.Tipo == "LISTA_PRECIOS" {
+			var valorParsed map[string]any
+			if err := json.Unmarshal(valor, &valorParsed); err != nil {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El valor de %s debe ser un objeto (item_id/cantidad, o filas).", elementoID)})
+				return
+			}
+			itemIDs, err := itemIDsDesdeValorListaPrecios(elemento.TipoListaPrecios, valorParsed)
+			if err != nil {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("%s: %s", elementoID, err.Error())})
+				return
+			}
+			for _, itemID := range itemIDs {
+				var perteneceYActivo bool
+				if err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM lista_precios_items WHERE item_id::text=$1 AND elemento_id=$2 AND activo=true)`, itemID, elementoID).Scan(&perteneceYActivo); err != nil {
+					log.Printf("cotizador runtime: error validando ítem %s de %s: %v", itemID, elementoID, err)
+					escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los ítems de la lista de precios."})
+					return
+				}
+				if !perteneceYActivo {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El ítem %s no existe, está inactivo o no pertenece a %s.", itemID, elementoID)})
+					return
+				}
 			}
 		}
 	}
@@ -243,7 +268,15 @@ func indexarElementosRuntimeRecursivo(elementos []any, resultado map[string]elem
 		elemento, _ := elementoRaw.(map[string]any)
 		id := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
 		if id != "" {
-			resultado[id] = elementoRuntime{Tipo: strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))), CatalogoID: strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"]))}
+			tipoListaPrecios := ""
+			if cfg, ok := elemento["configuracion"].(map[string]any); ok {
+				tipoListaPrecios = strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["tipo_lista_precios"])))
+			}
+			resultado[id] = elementoRuntime{
+				Tipo:             strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))),
+				CatalogoID:       strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"])),
+				TipoListaPrecios: tipoListaPrecios,
+			}
 		}
 		if hijos, ok := elemento["hijos"].([]any); ok {
 			indexarElementosRuntimeRecursivo(hijos, resultado)
@@ -343,6 +376,37 @@ func incluirValoresCajaValorRecursivo(elementos []any, valores map[string]any) {
 	}
 }
 
+// itemIDsDesdeValorListaPrecios extrae los item_id que trae el valor
+// guardado de una Lista de Precios, validando su forma según el modo
+// (UNICA: {"item_id":...,"cantidad":...}; MULTIPLE: {"filas":[...]}). No
+// toca la base — GuardarValores valida existencia/pertenencia/estado aparte.
+func itemIDsDesdeValorListaPrecios(tipoLista string, valorParsed map[string]any) ([]string, error) {
+	if strings.ToUpper(strings.TrimSpace(tipoLista)) == "MULTIPLE" {
+		filasRaw, _ := valorParsed["filas"].([]any)
+		if len(filasRaw) == 0 {
+			return nil, errors.New("debe indicar al menos una fila (item_id y cantidad)")
+		}
+		ids := make([]string, 0, len(filasRaw))
+		for _, filaRaw := range filasRaw {
+			fila, ok := filaRaw.(map[string]any)
+			if !ok {
+				return nil, errors.New("cada fila debe ser un objeto con item_id y cantidad")
+			}
+			id := strings.TrimSpace(fmt.Sprint(fila["item_id"]))
+			if id == "" {
+				return nil, errors.New("cada fila debe indicar item_id")
+			}
+			ids = append(ids, id)
+		}
+		return ids, nil
+	}
+	id := strings.TrimSpace(fmt.Sprint(valorParsed["item_id"]))
+	if id == "" {
+		return nil, errors.New("debe indicar item_id")
+	}
+	return []string{id}, nil
+}
+
 // consultadorRuntime lo satisfacen tanto *pgxpool.Pool como pgx.Tx: leer
 // valores necesita funcionar contra la conexión suelta (GET normal) y contra
 // la misma transacción que los acaba de escribir (POST, para que el
@@ -403,10 +467,34 @@ func numeroDesdeValor(valor any) (float64, bool) {
 	}
 }
 
-// resolverCamposCalculados calcula el valor de cada CAMPO_CALCULADO de la
-// estructura (recursivo: un operando puede ser otro CAMPO_CALCULADO, que se
-// resuelve primero) y lo deja en "valor_resuelto" de ese elemento, mismo
-// patrón que incluirValoresCajaValor. Devuelve además un mapa elemento_id ->
+// precioPorItemDesdeConfiguracion lee configuracion["items"] (embebido por
+// incluirItemsListaPrecios en compilador.go) y arma un índice item_id ->
+// precio, para no volver a tocar la base al resolver una Lista de Precios.
+func precioPorItemDesdeConfiguracion(cfg map[string]any) map[string]float64 {
+	resultado := make(map[string]float64)
+	if cfg == nil {
+		return resultado
+	}
+	items, _ := cfg["items"].([]any)
+	for _, itemRaw := range items {
+		item, _ := itemRaw.(map[string]any)
+		id := strings.TrimSpace(fmt.Sprint(item["item_id"]))
+		precio, ok := numeroDesdeValor(item["precio"])
+		if id != "" && ok {
+			resultado[id] = precio
+		}
+	}
+	return resultado
+}
+
+// resolverCamposCalculados calcula el valor de cada CAMPO_CALCULADO y cada
+// LISTA_PRECIOS de la estructura y lo deja en "valor_resuelto" de ese
+// elemento, mismo patrón que incluirValoresCajaValor — así el Motor de
+// Ejecución muestra ambos de la misma forma (Ronda 4). Un Campo Calculado
+// puede depender de otro Campo Calculado o de una Lista de Precios (Ronda 3,
+// tarea 3); por eso ambos pasan por el mismo "resolver" recursivo: una Lista
+// de Precios nunca tiene ciclos (no depende de nada), así que la recursión
+// se corta sola ahí sin lógica extra. Devuelve además un mapa elemento_id ->
 // valor resuelto (float64) para que actualizarTotalesCotizacionVersion no
 // tenga que volver a recorrer la estructura. Un operando sin valor guardado
 // todavía, un ciclo (no debería pasar, GuardarElemento ya lo rechaza al
@@ -425,7 +513,19 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 		if !existe {
 			return 0, false
 		}
-		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) != "CAMPO_CALCULADO" {
+		tipo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"])))
+
+		if tipo == "LISTA_PRECIOS" {
+			cfg, _ := elemento["configuracion"].(map[string]any)
+			valorGuardado, _ := valores[id].(map[string]any)
+			resultado, ok := valorListaPrecios(fmt.Sprint(cfg["tipo_lista_precios"]), valorGuardado, precioPorItemDesdeConfiguracion(cfg))
+			if ok {
+				resueltos[id] = resultado
+			}
+			return resultado, ok
+		}
+
+		if tipo != "CAMPO_CALCULADO" {
 			return numeroDesdeValor(valores[id])
 		}
 		if enProceso[id] {
@@ -461,7 +561,8 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 	}
 
 	for id, elemento := range elementosPorID {
-		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) != "CAMPO_CALCULADO" {
+		tipo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"])))
+		if tipo != "CAMPO_CALCULADO" && tipo != "LISTA_PRECIOS" {
 			continue
 		}
 		if valor, ok := resolver(id); ok {
@@ -519,7 +620,8 @@ func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context
 			continue
 		}
 		var valorCrudo any
-		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "CAMPO_CALCULADO" {
+		tipoElemento := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"])))
+		if tipoElemento == "CAMPO_CALCULADO" || tipoElemento == "LISTA_PRECIOS" {
 			valorCrudo = elemento["valor_resuelto"]
 		} else {
 			valorCrudo = valores[id]

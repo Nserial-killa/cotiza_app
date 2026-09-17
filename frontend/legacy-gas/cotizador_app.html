@@ -2268,39 +2268,12 @@
                       </select>
                       <span class="param-field-help">Única permite escoger un producto. Múltiple permite agregar varias filas con producto, cantidad, precio unitario y total.</span>
                     </div>
-                    <div class="field ctz-f-price-list-view">
-                      <label for="designerCotizadorListaPreciosModoVisual">Forma de visualización</label>
-                      <select id="designerCotizadorListaPreciosModoVisual" class="select">
-                        <option value="SELECTOR">Selector</option>
-                        <option value="TARJETAS">Tarjetas</option>
-                      </select>
-                    </div>
                     <div class="field ctz-f-price-list-value">
                       <label for="designerCotizadorListaPreciosValorCalculo">Valor que alimenta los cálculos</label>
                       <select id="designerCotizadorListaPreciosValorCalculo" class="select">
-                        <option value="PRECIO">Precio unitario</option>
-                        <option value="CANTIDAD">Cantidad</option>
-                        <option value="SUBTOTAL">Subtotal (precio × cantidad)</option>
-                        <option value="COSTO">Costo unitario</option>
-                        <option value="COSTO_TOTAL">Costo total (costo × cantidad)</option>
-                        <option value="MARGEN">Margen</option>
+                        <option value="PRECIO_UNITARIO">Precio unitario</option>
                       </select>
                       <span id="designerCotizadorListaPreciosValorCalculoHelp" class="cotizador-price-list-help"><strong>Precio unitario:</strong> entrega el precio de una unidad del producto seleccionado.</span>
-                    </div>
-                    <div id="designerCotizadorListaPreciosCantidadConfig" class="cotizador-price-list-quantity-config cotizador-full-row ctz-f-price-list-quantity hidden">
-                      <div class="field">
-                        <label for="designerCotizadorListaPreciosCantidadInicial">Cantidad inicial</label>
-                        <input id="designerCotizadorListaPreciosCantidadInicial" class="input" type="number" min="1" step="1" value="1" placeholder="1">
-                        <span class="param-field-help">Valor mostrado al abrir el cotizador. Debe ser mayor que cero.</span>
-                      </div>
-                      <div class="field">
-                        <label for="designerCotizadorListaPreciosTipoCantidad">Tipo de cantidad</label>
-                        <select id="designerCotizadorListaPreciosTipoCantidad" class="select">
-                          <option value="ENTERO">Solo números enteros</option>
-                          <option value="DECIMAL">Permitir decimales</option>
-                        </select>
-                        <span class="param-field-help">Use decimales para horas, fracciones, peso u otras unidades parciales.</span>
-                      </div>
                     </div>
                     <div class="cotizador-price-list-editor cotizador-full-row ctz-f-price-list-items">
                       <div class="cotizador-price-list-editor-head">
@@ -2539,7 +2512,7 @@
                           </select>
                           <button id="btnDesignerAgregarOperandoCalculado" class="btn btn-light-blue btn-mini" type="button">Agregar campo</button>
                         </div>
-                        <span class="param-field-help">Solo se muestran campos Número, Moneda, Porcentaje, Campos Catálogo calculables y otros Campos calculados de esta sección.</span>
+                        <span class="param-field-help">Solo se muestran campos Número, Moneda, Porcentaje, Listas de Precios y otros Campos calculados de esta sección.</span>
                       </div>
                       <div id="designerCotizadorCalculadoPropiedadListaBox" class="field hidden" style="margin-top:8px;">
                         <label for="designerCotizadorCalculadoPropiedadLista">Valor de la Lista de Precios</label>

@@ -463,6 +463,102 @@ func TestCotizadorElementos_FuncionCampoSoloEnTiposConValorPropio(t *testing.T) 
 	}
 }
 
+// TestCotizadorElementos_ListaPreciosValidaConfiguracion cubre la Ronda 3
+// del Diseñador (migración 0019): tipo_lista_precios, valor_que_alimenta e
+// item_seleccionado_por_defecto.
+func TestCotizadorElementos_ListaPreciosValidaConfiguracion(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-LP-VAL-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Precios", "activo": true,
+	})
+
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-LP-BAD-TIPO-" + sufijoUnico(), "tab_id": tabID, "tipo": "LISTA_PRECIOS",
+		"etiqueta": "Servicios", "configuracion": map[string]any{"tipo_lista_precios": "TRIPLE"}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("tipo_lista_precios inválido: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-LP-BAD-VALOR-" + sufijoUnico(), "tab_id": tabID, "tipo": "LISTA_PRECIOS",
+		"etiqueta": "Servicios", "configuracion": map[string]any{"tipo_lista_precios": "UNICA", "valor_que_alimenta": "COSTO_TOTAL"}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("valor_que_alimenta distinto de PRECIO_UNITARIO: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	elementoID := "TEST-EL-LP-OK-" + sufijoUnico()
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "LISTA_PRECIOS", "etiqueta": "Servicios",
+		"configuracion": map[string]any{"tipo_lista_precios": "MULTIPLE", "mostrar_cantidad": false}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear lista de precios válida: %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// item_seleccionado_por_defecto con un código que no existe todavía: rechaza.
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "LISTA_PRECIOS", "etiqueta": "Servicios",
+		"configuracion": map[string]any{"tipo_lista_precios": "MULTIPLE", "item_seleccionado_por_defecto": "NO-EXISTE"}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("item_seleccionado_por_defecto inexistente: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	itemsHandler := &ListaPreciosItemsHandler{DB: handler.DB}
+	_, resItem := crearItemListaPrecios(t, itemsHandler, elementoID, map[string]any{"codigo": "ITEM-A", "nombre": "Item A", "precio": 100})
+	if resItem["ok"] != true {
+		t.Fatalf("crear ítem base: %+v", resItem)
+	}
+
+	// ahora "ITEM-A" sí existe: se acepta como item_seleccionado_por_defecto.
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "LISTA_PRECIOS", "etiqueta": "Servicios",
+		"configuracion": map[string]any{"tipo_lista_precios": "MULTIPLE", "item_seleccionado_por_defecto": "item-a"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("item_seleccionado_por_defecto existente: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// PRIMERO_ACTIVO siempre se acepta, incluso sin ítems.
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-LP-DEFECTO-" + sufijoUnico(), "tab_id": tabID, "tipo": "LISTA_PRECIOS",
+		"etiqueta": "Servicios", "configuracion": map[string]any{"tipo_lista_precios": "UNICA", "item_seleccionado_por_defecto": "PRIMERO_ACTIVO"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PRIMERO_ACTIVO: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCotizadorElementos_CampoCalculadoAceptaListaPreciosComoOperando cubre
+// la extensión de la Ronda 3 a la validación de operandos de Campo
+// Calculado (Ronda 2): una Lista de Precios ahora es un operando válido.
+func TestCotizadorElementos_CampoCalculadoAceptaListaPreciosComoOperando(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-LP-OPERANDO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Precios", "activo": true,
+	})
+	listaID := crearElementoListaPreciosPrueba(t, handler, tabID)
+	campoID := "TEST-EL-LP-CAMPO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Descuento",
+		"configuracion": map[string]any{"tipo_campo": "MONEDA"}, "activo": true,
+	})
+
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-LP-CALC-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO_CALCULADO",
+		"etiqueta": "Total", "configuracion": map[string]any{
+			"operacion": "SUMA", "tipo_resultado": "MONEDA", "decimales": 2, "operandos": []string{listaID, campoID},
+		}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Campo Calculado con Lista de Precios como operando: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCotizadorTabs_EliminarInactivaTabYElementos(t *testing.T) {
 	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	tabID := "TEST-TAB-DELETE-" + sufijoUnico()

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -319,6 +320,203 @@ func TestCotizadorRuntime_CampoCalculadoAnidadoResuelveDosNiveles(t *testing.T) 
 	}
 	if totalPrecio != 150 {
 		t.Fatalf("cotizacion_versiones.total_precio esperaba 150 (funcion_campo=TOTAL_PRECIO_OFERTA de calc2), obtuvo %v", totalPrecio)
+	}
+}
+
+// fixtureListaPreciosCompilada monta, con los endpoints reales (tabs,
+// elementos, ítems, compilador, cotización), una calculadora con:
+//   - una LISTA_PRECIOS "UNICA" con 3 ítems.
+//   - una LISTA_PRECIOS "MULTIPLE" con 2 ítems.
+//   - un CAMPO_CALCULADO que suma ambas listas.
+//
+// Ronda 3 (migración 0019), tarea 9: prueba end-to-end contra el pipeline
+// real (no una estructura armada a mano) para que la ausencia de
+// costo_interno/margen_porcentaje en el compilado quede probada de verdad,
+// no solo asumida.
+type fixtureListaPreciosCompilada struct {
+	Runtime         *CotizadorRuntimeHandler
+	CotizacionID    string
+	Version         int
+	UnicaID         string
+	MultipleID      string
+	CalculadoID     string
+	ItemUnicaAID    string
+	ItemUnicaBID    string
+	ItemMultipleAID string
+	ItemMultipleBID string
+}
+
+func crearFixtureListaPreciosCompilada(t *testing.T) fixtureListaPreciosCompilada {
+	t.Helper()
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	itemsHandler := &ListaPreciosItemsHandler{DB: tabsHandler.DB}
+	compilador := &CompiladorHandler{DB: tabsHandler.DB}
+	tabID := "TEST-TAB-LP-RT-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Precios", "activo": true,
+	})
+
+	unicaID := "TEST-EL-LP-UNICA-" + sufijoUnico()
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": unicaID, "tab_id": tabID, "tipo": "LISTA_PRECIOS", "etiqueta": "Servicio único",
+		"configuracion": map[string]any{"tipo_lista_precios": "UNICA"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear lista UNICA: %s", rec.Body.String())
+	}
+	_, resA := crearItemListaPrecios(t, itemsHandler, unicaID, map[string]any{
+		"codigo": "A", "nombre": "Ítem A", "precio": 100, "costo_interno": 60, "margen_porcentaje": 40,
+	})
+	itemUnicaA, _ := resA["item_id"].(string)
+	_, resB := crearItemListaPrecios(t, itemsHandler, unicaID, map[string]any{
+		"codigo": "B", "nombre": "Ítem B", "precio": 200, "costo_interno": 120, "margen_porcentaje": 40,
+	})
+	itemUnicaB, _ := resB["item_id"].(string)
+	crearItemListaPrecios(t, itemsHandler, unicaID, map[string]any{"codigo": "C", "nombre": "Ítem C", "precio": 300})
+
+	multipleID := "TEST-EL-LP-MULTI-" + sufijoUnico()
+	rec = postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": multipleID, "tab_id": tabID, "tipo": "LISTA_PRECIOS", "etiqueta": "Servicios múltiples",
+		"configuracion": map[string]any{"tipo_lista_precios": "MULTIPLE"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear lista MULTIPLE: %s", rec.Body.String())
+	}
+	_, resMA := crearItemListaPrecios(t, itemsHandler, multipleID, map[string]any{"codigo": "M1", "nombre": "Multi 1", "precio": 50})
+	itemMultipleA, _ := resMA["item_id"].(string)
+	_, resMB := crearItemListaPrecios(t, itemsHandler, multipleID, map[string]any{"codigo": "M2", "nombre": "Multi 2", "precio": 75})
+	itemMultipleB, _ := resMB["item_id"].(string)
+
+	calcID := "TEST-EL-LP-CALC-" + sufijoUnico()
+	rec = postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": calcID, "tab_id": tabID, "tipo": "CAMPO_CALCULADO", "etiqueta": "Total combinado",
+		"configuracion": map[string]any{"operacion": "SUMA", "tipo_resultado": "MONEDA", "decimales": 2, "operandos": []string{unicaID, multipleID}}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear campo calculado: %s", rec.Body.String())
+	}
+
+	recComp := postCatalogos(t, compilador.Compilar, "/api/cotizador/compilar", map[string]any{"calculadora_id": calculadoraID})
+	var resComp respuestaCompiladorTest
+	assertJSON(t, recComp.Body.Bytes(), &resComp)
+	if !resComp.OK || !resComp.Valido || !resComp.Compilado {
+		t.Fatalf("compilar: esperaba válido y compilado, obtuvo %+v", resComp)
+	}
+
+	cotizacionID, _, _ := crearCotizacionPrueba(t, tabsHandler.DB, "Borrador", "", "")
+	if _, err := tabsHandler.DB.Exec(context.Background(), `UPDATE cotizaciones SET calculadora_id=$1 WHERE cotizacion_id=$2`, calculadoraID, cotizacionID); err != nil {
+		t.Fatalf("no se pudo apuntar la cotización a la calculadora de prueba: %v", err)
+	}
+
+	return fixtureListaPreciosCompilada{
+		Runtime: &CotizadorRuntimeHandler{DB: tabsHandler.DB}, CotizacionID: cotizacionID, Version: 1,
+		UnicaID: unicaID, MultipleID: multipleID, CalculadoID: calcID,
+		ItemUnicaAID: itemUnicaA, ItemUnicaBID: itemUnicaB,
+		ItemMultipleAID: itemMultipleA, ItemMultipleBID: itemMultipleB,
+	}
+}
+
+func elementoPorIDEnEstructura(estructura map[string]any, elementoID string) map[string]any {
+	tabs, _ := estructura["tabs"].([]any)
+	for _, tabRaw := range tabs {
+		tab, _ := tabRaw.(map[string]any)
+		elementos, _ := tab["elementos"].([]any)
+		for _, elRaw := range elementos {
+			el, _ := elRaw.(map[string]any)
+			if el["elemento_id"] == elementoID {
+				return el
+			}
+		}
+	}
+	return nil
+}
+
+func TestCotizadorRuntime_ListaPreciosUnicaYCampoCalculadoQueLaUsa(t *testing.T) {
+	fixture := crearFixtureListaPreciosCompilada(t)
+
+	rec := getRuntime(t, fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET runtime: %d: %s", rec.Code, rec.Body.String())
+	}
+	var res struct {
+		Estructura map[string]any `json:"estructura"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+
+	elementoUnica := elementoPorIDEnEstructura(res.Estructura, fixture.UnicaID)
+	if elementoUnica == nil {
+		t.Fatal("no se encontró la lista UNICA en la estructura")
+	}
+	items, _ := elementoUnica["configuracion"].(map[string]any)["items"].([]any)
+	if len(items) != 3 {
+		t.Fatalf("esperaba 3 ítems activos, obtuvo %d", len(items))
+	}
+	for _, itemRaw := range items {
+		item, _ := itemRaw.(map[string]any)
+		if _, tiene := item["costo_interno"]; tiene {
+			t.Fatalf("costo_interno NUNCA debe viajar en el compilado/runtime, pero apareció: %+v", item)
+		}
+		if _, tiene := item["margen_porcentaje"]; tiene {
+			t.Fatalf("margen_porcentaje NUNCA debe viajar en el compilado/runtime, pero apareció: %+v", item)
+		}
+	}
+
+	// también se verifica directo contra lo persistido en cotizadores_compilados,
+	// no solo contra la respuesta HTTP.
+	var configuracionJSON []byte
+	if err := fixture.Runtime.DB.QueryRow(context.Background(), `
+		SELECT configuracion FROM cotizadores_compilados cc
+		JOIN cotizaciones c ON c.compilado_id_usado = cc.compilado_id
+		WHERE c.cotizacion_id = $1`, fixture.CotizacionID).Scan(&configuracionJSON); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(configuracionJSON), "costo_interno") || strings.Contains(string(configuracionJSON), "margen_porcentaje") {
+		t.Fatal("el JSON compilado persistido no debe contener costo_interno/margen_porcentaje en ningún lado de una Lista de Precios")
+	}
+
+	// UNICA: item B (precio 200) x cantidad 3 = 600.
+	recPost := postValoresRuntime(t, fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}, map[string]any{
+		"version": 1, "valores": map[string]any{fixture.UnicaID: map[string]any{"item_id": fixture.ItemUnicaBID, "cantidad": 3}},
+	})
+	if recPost.Code != http.StatusOK {
+		t.Fatalf("guardar selección UNICA: %d: %s", recPost.Code, recPost.Body.String())
+	}
+
+	// MULTIPLE: M1(50)x2 + M2(75)x2 = 100+150 = 250.
+	recPost = postValoresRuntime(t, fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}, map[string]any{
+		"version": 1, "valores": map[string]any{fixture.MultipleID: map[string]any{"filas": []any{
+			map[string]any{"item_id": fixture.ItemMultipleAID, "cantidad": 2},
+			map[string]any{"item_id": fixture.ItemMultipleBID, "cantidad": 2},
+		}}},
+	})
+	if recPost.Code != http.StatusOK {
+		t.Fatalf("guardar filas MULTIPLE: %d: %s", recPost.Code, recPost.Body.String())
+	}
+
+	rec = getRuntime(t, fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}, "version=1")
+	assertJSON(t, rec.Body.Bytes(), &res)
+	elementoUnica = elementoPorIDEnEstructura(res.Estructura, fixture.UnicaID)
+	if elementoUnica["valor_resuelto"] != 600.0 {
+		t.Fatalf("UNICA: esperaba valor_resuelto=600, obtuvo %v", elementoUnica["valor_resuelto"])
+	}
+	elementoMultiple := elementoPorIDEnEstructura(res.Estructura, fixture.MultipleID)
+	if elementoMultiple["valor_resuelto"] != 250.0 {
+		t.Fatalf("MULTIPLE: esperaba valor_resuelto=250, obtuvo %v", elementoMultiple["valor_resuelto"])
+	}
+	elementoCalculado := elementoPorIDEnEstructura(res.Estructura, fixture.CalculadoID)
+	if elementoCalculado["valor_resuelto"] != 850.0 { // 600 + 250
+		t.Fatalf("Campo Calculado(UNICA+MULTIPLE): esperaba 850, obtuvo %v", elementoCalculado["valor_resuelto"])
+	}
+}
+
+func TestCotizadorRuntime_ListaPreciosRechazaItemDeOtroElemento(t *testing.T) {
+	fixture := crearFixtureListaPreciosCompilada(t)
+	// ItemMultipleAID pertenece a MultipleID, no a UnicaID.
+	rec := postValoresRuntime(t, fixtureRuntime{Handler: fixture.Runtime, CotizacionID: fixture.CotizacionID}, map[string]any{
+		"version": 1, "valores": map[string]any{fixture.UnicaID: map[string]any{"item_id": fixture.ItemMultipleAID, "cantidad": 1}},
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("ítem de otro elemento: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

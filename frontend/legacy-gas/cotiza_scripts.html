@@ -1492,6 +1492,38 @@ window.CotizaApp = (function(){
             renderRuntimeCotizador();
           });
         });
+
+        // Lista de Precios MULTIPLE: agregar/quitar cambia la cantidad de
+        // filas (no un simple valor), así que primero se captura lo que
+        // ya había en pantalla y recién después se re-renderiza completo
+        // — mismo criterio que el cambio de tab de arriba.
+        contenido.querySelectorAll(".runtime-lp-multi-agregar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            if(!id) return;
+            rt.valores[id] = rt.valores[id] || {};
+            if(!Array.isArray(rt.valores[id].filas)) rt.valores[id].filas = [];
+            rt.valores[id].filas.push({item_id: "", cantidad: 1});
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-lp-multi-quitar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            const idx = Number(btn.dataset.fila);
+            if(!id || !rt.valores[id] || !Array.isArray(rt.valores[id].filas)) return;
+            rt.valores[id].filas.splice(idx, 1);
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-lp-multi-item, .runtime-lp-multi-cantidad").forEach(function(input){
+          input.addEventListener("change", function(){
+            leerValoresFormularioActual();
+            renderRuntimeCotizador();
+          });
+        });
       }
 
       // CAMPO -> input de texto. CAMPO_CATALOGO -> select con las
@@ -1507,6 +1539,13 @@ window.CotizaApp = (function(){
         const estiloSpan = 'style="grid-column:span ' + ancho + '"';
         const valorGuardado = (valores && Object.prototype.hasOwnProperty.call(valores, el.elemento_id)) ? valores[el.elemento_id] : "";
         const cfg = el.configuracion || {};
+
+        // "Visible en calculadora" aplica a cualquier tipo, no solo a
+        // Lista de Precios (Ronda 3) — hasta ahora ningún tipo lo
+        // respetaba en el Motor de Ejecución pese a que el Diseñador ya
+        // lo pide desde el Sprint 2; se corrige acá de una vez para los
+        // 9 tipos existentes, no solo el nuevo.
+        if(cfg.visible_calculadora === false) return "";
 
         if(el.tipo === "TITULO"){
           const nivel = String(cfg.nivel || "h3").toLowerCase();
@@ -1553,6 +1592,9 @@ window.CotizaApp = (function(){
             '<div class="runtime-caja-valor-display">' + escapeHtml(texto) + '</div>' +
             '</div>';
         }
+        if(el.tipo === "LISTA_PRECIOS"){
+          return renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido);
+        }
         if(el.tipo === "CAMPO_CATALOGO"){
           const opciones = el.opciones || [];
           const optionsHtml = '<option value="">Seleccione...</option>' + opciones.map(function(op){
@@ -1572,6 +1614,90 @@ window.CotizaApp = (function(){
           '</div>';
       }
 
+      // Opciones de un <select> de Lista de Precios — precio unitario en el
+      // texto solo si mostrar_precio_unitario está activo (Ronda 3).
+      function opcionesItemListaPreciosRuntime_(items, seleccionado, mostrarPrecio){
+        let html = '<option value="">Seleccione...</option>';
+        (items || []).forEach(function(it){
+          const id = String(it.item_id || "");
+          const sel = id === String(seleccionado || "") ? " selected" : "";
+          const precioTxt = mostrarPrecio ? " — " + formatoMoneda(Number(it.precio) || 0, it.moneda) : "";
+          html += '<option value="' + escapeHtml(id) + '"' + sel + '>' + escapeHtml(it.nombre || id) + precioTxt + '</option>';
+        });
+        return html;
+      }
+
+      // Tabla de filas de una Lista de Precios MULTIPLE. El total se
+      // recalcula con los precios ya embebidos en cfg.items (nunca hace
+      // falta volver a pedirle nada al backend para mostrarlo).
+      function renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio){
+        if(!filas.length){
+          return '<div class="runtime-lp-empty">Sin filas agregadas.</div>';
+        }
+        let total = 0;
+        const filasHtml = filas.map(function(fila, idx){
+          const item = (items || []).find(function(it){ return String(it.item_id) === String(fila.item_id || ""); });
+          const precio = item ? Number(item.precio) || 0 : 0;
+          const cantidad = Number(fila.cantidad) || 0;
+          const subtotal = precio * cantidad;
+          total += subtotal;
+          return '<tr>'
+            + '<td><select class="select runtime-lp-multi-item" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">' + opcionesItemListaPreciosRuntime_(items, fila.item_id, mostrarPrecio) + '</select></td>'
+            + '<td><input type="number" class="input runtime-lp-multi-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '" value="' + escapeHtml(String(cantidad)) + '" min="0" step="any"></td>'
+            + '<td class="runtime-lp-subtotal">' + escapeHtml(formatoMoneda(subtotal)) + '</td>'
+            + '<td><button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-quitar" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">Quitar</button></td>'
+            + '</tr>';
+        }).join("");
+        return '<table class="runtime-lp-table"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Subtotal</th><th></th></tr></thead><tbody>' + filasHtml + '</tbody></table>'
+          + '<div class="runtime-lp-total">Total: ' + escapeHtml(formatoMoneda(total)) + '</div>';
+      }
+
+      // LISTA_PRECIOS (Ronda 3): UNICA es un <select> (+ cantidad opcional);
+      // MULTIPLE es una tabla de filas editable con total al pie. Los
+      // ítems (código/nombre/precio/moneda/unidad_cobro, nunca costo/margen)
+      // ya vienen embebidos en cfg.items desde el compilado.
+      function renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido){
+        const items = Array.isArray(cfg.items) ? cfg.items : [];
+        const tipoLista = String(cfg.tipo_lista_precios || "UNICA").toUpperCase();
+        const mostrarCantidad = cfg.mostrar_cantidad !== false;
+        const mostrarPrecio = cfg.mostrar_precio_unitario !== false;
+        const elementoID = el.elemento_id;
+        const etiquetaHtml = '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>';
+
+        if(tipoLista === "MULTIPLE"){
+          const filas = (valorGuardado && Array.isArray(valorGuardado.filas)) ? valorGuardado.filas : [];
+          return '<div class="field runtime-field runtime-lista-precios runtime-lp-multiple" ' + estiloSpan + ' data-lista-precios-id="' + escapeHtml(elementoID) + '">'
+            + etiquetaHtml
+            + renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio)
+            + '<button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-agregar" data-elemento-id="' + escapeHtml(elementoID) + '">+ Agregar fila</button>'
+            + '</div>';
+        }
+
+        // UNICA — sin selección guardada todavía, se pre-selecciona
+        // item_seleccionado_por_defecto (PRIMERO_ACTIVO o el código de un
+        // ítem), solo visualmente: no se guarda hasta que la persona
+        // confirme (leerValoresFormularioActual lee el <select> tal cual
+        // esté al momento de guardar, la haya tocado o no).
+        let seleccionado = (valorGuardado && valorGuardado.item_id) ? valorGuardado.item_id : "";
+        if(!seleccionado && items.length){
+          const defecto = String(cfg.item_seleccionado_por_defecto || "PRIMERO_ACTIVO").toUpperCase();
+          let itemDefecto = items[0];
+          if(defecto !== "PRIMERO_ACTIVO"){
+            const encontrado = items.find(function(it){ return String(it.codigo || "").toUpperCase() === defecto; });
+            if(encontrado) itemDefecto = encontrado;
+          }
+          seleccionado = itemDefecto ? itemDefecto.item_id : "";
+        }
+        const cantidad = (valorGuardado && valorGuardado.cantidad !== undefined) ? valorGuardado.cantidad : 1;
+        return '<div class="field runtime-field runtime-lista-precios" ' + estiloSpan + '>'
+          + etiquetaHtml
+          + '<div class="runtime-lp-unica-fila">'
+          + '<select class="select runtime-lp-unica-select" data-elemento-id="' + escapeHtml(elementoID) + '"' + (requerido ? ' required' : '') + '>' + opcionesItemListaPreciosRuntime_(items, seleccionado, mostrarPrecio) + '</select>'
+          + (mostrarCantidad ? '<input type="number" class="input runtime-lp-unica-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '" value="' + escapeHtml(String(cantidad)) + '" min="0" step="any">' : '')
+          + '</div>'
+          + '</div>';
+      }
+
       // Vuelca lo que hay ahora mismo en pantalla (de la tab activa)
       // a state.cotizadorRuntime.valores, sin tocar los valores de las
       // demás tabs (que ya quedaron guardados ahí en su propio turno).
@@ -1582,6 +1708,32 @@ window.CotizaApp = (function(){
           const id = input.dataset.elementoId;
           if(id) rt.valores[id] = input.value;
         });
+        // Lista de Precios UNICA: no lleva clase .runtime-input (su valor
+        // es un objeto, no un string plano) — se lee aparte.
+        document.querySelectorAll("#gestorRuntimeContenido .runtime-lp-unica-select").forEach(function(select){
+          const id = select.dataset.elementoId;
+          if(!id) return;
+          const fila = select.closest(".runtime-lista-precios");
+          const cantidadInput = fila ? fila.querySelector(".runtime-lp-unica-cantidad") : null;
+          rt.valores[id] = {item_id: select.value, cantidad: cantidadInput ? (Number(cantidadInput.value) || 1) : 1};
+        });
+        // Lista de Precios MULTIPLE: una fila por <tr>, leídas por índice.
+        document.querySelectorAll("#gestorRuntimeContenido [data-lista-precios-id]").forEach(function(cont){
+          const id = cont.dataset.listaPreciosId;
+          if(!id) return;
+          const filas = [];
+          cont.querySelectorAll(".runtime-lp-multi-item").forEach(function(select){
+            const idx = Number(select.dataset.fila);
+            filas[idx] = filas[idx] || {item_id: "", cantidad: 1};
+            filas[idx].item_id = select.value;
+          });
+          cont.querySelectorAll(".runtime-lp-multi-cantidad").forEach(function(input){
+            const idx = Number(input.dataset.fila);
+            filas[idx] = filas[idx] || {item_id: "", cantidad: 1};
+            filas[idx].cantidad = Number(input.value) || 0;
+          });
+          rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
+        });
       }
 
       // Recorre elementos y sus "hijos" (componentes dentro de un
@@ -1591,7 +1743,7 @@ window.CotizaApp = (function(){
       // refleja otro campo, no tiene input propio).
       function recolectarElementosGuardablesRuntimeCotizador_(elementos, destino){
         (elementos || []).forEach(function(el){
-          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO") destino[el.elemento_id] = true;
+          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS") destino[el.elemento_id] = true;
           if(Array.isArray(el.hijos)) recolectarElementosGuardablesRuntimeCotizador_(el.hijos, destino);
         });
       }

@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"strings"
 )
 
 // operacionesCalculoValidas es el conjunto de operaciones que acepta un
@@ -76,4 +78,56 @@ func redondear(valor float64, decimales int) float64 {
 	}
 	factor := math.Pow(10, float64(decimales))
 	return math.Round(valor*factor) / factor
+}
+
+// valorListaPrecios calcula el número que una Lista de Precios aporta a un
+// cálculo o muestra en el Motor de Ejecución (Ronda 3): para UNICA, precio
+// del ítem seleccionado × cantidad; para MULTIPLE, la suma de precio ×
+// cantidad de cada fila. "valorGuardado" es el valor tal como quedó en
+// cotizacion_valores ({"item_id":"...","cantidad":N} o
+// {"filas":[{"item_id":"...","cantidad":N}, ...]}); precioPorItem debe
+// traer solo los ítems activos de ESTE elemento (item_id -> precio) — ya
+// resueltos por el llamador, esta función no toca la base de datos.
+// El segundo valor de retorno es false cuando no hay nada que calcular
+// todavía (sin selección, o ítem que ya no existe/está inactivo) — un 0
+// sería engañoso, no es lo mismo "vale cero" que "no hay dato".
+func valorListaPrecios(tipoLista string, valorGuardado map[string]any, precioPorItem map[string]float64) (float64, bool) {
+	if strings.ToUpper(strings.TrimSpace(tipoLista)) == "MULTIPLE" {
+		filasRaw, _ := valorGuardado["filas"].([]any)
+		if len(filasRaw) == 0 {
+			return 0, false
+		}
+		var total float64
+		huboAlMenosUna := false
+		for _, filaRaw := range filasRaw {
+			fila, _ := filaRaw.(map[string]any)
+			itemID := strings.TrimSpace(fmt.Sprint(fila["item_id"]))
+			precio, existe := precioPorItem[itemID]
+			if !existe {
+				continue
+			}
+			cantidad, ok := numeroDesdeValor(fila["cantidad"])
+			if !ok {
+				cantidad = 1
+			}
+			total += precio * cantidad
+			huboAlMenosUna = true
+		}
+		return redondear(total, 2), huboAlMenosUna
+	}
+
+	// UNICA
+	itemID := strings.TrimSpace(fmt.Sprint(valorGuardado["item_id"]))
+	if itemID == "" {
+		return 0, false
+	}
+	precio, existe := precioPorItem[itemID]
+	if !existe {
+		return 0, false
+	}
+	cantidad, ok := numeroDesdeValor(valorGuardado["cantidad"])
+	if !ok {
+		cantidad = 1
+	}
+	return redondear(precio*cantidad, 2), true
 }

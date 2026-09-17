@@ -455,6 +455,19 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   display: flex; align-items: center;
 }
 
+/* Ronda 3 de tipos nuevos: Lista de Precios (migración 0019) */
+.runtime-lista-precios { grid-column: 1/-1; }
+.runtime-lp-unica-fila { display: flex; gap: 10px; align-items: center; }
+.runtime-lp-unica-fila .runtime-lp-unica-select { flex: 2; min-width: 0; }
+.runtime-lp-unica-fila .runtime-lp-unica-cantidad { flex: 1; max-width: 110px; }
+.runtime-lp-empty { color: #7b899d; font-size: 12px; font-style: italic; padding: 6px 0; }
+.runtime-lp-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.runtime-lp-table th { text-align: left; font-size: 11px; color: #7b899d; font-weight: 700; padding: 4px 8px; border-bottom: 1px solid #d7e1ee; }
+.runtime-lp-table td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; vertical-align: middle; }
+.runtime-lp-table td select, .runtime-lp-table td input { width: 100%; min-height: 34px; }
+.runtime-lp-subtotal { font-weight: 700; color: #17345b; white-space: nowrap; }
+.runtime-lp-total { text-align: right; font-weight: 800; color: #0F2A4A; margin-top: 8px; }
+
 @media (max-width:900px) {
   .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -464,6 +477,11 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .runtime-grid > * { grid-column: 1 !important; }
   .runtime-contenedor-grid.runtime-contenedor-cols-2,
   .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: 1fr; }
+  .runtime-lp-unica-fila { flex-direction: column; align-items: stretch; }
+  .runtime-lp-unica-fila .runtime-lp-unica-cantidad { max-width: none; }
+  .runtime-lp-table, .runtime-lp-table thead, .runtime-lp-table tbody, .runtime-lp-table th, .runtime-lp-table td, .runtime-lp-table tr { display: block; }
+  .runtime-lp-table thead { display: none; }
+  .runtime-lp-table tr { border: 1px solid #eef1f6; border-radius: 8px; margin-bottom: 8px; padding: 6px; }
 }
 
 /* ---------- Solicitudes de Propuesta ---------- */

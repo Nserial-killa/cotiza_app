@@ -62,6 +62,50 @@ func TestUnitCalcularOperacion_FaltanOperandos(t *testing.T) {
 	}
 }
 
+func TestUnitValorListaPrecios_Unica(t *testing.T) {
+	precios := map[string]float64{"A": 100, "B": 50}
+
+	valor, ok := valorListaPrecios("UNICA", map[string]any{"item_id": "A", "cantidad": 3.0}, precios)
+	if !ok || valor != 300 {
+		t.Fatalf("A x3 esperaba 300, obtuvo %v (ok=%v)", valor, ok)
+	}
+
+	// sin cantidad explícita, cantidad=1.
+	valor, ok = valorListaPrecios("UNICA", map[string]any{"item_id": "B"}, precios)
+	if !ok || valor != 50 {
+		t.Fatalf("B sin cantidad esperaba 50, obtuvo %v (ok=%v)", valor, ok)
+	}
+
+	// ítem que no está en precioPorItem (inactivo o de otro elemento): no resuelve.
+	_, ok = valorListaPrecios("UNICA", map[string]any{"item_id": "NO-EXISTE"}, precios)
+	if ok {
+		t.Fatal("esperaba ok=false para un ítem que no está en precioPorItem")
+	}
+
+	// sin selección: no resuelve.
+	_, ok = valorListaPrecios("UNICA", map[string]any{}, precios)
+	if ok {
+		t.Fatal("esperaba ok=false sin item_id")
+	}
+}
+
+func TestUnitValorListaPrecios_Multiple(t *testing.T) {
+	precios := map[string]float64{"A": 100, "B": 50}
+	valorGuardado := map[string]any{"filas": []any{
+		map[string]any{"item_id": "A", "cantidad": 2.0},
+		map[string]any{"item_id": "B", "cantidad": 4.0},
+	}}
+	valor, ok := valorListaPrecios("MULTIPLE", valorGuardado, precios)
+	if !ok || valor != 400 { // 100*2 + 50*4
+		t.Fatalf("esperaba 400, obtuvo %v (ok=%v)", valor, ok)
+	}
+
+	_, ok = valorListaPrecios("MULTIPLE", map[string]any{"filas": []any{}}, precios)
+	if ok {
+		t.Fatal("esperaba ok=false con filas vacías")
+	}
+}
+
 func TestUnitRedondear(t *testing.T) {
 	if v := redondear(3.14159, 2); v != 3.14 {
 		t.Fatalf("esperaba 3.14, obtuvo %v", v)

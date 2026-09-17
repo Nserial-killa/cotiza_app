@@ -463,6 +463,19 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   display: flex; align-items: center;
 }
 
+/* Ronda 3 de tipos nuevos: Lista de Precios (migración 0019) */
+.runtime-lista-precios { grid-column: 1/-1; }
+.runtime-lp-unica-fila { display: flex; gap: 10px; align-items: center; }
+.runtime-lp-unica-fila .runtime-lp-unica-select { flex: 2; min-width: 0; }
+.runtime-lp-unica-fila .runtime-lp-unica-cantidad { flex: 1; max-width: 110px; }
+.runtime-lp-empty { color: #7b899d; font-size: 12px; font-style: italic; padding: 6px 0; }
+.runtime-lp-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.runtime-lp-table th { text-align: left; font-size: 11px; color: #7b899d; font-weight: 700; padding: 4px 8px; border-bottom: 1px solid #d7e1ee; }
+.runtime-lp-table td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; vertical-align: middle; }
+.runtime-lp-table td select, .runtime-lp-table td input { width: 100%; min-height: 34px; }
+.runtime-lp-subtotal { font-weight: 700; color: #17345b; white-space: nowrap; }
+.runtime-lp-total { text-align: right; font-weight: 800; color: #0F2A4A; margin-top: 8px; }
+
 @media (max-width:900px) {
   .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -472,6 +485,11 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   .runtime-grid > * { grid-column: 1 !important; }
   .runtime-contenedor-grid.runtime-contenedor-cols-2,
   .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: 1fr; }
+  .runtime-lp-unica-fila { flex-direction: column; align-items: stretch; }
+  .runtime-lp-unica-fila .runtime-lp-unica-cantidad { max-width: none; }
+  .runtime-lp-table, .runtime-lp-table thead, .runtime-lp-table tbody, .runtime-lp-table th, .runtime-lp-table td, .runtime-lp-table tr { display: block; }
+  .runtime-lp-table thead { display: none; }
+  .runtime-lp-table tr { border: 1px solid #eef1f6; border-radius: 8px; margin-bottom: 8px; padding: 6px; }
 }
 
 /* ---------- Solicitudes de Propuesta ---------- */
@@ -5048,39 +5066,12 @@ table tr:last-child td { border-bottom: none; }
                       </select>
                       <span class="param-field-help">Única permite escoger un producto. Múltiple permite agregar varias filas con producto, cantidad, precio unitario y total.</span>
                     </div>
-                    <div class="field ctz-f-price-list-view">
-                      <label for="designerCotizadorListaPreciosModoVisual">Forma de visualización</label>
-                      <select id="designerCotizadorListaPreciosModoVisual" class="select">
-                        <option value="SELECTOR">Selector</option>
-                        <option value="TARJETAS">Tarjetas</option>
-                      </select>
-                    </div>
                     <div class="field ctz-f-price-list-value">
                       <label for="designerCotizadorListaPreciosValorCalculo">Valor que alimenta los cálculos</label>
                       <select id="designerCotizadorListaPreciosValorCalculo" class="select">
-                        <option value="PRECIO">Precio unitario</option>
-                        <option value="CANTIDAD">Cantidad</option>
-                        <option value="SUBTOTAL">Subtotal (precio × cantidad)</option>
-                        <option value="COSTO">Costo unitario</option>
-                        <option value="COSTO_TOTAL">Costo total (costo × cantidad)</option>
-                        <option value="MARGEN">Margen</option>
+                        <option value="PRECIO_UNITARIO">Precio unitario</option>
                       </select>
                       <span id="designerCotizadorListaPreciosValorCalculoHelp" class="cotizador-price-list-help"><strong>Precio unitario:</strong> entrega el precio de una unidad del producto seleccionado.</span>
-                    </div>
-                    <div id="designerCotizadorListaPreciosCantidadConfig" class="cotizador-price-list-quantity-config cotizador-full-row ctz-f-price-list-quantity hidden">
-                      <div class="field">
-                        <label for="designerCotizadorListaPreciosCantidadInicial">Cantidad inicial</label>
-                        <input id="designerCotizadorListaPreciosCantidadInicial" class="input" type="number" min="1" step="1" value="1" placeholder="1">
-                        <span class="param-field-help">Valor mostrado al abrir el cotizador. Debe ser mayor que cero.</span>
-                      </div>
-                      <div class="field">
-                        <label for="designerCotizadorListaPreciosTipoCantidad">Tipo de cantidad</label>
-                        <select id="designerCotizadorListaPreciosTipoCantidad" class="select">
-                          <option value="ENTERO">Solo números enteros</option>
-                          <option value="DECIMAL">Permitir decimales</option>
-                        </select>
-                        <span class="param-field-help">Use decimales para horas, fracciones, peso u otras unidades parciales.</span>
-                      </div>
                     </div>
                     <div class="cotizador-price-list-editor cotizador-full-row ctz-f-price-list-items">
                       <div class="cotizador-price-list-editor-head">
@@ -5319,7 +5310,7 @@ table tr:last-child td { border-bottom: none; }
                           </select>
                           <button id="btnDesignerAgregarOperandoCalculado" class="btn btn-light-blue btn-mini" type="button">Agregar campo</button>
                         </div>
-                        <span class="param-field-help">Solo se muestran campos Número, Moneda, Porcentaje, Campos Catálogo calculables y otros Campos calculados de esta sección.</span>
+                        <span class="param-field-help">Solo se muestran campos Número, Moneda, Porcentaje, Listas de Precios y otros Campos calculados de esta sección.</span>
                       </div>
                       <div id="designerCotizadorCalculadoPropiedadListaBox" class="field hidden" style="margin-top:8px;">
                         <label for="designerCotizadorCalculadoPropiedadLista">Valor de la Lista de Precios</label>
@@ -10059,6 +10050,38 @@ window.CotizaApp = (function(){
             renderRuntimeCotizador();
           });
         });
+
+        // Lista de Precios MULTIPLE: agregar/quitar cambia la cantidad de
+        // filas (no un simple valor), así que primero se captura lo que
+        // ya había en pantalla y recién después se re-renderiza completo
+        // — mismo criterio que el cambio de tab de arriba.
+        contenido.querySelectorAll(".runtime-lp-multi-agregar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            if(!id) return;
+            rt.valores[id] = rt.valores[id] || {};
+            if(!Array.isArray(rt.valores[id].filas)) rt.valores[id].filas = [];
+            rt.valores[id].filas.push({item_id: "", cantidad: 1});
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-lp-multi-quitar").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            const id = btn.dataset.elementoId;
+            const idx = Number(btn.dataset.fila);
+            if(!id || !rt.valores[id] || !Array.isArray(rt.valores[id].filas)) return;
+            rt.valores[id].filas.splice(idx, 1);
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll(".runtime-lp-multi-item, .runtime-lp-multi-cantidad").forEach(function(input){
+          input.addEventListener("change", function(){
+            leerValoresFormularioActual();
+            renderRuntimeCotizador();
+          });
+        });
       }
 
       // CAMPO -> input de texto. CAMPO_CATALOGO -> select con las
@@ -10074,6 +10097,13 @@ window.CotizaApp = (function(){
         const estiloSpan = 'style="grid-column:span ' + ancho + '"';
         const valorGuardado = (valores && Object.prototype.hasOwnProperty.call(valores, el.elemento_id)) ? valores[el.elemento_id] : "";
         const cfg = el.configuracion || {};
+
+        // "Visible en calculadora" aplica a cualquier tipo, no solo a
+        // Lista de Precios (Ronda 3) — hasta ahora ningún tipo lo
+        // respetaba en el Motor de Ejecución pese a que el Diseñador ya
+        // lo pide desde el Sprint 2; se corrige acá de una vez para los
+        // 9 tipos existentes, no solo el nuevo.
+        if(cfg.visible_calculadora === false) return "";
 
         if(el.tipo === "TITULO"){
           const nivel = String(cfg.nivel || "h3").toLowerCase();
@@ -10120,6 +10150,9 @@ window.CotizaApp = (function(){
             '<div class="runtime-caja-valor-display">' + escapeHtml(texto) + '</div>' +
             '</div>';
         }
+        if(el.tipo === "LISTA_PRECIOS"){
+          return renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido);
+        }
         if(el.tipo === "CAMPO_CATALOGO"){
           const opciones = el.opciones || [];
           const optionsHtml = '<option value="">Seleccione...</option>' + opciones.map(function(op){
@@ -10139,6 +10172,90 @@ window.CotizaApp = (function(){
           '</div>';
       }
 
+      // Opciones de un <select> de Lista de Precios — precio unitario en el
+      // texto solo si mostrar_precio_unitario está activo (Ronda 3).
+      function opcionesItemListaPreciosRuntime_(items, seleccionado, mostrarPrecio){
+        let html = '<option value="">Seleccione...</option>';
+        (items || []).forEach(function(it){
+          const id = String(it.item_id || "");
+          const sel = id === String(seleccionado || "") ? " selected" : "";
+          const precioTxt = mostrarPrecio ? " — " + formatoMoneda(Number(it.precio) || 0, it.moneda) : "";
+          html += '<option value="' + escapeHtml(id) + '"' + sel + '>' + escapeHtml(it.nombre || id) + precioTxt + '</option>';
+        });
+        return html;
+      }
+
+      // Tabla de filas de una Lista de Precios MULTIPLE. El total se
+      // recalcula con los precios ya embebidos en cfg.items (nunca hace
+      // falta volver a pedirle nada al backend para mostrarlo).
+      function renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio){
+        if(!filas.length){
+          return '<div class="runtime-lp-empty">Sin filas agregadas.</div>';
+        }
+        let total = 0;
+        const filasHtml = filas.map(function(fila, idx){
+          const item = (items || []).find(function(it){ return String(it.item_id) === String(fila.item_id || ""); });
+          const precio = item ? Number(item.precio) || 0 : 0;
+          const cantidad = Number(fila.cantidad) || 0;
+          const subtotal = precio * cantidad;
+          total += subtotal;
+          return '<tr>'
+            + '<td><select class="select runtime-lp-multi-item" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">' + opcionesItemListaPreciosRuntime_(items, fila.item_id, mostrarPrecio) + '</select></td>'
+            + '<td><input type="number" class="input runtime-lp-multi-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '" value="' + escapeHtml(String(cantidad)) + '" min="0" step="any"></td>'
+            + '<td class="runtime-lp-subtotal">' + escapeHtml(formatoMoneda(subtotal)) + '</td>'
+            + '<td><button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-quitar" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">Quitar</button></td>'
+            + '</tr>';
+        }).join("");
+        return '<table class="runtime-lp-table"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Subtotal</th><th></th></tr></thead><tbody>' + filasHtml + '</tbody></table>'
+          + '<div class="runtime-lp-total">Total: ' + escapeHtml(formatoMoneda(total)) + '</div>';
+      }
+
+      // LISTA_PRECIOS (Ronda 3): UNICA es un <select> (+ cantidad opcional);
+      // MULTIPLE es una tabla de filas editable con total al pie. Los
+      // ítems (código/nombre/precio/moneda/unidad_cobro, nunca costo/margen)
+      // ya vienen embebidos en cfg.items desde el compilado.
+      function renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido){
+        const items = Array.isArray(cfg.items) ? cfg.items : [];
+        const tipoLista = String(cfg.tipo_lista_precios || "UNICA").toUpperCase();
+        const mostrarCantidad = cfg.mostrar_cantidad !== false;
+        const mostrarPrecio = cfg.mostrar_precio_unitario !== false;
+        const elementoID = el.elemento_id;
+        const etiquetaHtml = '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>';
+
+        if(tipoLista === "MULTIPLE"){
+          const filas = (valorGuardado && Array.isArray(valorGuardado.filas)) ? valorGuardado.filas : [];
+          return '<div class="field runtime-field runtime-lista-precios runtime-lp-multiple" ' + estiloSpan + ' data-lista-precios-id="' + escapeHtml(elementoID) + '">'
+            + etiquetaHtml
+            + renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio)
+            + '<button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-agregar" data-elemento-id="' + escapeHtml(elementoID) + '">+ Agregar fila</button>'
+            + '</div>';
+        }
+
+        // UNICA — sin selección guardada todavía, se pre-selecciona
+        // item_seleccionado_por_defecto (PRIMERO_ACTIVO o el código de un
+        // ítem), solo visualmente: no se guarda hasta que la persona
+        // confirme (leerValoresFormularioActual lee el <select> tal cual
+        // esté al momento de guardar, la haya tocado o no).
+        let seleccionado = (valorGuardado && valorGuardado.item_id) ? valorGuardado.item_id : "";
+        if(!seleccionado && items.length){
+          const defecto = String(cfg.item_seleccionado_por_defecto || "PRIMERO_ACTIVO").toUpperCase();
+          let itemDefecto = items[0];
+          if(defecto !== "PRIMERO_ACTIVO"){
+            const encontrado = items.find(function(it){ return String(it.codigo || "").toUpperCase() === defecto; });
+            if(encontrado) itemDefecto = encontrado;
+          }
+          seleccionado = itemDefecto ? itemDefecto.item_id : "";
+        }
+        const cantidad = (valorGuardado && valorGuardado.cantidad !== undefined) ? valorGuardado.cantidad : 1;
+        return '<div class="field runtime-field runtime-lista-precios" ' + estiloSpan + '>'
+          + etiquetaHtml
+          + '<div class="runtime-lp-unica-fila">'
+          + '<select class="select runtime-lp-unica-select" data-elemento-id="' + escapeHtml(elementoID) + '"' + (requerido ? ' required' : '') + '>' + opcionesItemListaPreciosRuntime_(items, seleccionado, mostrarPrecio) + '</select>'
+          + (mostrarCantidad ? '<input type="number" class="input runtime-lp-unica-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '" value="' + escapeHtml(String(cantidad)) + '" min="0" step="any">' : '')
+          + '</div>'
+          + '</div>';
+      }
+
       // Vuelca lo que hay ahora mismo en pantalla (de la tab activa)
       // a state.cotizadorRuntime.valores, sin tocar los valores de las
       // demás tabs (que ya quedaron guardados ahí en su propio turno).
@@ -10149,6 +10266,32 @@ window.CotizaApp = (function(){
           const id = input.dataset.elementoId;
           if(id) rt.valores[id] = input.value;
         });
+        // Lista de Precios UNICA: no lleva clase .runtime-input (su valor
+        // es un objeto, no un string plano) — se lee aparte.
+        document.querySelectorAll("#gestorRuntimeContenido .runtime-lp-unica-select").forEach(function(select){
+          const id = select.dataset.elementoId;
+          if(!id) return;
+          const fila = select.closest(".runtime-lista-precios");
+          const cantidadInput = fila ? fila.querySelector(".runtime-lp-unica-cantidad") : null;
+          rt.valores[id] = {item_id: select.value, cantidad: cantidadInput ? (Number(cantidadInput.value) || 1) : 1};
+        });
+        // Lista de Precios MULTIPLE: una fila por <tr>, leídas por índice.
+        document.querySelectorAll("#gestorRuntimeContenido [data-lista-precios-id]").forEach(function(cont){
+          const id = cont.dataset.listaPreciosId;
+          if(!id) return;
+          const filas = [];
+          cont.querySelectorAll(".runtime-lp-multi-item").forEach(function(select){
+            const idx = Number(select.dataset.fila);
+            filas[idx] = filas[idx] || {item_id: "", cantidad: 1};
+            filas[idx].item_id = select.value;
+          });
+          cont.querySelectorAll(".runtime-lp-multi-cantidad").forEach(function(input){
+            const idx = Number(input.dataset.fila);
+            filas[idx] = filas[idx] || {item_id: "", cantidad: 1};
+            filas[idx].cantidad = Number(input.value) || 0;
+          });
+          rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
+        });
       }
 
       // Recorre elementos y sus "hijos" (componentes dentro de un
@@ -10158,7 +10301,7 @@ window.CotizaApp = (function(){
       // refleja otro campo, no tiene input propio).
       function recolectarElementosGuardablesRuntimeCotizador_(elementos, destino){
         (elementos || []).forEach(function(el){
-          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO") destino[el.elemento_id] = true;
+          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS") destino[el.elemento_id] = true;
           if(Array.isArray(el.hijos)) recolectarElementosGuardablesRuntimeCotizador_(el.hijos, destino);
         });
       }
@@ -15602,6 +15745,8 @@ window.CotizaApp = (function(){
           tablaColumnasTemp:[],
           campoReglasTemp:[],
           calculadoOperandosTemp:[],
+          listaPreciosItemsActual:[],
+          listaPreciosItemEditId:"",
           cotizadorId:"",
           tabId:"",
           elementoId:"",
@@ -15748,6 +15893,8 @@ window.CotizaApp = (function(){
         bind("btnDesignerAgregarCampoCatalogoHijo","click",agregarCampoCatalogoHijoCotizadorFase1_);
         bind("btnDesignerAgregarOperandoCalculado","click",agregarOperandoCalculadoCotizadorFase1_);
         bind("designerCotizadorCalculadoOperacion","change",actualizarFormulaPreviewCalculadoCotizadorFase1_);
+        bind("btnDesignerAgregarItemListaPrecios","click",guardarItemListaPreciosCotizadorFase1_);
+        bind("btnDesignerCancelarEdicionItemListaPrecios","click",cancelarEdicionItemListaPreciosCotizadorFase1_);
         bind("btnDesignerGuardarCotizador","click",function(){
           mostrarToast("Guarde cada sección o componente desde el panel de propiedades.");
         });
@@ -16225,7 +16372,22 @@ window.CotizaApp = (function(){
         if(tipo === "CAMPO_CATALOGO") return renderCampoCatalogoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAJA_VALOR") return renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta);
         if(tipo === "CAMPO_CALCULADO") return renderCampoCalculadoPreviewCotizadorFase1_(e, cfg, etiqueta);
+        if(tipo === "LISTA_PRECIOS") return renderListaPreciosPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         return renderCampoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
+      }
+
+      function renderListaPreciosPreviewCotizadorFase1_(e, cfg, etiqueta, desc){
+        const items = (Array.isArray(e.items) ? e.items : []).filter(function(it){ return normalizarActivoCotizadorFase1_(it.activo); });
+        const tipoLista = String((cfg && cfg.tipo_lista_precios) || "UNICA").toUpperCase();
+        if(tipoLista === "MULTIPLE"){
+          return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'
+            + '<div class="cotizador-preview-caja-valor">Tabla de ítems (Múltiple) — '+items.length+' ítem(s) disponible(s)</div>'
+            + (desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div>';
+        }
+        let control = '<select disabled><option>Seleccione...</option>';
+        items.slice(0,8).forEach(function(it){ control += '<option>'+escapeHtml(it.nombre || it.codigo || "Ítem")+'</option>'; });
+        control += '</select>';
+        return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'+control+(desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div>';
       }
 
       function renderTituloPreviewCotizadorFase1_(texto, cfg){
@@ -16317,6 +16479,7 @@ window.CotizaApp = (function(){
         if(tipo === "TABLA") return "▦";
         if(tipo === "CAJA_VALOR") return "$";
         if(tipo === "CAMPO_CALCULADO") return "ƒ";
+        if(tipo === "LISTA_PRECIOS") return "▤";
         return "Aa";
       }
 
@@ -16560,7 +16723,7 @@ window.CotizaApp = (function(){
           const id = String(el.elemento_id || "").trim();
           if(tab !== st.tabId || !id || id === actual || yaAgregados[id] || !normalizarActivoCotizadorFase1_(el.activo)) return false;
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
-          if(tipo === "CAMPO_CALCULADO") return true;
+          if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS") return true;
           if(tipo !== "CAMPO") return false;
           const cfg = parseConfigElementoCotizadorFase1_(el.config_json || el.configuracion);
           const tipoCampo = String(cfg.tipo_campo || "").trim().toUpperCase();
@@ -16716,7 +16879,7 @@ window.CotizaApp = (function(){
         }
         const funcionCampoBox = byId("designerCotizadorFuncionCampoBox");
         if(funcionCampoBox){
-          funcionCampoBox.classList.toggle("hidden", ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO"].indexOf(tipo) < 0);
+          funcionCampoBox.classList.toggle("hidden", ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) < 0);
         }
         llenarSelectCamposYReglasCotizadorFase1_();
         actualizarOpcionesFechaCampoCotizadorFase1_();
@@ -16781,6 +16944,166 @@ window.CotizaApp = (function(){
         if(!preview) return;
         const operacion = byId("designerCotizadorCalculadoOperacion") ? byId("designerCotizadorCalculadoOperacion").value : "SUMA";
         preview.textContent = formulaPreviewTextoCotizadorFase1_(st.calculadoOperandosTemp, operacion);
+      }
+
+      // ---------------------------------------------------------------
+      // Ítems de Lista de Precios (Ronda 3, migración 0019). A diferencia
+      // de las columnas de Tabla o los operandos de Campo Calculado (que
+      // solo viven en configuracion hasta guardar el componente), los
+      // ítems tienen sus propios endpoints y existen apenas se crean —
+      // por eso el elemento tiene que estar guardado (elemento_id real en
+      // la base) antes de poder agregarle ítems.
+      // ---------------------------------------------------------------
+
+      function listaPreciosPuedeEditarItems_(){
+        const st = getCotizadorFase1State_();
+        return !!(st.elementoId && getElementoActualCotizadorFase1_());
+      }
+
+      function renderItemsListaPreciosCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("designerCotizadorListaPreciosItemsLista");
+        const count = byId("designerCotizadorListaPreciosCount");
+        const items = Array.isArray(st.listaPreciosItemsActual) ? st.listaPreciosItemsActual : [];
+        const activos = items.filter(function(it){ return normalizarActivoCotizadorFase1_(it.activo); });
+        if(count) count.textContent = activos.length + " ítem" + (activos.length === 1 ? "" : "s");
+
+        if(!listaPreciosPuedeEditarItems_()){
+          if(cont) cont.innerHTML = '<div class="cotizador-mini-empty">Guarde el componente antes de agregar ítems.</div>';
+        } else if(cont){
+          if(!items.length){
+            cont.innerHTML = '<div class="cotizador-mini-empty">Sin ítems configurados.</div>';
+          } else {
+            cont.innerHTML = items.map(function(it){
+              const inactivo = !normalizarActivoCotizadorFase1_(it.activo);
+              return '<div class="cotizador-mini-row' + (inactivo ? ' inactive' : '') + '">'
+                + '<span>' + escapeHtml(it.codigo || "") + ' — ' + escapeHtml(it.nombre || "") + ' · ' + escapeHtml(formatoMoneda(Number(it.precio) || 0, it.moneda)) + (inactivo ? ' (inactivo)' : '') + '</span>'
+                + '<span>'
+                + '<button type="button" class="btn btn-ghost btn-mini" data-editar-item-lp="' + escapeHtml(it.item_id) + '">Editar</button>'
+                + '<button type="button" class="btn btn-ghost btn-mini" data-eliminar-item-lp="' + escapeHtml(it.item_id) + '">Eliminar</button>'
+                + '</span>'
+                + '</div>';
+            }).join("");
+            cont.querySelectorAll("[data-editar-item-lp]").forEach(function(btn){
+              btn.addEventListener("click", function(){
+                const item = items.find(function(it){ return it.item_id === btn.getAttribute("data-editar-item-lp"); });
+                if(item) cargarItemEnFormularioListaPreciosCotizadorFase1_(item);
+              });
+            });
+            cont.querySelectorAll("[data-eliminar-item-lp]").forEach(function(btn){
+              btn.addEventListener("click", function(){
+                eliminarItemListaPreciosCotizadorFase1_(btn.getAttribute("data-eliminar-item-lp"));
+              });
+            });
+          }
+        }
+
+        const btnAgregar = byId("btnDesignerAgregarItemListaPrecios");
+        if(btnAgregar) btnAgregar.disabled = !listaPreciosPuedeEditarItems_();
+
+        const codigoDefaultSel = byId("designerCotizadorListaPreciosCodigoDefault");
+        if(codigoDefaultSel){
+          const actual = codigoDefaultSel.value;
+          codigoDefaultSel.innerHTML = '<option value="">Primer ítem activo</option>';
+          activos.forEach(function(it){
+            const opt = document.createElement("option");
+            opt.value = it.codigo;
+            opt.textContent = it.codigo + " — " + it.nombre;
+            codigoDefaultSel.appendChild(opt);
+          });
+          codigoDefaultSel.value = actual;
+        }
+      }
+
+      function limpiarFormularioItemListaPreciosCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        st.listaPreciosItemEditId = "";
+        ["designerCotizadorListaPreciosEditIndex","designerCotizadorListaPreciosItemCodigo","designerCotizadorListaPreciosItemNombre","designerCotizadorListaPreciosItemDescripcion","designerCotizadorListaPreciosItemUnidad"].forEach(function(id){ if(byId(id)) byId(id).value = ""; });
+        if(byId("designerCotizadorListaPreciosItemPrecio")) byId("designerCotizadorListaPreciosItemPrecio").value = "";
+        if(byId("designerCotizadorListaPreciosItemMoneda")) byId("designerCotizadorListaPreciosItemMoneda").value = "USD";
+        if(byId("designerCotizadorListaPreciosItemCosto")) byId("designerCotizadorListaPreciosItemCosto").value = "";
+        if(byId("designerCotizadorListaPreciosItemMargen")) byId("designerCotizadorListaPreciosItemMargen").value = "";
+        if(byId("designerCotizadorListaPreciosItemActivo")) byId("designerCotizadorListaPreciosItemActivo").checked = true;
+        if(byId("btnDesignerCancelarEdicionItemListaPrecios")) byId("btnDesignerCancelarEdicionItemListaPrecios").classList.add("hidden");
+        if(byId("btnDesignerAgregarItemListaPrecios")) byId("btnDesignerAgregarItemListaPrecios").textContent = "+ Agregar ítem";
+      }
+
+      function cargarItemEnFormularioListaPreciosCotizadorFase1_(item){
+        const st = getCotizadorFase1State_();
+        st.listaPreciosItemEditId = String(item.item_id || "");
+        if(byId("designerCotizadorListaPreciosEditIndex")) byId("designerCotizadorListaPreciosEditIndex").value = st.listaPreciosItemEditId;
+        if(byId("designerCotizadorListaPreciosItemCodigo")) byId("designerCotizadorListaPreciosItemCodigo").value = item.codigo || "";
+        if(byId("designerCotizadorListaPreciosItemNombre")) byId("designerCotizadorListaPreciosItemNombre").value = item.nombre || "";
+        if(byId("designerCotizadorListaPreciosItemDescripcion")) byId("designerCotizadorListaPreciosItemDescripcion").value = item.descripcion || "";
+        if(byId("designerCotizadorListaPreciosItemPrecio")) byId("designerCotizadorListaPreciosItemPrecio").value = item.precio || 0;
+        if(byId("designerCotizadorListaPreciosItemMoneda")) byId("designerCotizadorListaPreciosItemMoneda").value = item.moneda || "USD";
+        if(byId("designerCotizadorListaPreciosItemUnidad")) byId("designerCotizadorListaPreciosItemUnidad").value = item.unidad_cobro || "";
+        if(byId("designerCotizadorListaPreciosItemCosto")) byId("designerCotizadorListaPreciosItemCosto").value = item.costo_interno || 0;
+        if(byId("designerCotizadorListaPreciosItemMargen")) byId("designerCotizadorListaPreciosItemMargen").value = item.margen_porcentaje || 0;
+        if(byId("designerCotizadorListaPreciosItemActivo")) byId("designerCotizadorListaPreciosItemActivo").checked = normalizarActivoCotizadorFase1_(item.activo);
+        if(byId("btnDesignerCancelarEdicionItemListaPrecios")) byId("btnDesignerCancelarEdicionItemListaPrecios").classList.remove("hidden");
+        if(byId("btnDesignerAgregarItemListaPrecios")) byId("btnDesignerAgregarItemListaPrecios").textContent = "Guardar ítem";
+      }
+
+      function cancelarEdicionItemListaPreciosCotizadorFase1_(){
+        limpiarFormularioItemListaPreciosCotizadorFase1_();
+      }
+
+      // Al terminar (crear/editar/eliminar) se vuelve a pedir la lista de
+      // elementos del tab — más simple y más seguro que llevar la cuenta a
+      // mano, y es el mismo patrón que ya usa el resto del Diseñador tras
+      // guardar/eliminar un componente.
+      function refrescarItemsListaPreciosCotizadorFase1_(callback){
+        const st = getCotizadorFase1State_();
+        listarElementosCotizadorApiFase1_(st.tabId, function(res){
+          st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
+          const actual = getElementoActualCotizadorFase1_();
+          st.listaPreciosItemsActual = (actual && Array.isArray(actual.items)) ? actual.items : [];
+          renderItemsListaPreciosCotizadorFase1_();
+          if(callback) callback();
+        }, function(err){ mostrarToast("No se pudieron recargar los ítems: " + ((err && err.message) || err)); });
+      }
+
+      function guardarItemListaPreciosCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        if(!listaPreciosPuedeEditarItems_()){ mostrarToast("Guarde el componente antes de agregar ítems."); return; }
+        const codigo = String(byId("designerCotizadorListaPreciosItemCodigo") ? byId("designerCotizadorListaPreciosItemCodigo").value : "").trim();
+        const nombre = String(byId("designerCotizadorListaPreciosItemNombre") ? byId("designerCotizadorListaPreciosItemNombre").value : "").trim();
+        if(!codigo || !nombre){ mostrarToast("Complete código y nombre del ítem."); return; }
+        const cuerpo = {
+          codigo: codigo,
+          nombre: nombre,
+          descripcion: byId("designerCotizadorListaPreciosItemDescripcion") ? byId("designerCotizadorListaPreciosItemDescripcion").value : "",
+          precio: Number(byId("designerCotizadorListaPreciosItemPrecio") ? byId("designerCotizadorListaPreciosItemPrecio").value : 0) || 0,
+          moneda: byId("designerCotizadorListaPreciosItemMoneda") ? byId("designerCotizadorListaPreciosItemMoneda").value : "USD",
+          unidad_cobro: byId("designerCotizadorListaPreciosItemUnidad") ? byId("designerCotizadorListaPreciosItemUnidad").value : "",
+          costo_interno: Number(byId("designerCotizadorListaPreciosItemCosto") ? byId("designerCotizadorListaPreciosItemCosto").value : 0) || 0,
+          margen_porcentaje: Number(byId("designerCotizadorListaPreciosItemMargen") ? byId("designerCotizadorListaPreciosItemMargen").value : 0) || 0,
+          activo: byId("designerCotizadorListaPreciosItemActivo") ? byId("designerCotizadorListaPreciosItemActivo").checked : true
+        };
+        const editId = st.listaPreciosItemEditId;
+        const ruta = editId ? "/api/cotizador/items/" + encodeURIComponent(editId) : "/api/cotizador/elementos/" + encodeURIComponent(st.elementoId) + "/items";
+        const metodo = editId ? "PATCH" : "POST";
+        fetchAutenticado(ruta, {method: metodo, headers: {"Accept":"application/json","Content-Type":"application/json"}, body: JSON.stringify(cuerpo)})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo guardar el ítem."); return data; }); })
+          .then(function(){
+            mostrarToast(editId ? "Ítem actualizado." : "Ítem creado.");
+            limpiarFormularioItemListaPreciosCotizadorFase1_();
+            refrescarItemsListaPreciosCotizadorFase1_();
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo guardar el ítem."); });
+      }
+
+      function eliminarItemListaPreciosCotizadorFase1_(itemId){
+        if(!itemId) return;
+        if(!window.confirm("¿Desea eliminar este ítem? Se conservará inactivo (una cotización que ya lo usó lo sigue viendo en su historial).")) return;
+        fetchAutenticado("/api/cotizador/items/" + encodeURIComponent(itemId), {method:"DELETE", headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo eliminar el ítem."); return data; }); })
+          .then(function(){
+            mostrarToast("Ítem eliminado.");
+            refrescarItemsListaPreciosCotizadorFase1_();
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar el ítem."); });
       }
 
       function renderColumnasTablaCotizadorFase1_(){
@@ -16915,6 +17238,17 @@ window.CotizaApp = (function(){
         setCheckedCotizadorFase1_("designerCotizadorTablaObligatorio", cfg.obligatorio === true);
         setCheckedCotizadorFase1_("designerCotizadorTablaVisibleCalc", cfg.visible_calculadora !== false);
         setCheckedCotizadorFase1_("designerCotizadorTablaVisibleOferta", cfg.visible_oferta !== false);
+        if(byId("designerCotizadorListaPreciosTipoLista")) byId("designerCotizadorListaPreciosTipoLista").value = cfg.tipo_lista_precios || "UNICA";
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarCantidad", cfg.mostrar_cantidad !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosObligatorio", cfg.seleccion_obligatoria === true);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarPrecio", cfg.mostrar_precio_unitario !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarDescripcion", cfg.mostrar_descripcion !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarUnidad", cfg.mostrar_unidad_cobro !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosVisibleOferta", cfg.visible_oferta !== false);
+        renderItemsListaPreciosCotizadorFase1_();
+        if(byId("designerCotizadorListaPreciosCodigoDefault")) byId("designerCotizadorListaPreciosCodigoDefault").value = cfg.item_seleccionado_por_defecto && cfg.item_seleccionado_por_defecto !== "PRIMERO_ACTIVO" ? cfg.item_seleccionado_por_defecto : "";
+
         if(byId("designerCotizadorCalculadoModoFormula")) byId("designerCotizadorCalculadoModoFormula").value = "SIMPLE";
         if(byId("designerCotizadorCalculadoOperacion")) byId("designerCotizadorCalculadoOperacion").value = cfg.operacion || "SUMA";
         if(byId("designerCotizadorCalculadoTipoResultado")) byId("designerCotizadorCalculadoTipoResultado").value = cfg.tipo_resultado || "NUMERO";
@@ -16985,6 +17319,18 @@ window.CotizaApp = (function(){
           if(!(cfg.decimales >= 0)) cfg.decimales = 2;
           cfg.operandos = Array.isArray(st.calculadoOperandosTemp) ? st.calculadoOperandosTemp : [];
         }
+        if(tipo === "LISTA_PRECIOS"){
+          cfg.tipo_lista_precios = byId("designerCotizadorListaPreciosTipoLista") ? byId("designerCotizadorListaPreciosTipoLista").value : "UNICA";
+          cfg.valor_que_alimenta = "PRECIO_UNITARIO";
+          cfg.mostrar_cantidad = byId("designerCotizadorListaPreciosMostrarCantidad") ? byId("designerCotizadorListaPreciosMostrarCantidad").checked : true;
+          cfg.seleccion_obligatoria = byId("designerCotizadorListaPreciosObligatorio") ? byId("designerCotizadorListaPreciosObligatorio").checked : false;
+          cfg.mostrar_precio_unitario = byId("designerCotizadorListaPreciosMostrarPrecio") ? byId("designerCotizadorListaPreciosMostrarPrecio").checked : true;
+          cfg.mostrar_descripcion = byId("designerCotizadorListaPreciosMostrarDescripcion") ? byId("designerCotizadorListaPreciosMostrarDescripcion").checked : true;
+          cfg.mostrar_unidad_cobro = byId("designerCotizadorListaPreciosMostrarUnidad") ? byId("designerCotizadorListaPreciosMostrarUnidad").checked : true;
+          cfg.visible_calculadora = byId("designerCotizadorListaPreciosVisibleCalc") ? byId("designerCotizadorListaPreciosVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorListaPreciosVisibleOferta") ? byId("designerCotizadorListaPreciosVisibleOferta").checked : true;
+          cfg.item_seleccionado_por_defecto = byId("designerCotizadorListaPreciosCodigoDefault") ? (byId("designerCotizadorListaPreciosCodigoDefault").value || "PRIMERO_ACTIVO") : "PRIMERO_ACTIVO";
+        }
         if(tipo === "TABLA"){
           cfg.columnas = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
           cfg.permite_agregar_filas = byId("designerCotizadorTablaPermiteAgregar") ? byId("designerCotizadorTablaPermiteAgregar").checked : true;
@@ -17008,12 +17354,17 @@ window.CotizaApp = (function(){
         st.tablaColumnasTemp = [];
         st.campoReglasTemp = [];
         st.calculadoOperandosTemp = [];
+        st.listaPreciosItemsActual = [];
+        limpiarFormularioItemListaPreciosCotizadorFase1_();
         cargarConfigVisualComponenteCotizadorFase1_({});
       }
 
       function cargarPropsComponenteCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
         const el = getElementoActualCotizadorFase1_();
         if(!el){ limpiarPropsComponenteCotizadorFase1_(); return; }
+        st.listaPreciosItemsActual = Array.isArray(el.items) ? el.items : [];
+        st.listaPreciosItemEditId = "";
         if(byId("designerCotizadorElementoIdOriginal")) byId("designerCotizadorElementoIdOriginal").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoId")) byId("designerCotizadorElementoId").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoTipo")) byId("designerCotizadorElementoTipo").value = String(el.tipo_elemento || "CAMPO").trim().toUpperCase();
@@ -17057,7 +17408,7 @@ window.CotizaApp = (function(){
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
@@ -17069,7 +17420,7 @@ window.CotizaApp = (function(){
         }
         const padreId = tipo === "CONTENEDOR" ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
         const fuenteId = tipo === "CAJA_VALOR" ? String(cfgObj.campo_fuente_id || "").trim() : "";
-        const funcionCampo = ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO"].indexOf(tipo) >= 0
+        const funcionCampo = ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) >= 0
           ? String(byId("designerCotizadorFuncionCampo") ? byId("designerCotizadorFuncionCampo").value : "NORMAL").trim().toUpperCase()
           : "NORMAL";
         const registro = {

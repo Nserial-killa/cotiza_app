@@ -263,6 +263,9 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 			resultado.Advertencias = append(resultado.Advertencias, fmt.Sprintf("La sección %s (%s) no tiene elementos activos.", tab.Nombre, tab.TabID))
 		}
 	}
+	if err := h.incluirItemsListaPrecios(ctx, &resultado); err != nil {
+		return resultado, err
+	}
 	for i := range resultado.Tabs {
 		resultado.Tabs[i].Elementos = anidarHijosCompilado(resultado.Tabs[i].Elementos, &resultado)
 	}
@@ -271,6 +274,68 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	}
 	resultado.Valido = len(resultado.Errores) == 0
 	return resultado, nil
+}
+
+// incluirItemsListaPrecios agrega, a la configuracion de cada elemento
+// LISTA_PRECIOS, su lista de ítems ACTIVOS bajo la clave "items" —
+// código, nombre, descripción, precio, moneda, unidad_cobro. A propósito
+// NUNCA incluye costo_interno ni margen_porcentaje: son precio interno, y
+// esta es la estructura que después lee cualquiera que abra el Motor de
+// Ejecución (cotizador_runtime.go), sin importar su rol — el mismo
+// criterio de "costo/margen no viajan a quien no tiene permiso" que ya
+// aplica sesionPuedeVerPrice en cotizaciones.go, pero aplicado acá de forma
+// estructural (nunca entran al JSON compilado) en vez de por sesión, porque
+// este JSON se guarda una vez y lo leen sesiones distintas después.
+func (h *CompiladorHandler) incluirItemsListaPrecios(ctx context.Context, resultado *resultadoValidacion) error {
+	ids := make([]string, 0)
+	for _, tab := range resultado.Tabs {
+		for _, el := range tab.Elementos {
+			if el.Tipo == "LISTA_PRECIOS" {
+				ids = append(ids, el.ElementoID)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := h.DB.Query(ctx, `
+		SELECT elemento_id, item_id::text, codigo, nombre, COALESCE(descripcion, ''), precio, moneda, COALESCE(unidad_cobro, '')
+		FROM lista_precios_items
+		WHERE elemento_id = ANY($1) AND activo = true
+		ORDER BY elemento_id, orden, codigo`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	itemsPorElemento := make(map[string][]map[string]any)
+	for rows.Next() {
+		var elementoID, itemID, codigo, nombre, descripcion, moneda, unidadCobro string
+		var precio float64
+		if err := rows.Scan(&elementoID, &itemID, &codigo, &nombre, &descripcion, &precio, &moneda, &unidadCobro); err != nil {
+			return err
+		}
+		itemsPorElemento[elementoID] = append(itemsPorElemento[elementoID], map[string]any{
+			"item_id": itemID, "codigo": codigo, "nombre": nombre, "descripcion": descripcion,
+			"precio": precio, "moneda": moneda, "unidad_cobro": unidadCobro,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range resultado.Tabs {
+		for j := range resultado.Tabs[i].Elementos {
+			el := &resultado.Tabs[i].Elementos[j]
+			if el.Tipo != "LISTA_PRECIOS" {
+				continue
+			}
+			items := itemsPorElemento[el.ElementoID]
+			if items == nil {
+				items = make([]map[string]any, 0)
+			}
+			el.Configuracion["items"] = items
+		}
+	}
+	return nil
 }
 
 // anidarHijosCompilado saca de la lista plana de una sección los elementos

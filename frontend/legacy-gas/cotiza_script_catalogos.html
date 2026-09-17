@@ -43,6 +43,8 @@
           tablaColumnasTemp:[],
           campoReglasTemp:[],
           calculadoOperandosTemp:[],
+          listaPreciosItemsActual:[],
+          listaPreciosItemEditId:"",
           cotizadorId:"",
           tabId:"",
           elementoId:"",
@@ -189,6 +191,8 @@
         bind("btnDesignerAgregarCampoCatalogoHijo","click",agregarCampoCatalogoHijoCotizadorFase1_);
         bind("btnDesignerAgregarOperandoCalculado","click",agregarOperandoCalculadoCotizadorFase1_);
         bind("designerCotizadorCalculadoOperacion","change",actualizarFormulaPreviewCalculadoCotizadorFase1_);
+        bind("btnDesignerAgregarItemListaPrecios","click",guardarItemListaPreciosCotizadorFase1_);
+        bind("btnDesignerCancelarEdicionItemListaPrecios","click",cancelarEdicionItemListaPreciosCotizadorFase1_);
         bind("btnDesignerGuardarCotizador","click",function(){
           mostrarToast("Guarde cada sección o componente desde el panel de propiedades.");
         });
@@ -666,7 +670,22 @@
         if(tipo === "CAMPO_CATALOGO") return renderCampoCatalogoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAJA_VALOR") return renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta);
         if(tipo === "CAMPO_CALCULADO") return renderCampoCalculadoPreviewCotizadorFase1_(e, cfg, etiqueta);
+        if(tipo === "LISTA_PRECIOS") return renderListaPreciosPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         return renderCampoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
+      }
+
+      function renderListaPreciosPreviewCotizadorFase1_(e, cfg, etiqueta, desc){
+        const items = (Array.isArray(e.items) ? e.items : []).filter(function(it){ return normalizarActivoCotizadorFase1_(it.activo); });
+        const tipoLista = String((cfg && cfg.tipo_lista_precios) || "UNICA").toUpperCase();
+        if(tipoLista === "MULTIPLE"){
+          return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'
+            + '<div class="cotizador-preview-caja-valor">Tabla de ítems (Múltiple) — '+items.length+' ítem(s) disponible(s)</div>'
+            + (desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div>';
+        }
+        let control = '<select disabled><option>Seleccione...</option>';
+        items.slice(0,8).forEach(function(it){ control += '<option>'+escapeHtml(it.nombre || it.codigo || "Ítem")+'</option>'; });
+        control += '</select>';
+        return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'+control+(desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div>';
       }
 
       function renderTituloPreviewCotizadorFase1_(texto, cfg){
@@ -758,6 +777,7 @@
         if(tipo === "TABLA") return "▦";
         if(tipo === "CAJA_VALOR") return "$";
         if(tipo === "CAMPO_CALCULADO") return "ƒ";
+        if(tipo === "LISTA_PRECIOS") return "▤";
         return "Aa";
       }
 
@@ -1001,7 +1021,7 @@
           const id = String(el.elemento_id || "").trim();
           if(tab !== st.tabId || !id || id === actual || yaAgregados[id] || !normalizarActivoCotizadorFase1_(el.activo)) return false;
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
-          if(tipo === "CAMPO_CALCULADO") return true;
+          if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS") return true;
           if(tipo !== "CAMPO") return false;
           const cfg = parseConfigElementoCotizadorFase1_(el.config_json || el.configuracion);
           const tipoCampo = String(cfg.tipo_campo || "").trim().toUpperCase();
@@ -1157,7 +1177,7 @@
         }
         const funcionCampoBox = byId("designerCotizadorFuncionCampoBox");
         if(funcionCampoBox){
-          funcionCampoBox.classList.toggle("hidden", ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO"].indexOf(tipo) < 0);
+          funcionCampoBox.classList.toggle("hidden", ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) < 0);
         }
         llenarSelectCamposYReglasCotizadorFase1_();
         actualizarOpcionesFechaCampoCotizadorFase1_();
@@ -1222,6 +1242,166 @@
         if(!preview) return;
         const operacion = byId("designerCotizadorCalculadoOperacion") ? byId("designerCotizadorCalculadoOperacion").value : "SUMA";
         preview.textContent = formulaPreviewTextoCotizadorFase1_(st.calculadoOperandosTemp, operacion);
+      }
+
+      // ---------------------------------------------------------------
+      // Ítems de Lista de Precios (Ronda 3, migración 0019). A diferencia
+      // de las columnas de Tabla o los operandos de Campo Calculado (que
+      // solo viven en configuracion hasta guardar el componente), los
+      // ítems tienen sus propios endpoints y existen apenas se crean —
+      // por eso el elemento tiene que estar guardado (elemento_id real en
+      // la base) antes de poder agregarle ítems.
+      // ---------------------------------------------------------------
+
+      function listaPreciosPuedeEditarItems_(){
+        const st = getCotizadorFase1State_();
+        return !!(st.elementoId && getElementoActualCotizadorFase1_());
+      }
+
+      function renderItemsListaPreciosCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("designerCotizadorListaPreciosItemsLista");
+        const count = byId("designerCotizadorListaPreciosCount");
+        const items = Array.isArray(st.listaPreciosItemsActual) ? st.listaPreciosItemsActual : [];
+        const activos = items.filter(function(it){ return normalizarActivoCotizadorFase1_(it.activo); });
+        if(count) count.textContent = activos.length + " ítem" + (activos.length === 1 ? "" : "s");
+
+        if(!listaPreciosPuedeEditarItems_()){
+          if(cont) cont.innerHTML = '<div class="cotizador-mini-empty">Guarde el componente antes de agregar ítems.</div>';
+        } else if(cont){
+          if(!items.length){
+            cont.innerHTML = '<div class="cotizador-mini-empty">Sin ítems configurados.</div>';
+          } else {
+            cont.innerHTML = items.map(function(it){
+              const inactivo = !normalizarActivoCotizadorFase1_(it.activo);
+              return '<div class="cotizador-mini-row' + (inactivo ? ' inactive' : '') + '">'
+                + '<span>' + escapeHtml(it.codigo || "") + ' — ' + escapeHtml(it.nombre || "") + ' · ' + escapeHtml(formatoMoneda(Number(it.precio) || 0, it.moneda)) + (inactivo ? ' (inactivo)' : '') + '</span>'
+                + '<span>'
+                + '<button type="button" class="btn btn-ghost btn-mini" data-editar-item-lp="' + escapeHtml(it.item_id) + '">Editar</button>'
+                + '<button type="button" class="btn btn-ghost btn-mini" data-eliminar-item-lp="' + escapeHtml(it.item_id) + '">Eliminar</button>'
+                + '</span>'
+                + '</div>';
+            }).join("");
+            cont.querySelectorAll("[data-editar-item-lp]").forEach(function(btn){
+              btn.addEventListener("click", function(){
+                const item = items.find(function(it){ return it.item_id === btn.getAttribute("data-editar-item-lp"); });
+                if(item) cargarItemEnFormularioListaPreciosCotizadorFase1_(item);
+              });
+            });
+            cont.querySelectorAll("[data-eliminar-item-lp]").forEach(function(btn){
+              btn.addEventListener("click", function(){
+                eliminarItemListaPreciosCotizadorFase1_(btn.getAttribute("data-eliminar-item-lp"));
+              });
+            });
+          }
+        }
+
+        const btnAgregar = byId("btnDesignerAgregarItemListaPrecios");
+        if(btnAgregar) btnAgregar.disabled = !listaPreciosPuedeEditarItems_();
+
+        const codigoDefaultSel = byId("designerCotizadorListaPreciosCodigoDefault");
+        if(codigoDefaultSel){
+          const actual = codigoDefaultSel.value;
+          codigoDefaultSel.innerHTML = '<option value="">Primer ítem activo</option>';
+          activos.forEach(function(it){
+            const opt = document.createElement("option");
+            opt.value = it.codigo;
+            opt.textContent = it.codigo + " — " + it.nombre;
+            codigoDefaultSel.appendChild(opt);
+          });
+          codigoDefaultSel.value = actual;
+        }
+      }
+
+      function limpiarFormularioItemListaPreciosCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        st.listaPreciosItemEditId = "";
+        ["designerCotizadorListaPreciosEditIndex","designerCotizadorListaPreciosItemCodigo","designerCotizadorListaPreciosItemNombre","designerCotizadorListaPreciosItemDescripcion","designerCotizadorListaPreciosItemUnidad"].forEach(function(id){ if(byId(id)) byId(id).value = ""; });
+        if(byId("designerCotizadorListaPreciosItemPrecio")) byId("designerCotizadorListaPreciosItemPrecio").value = "";
+        if(byId("designerCotizadorListaPreciosItemMoneda")) byId("designerCotizadorListaPreciosItemMoneda").value = "USD";
+        if(byId("designerCotizadorListaPreciosItemCosto")) byId("designerCotizadorListaPreciosItemCosto").value = "";
+        if(byId("designerCotizadorListaPreciosItemMargen")) byId("designerCotizadorListaPreciosItemMargen").value = "";
+        if(byId("designerCotizadorListaPreciosItemActivo")) byId("designerCotizadorListaPreciosItemActivo").checked = true;
+        if(byId("btnDesignerCancelarEdicionItemListaPrecios")) byId("btnDesignerCancelarEdicionItemListaPrecios").classList.add("hidden");
+        if(byId("btnDesignerAgregarItemListaPrecios")) byId("btnDesignerAgregarItemListaPrecios").textContent = "+ Agregar ítem";
+      }
+
+      function cargarItemEnFormularioListaPreciosCotizadorFase1_(item){
+        const st = getCotizadorFase1State_();
+        st.listaPreciosItemEditId = String(item.item_id || "");
+        if(byId("designerCotizadorListaPreciosEditIndex")) byId("designerCotizadorListaPreciosEditIndex").value = st.listaPreciosItemEditId;
+        if(byId("designerCotizadorListaPreciosItemCodigo")) byId("designerCotizadorListaPreciosItemCodigo").value = item.codigo || "";
+        if(byId("designerCotizadorListaPreciosItemNombre")) byId("designerCotizadorListaPreciosItemNombre").value = item.nombre || "";
+        if(byId("designerCotizadorListaPreciosItemDescripcion")) byId("designerCotizadorListaPreciosItemDescripcion").value = item.descripcion || "";
+        if(byId("designerCotizadorListaPreciosItemPrecio")) byId("designerCotizadorListaPreciosItemPrecio").value = item.precio || 0;
+        if(byId("designerCotizadorListaPreciosItemMoneda")) byId("designerCotizadorListaPreciosItemMoneda").value = item.moneda || "USD";
+        if(byId("designerCotizadorListaPreciosItemUnidad")) byId("designerCotizadorListaPreciosItemUnidad").value = item.unidad_cobro || "";
+        if(byId("designerCotizadorListaPreciosItemCosto")) byId("designerCotizadorListaPreciosItemCosto").value = item.costo_interno || 0;
+        if(byId("designerCotizadorListaPreciosItemMargen")) byId("designerCotizadorListaPreciosItemMargen").value = item.margen_porcentaje || 0;
+        if(byId("designerCotizadorListaPreciosItemActivo")) byId("designerCotizadorListaPreciosItemActivo").checked = normalizarActivoCotizadorFase1_(item.activo);
+        if(byId("btnDesignerCancelarEdicionItemListaPrecios")) byId("btnDesignerCancelarEdicionItemListaPrecios").classList.remove("hidden");
+        if(byId("btnDesignerAgregarItemListaPrecios")) byId("btnDesignerAgregarItemListaPrecios").textContent = "Guardar ítem";
+      }
+
+      function cancelarEdicionItemListaPreciosCotizadorFase1_(){
+        limpiarFormularioItemListaPreciosCotizadorFase1_();
+      }
+
+      // Al terminar (crear/editar/eliminar) se vuelve a pedir la lista de
+      // elementos del tab — más simple y más seguro que llevar la cuenta a
+      // mano, y es el mismo patrón que ya usa el resto del Diseñador tras
+      // guardar/eliminar un componente.
+      function refrescarItemsListaPreciosCotizadorFase1_(callback){
+        const st = getCotizadorFase1State_();
+        listarElementosCotizadorApiFase1_(st.tabId, function(res){
+          st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
+          const actual = getElementoActualCotizadorFase1_();
+          st.listaPreciosItemsActual = (actual && Array.isArray(actual.items)) ? actual.items : [];
+          renderItemsListaPreciosCotizadorFase1_();
+          if(callback) callback();
+        }, function(err){ mostrarToast("No se pudieron recargar los ítems: " + ((err && err.message) || err)); });
+      }
+
+      function guardarItemListaPreciosCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        if(!listaPreciosPuedeEditarItems_()){ mostrarToast("Guarde el componente antes de agregar ítems."); return; }
+        const codigo = String(byId("designerCotizadorListaPreciosItemCodigo") ? byId("designerCotizadorListaPreciosItemCodigo").value : "").trim();
+        const nombre = String(byId("designerCotizadorListaPreciosItemNombre") ? byId("designerCotizadorListaPreciosItemNombre").value : "").trim();
+        if(!codigo || !nombre){ mostrarToast("Complete código y nombre del ítem."); return; }
+        const cuerpo = {
+          codigo: codigo,
+          nombre: nombre,
+          descripcion: byId("designerCotizadorListaPreciosItemDescripcion") ? byId("designerCotizadorListaPreciosItemDescripcion").value : "",
+          precio: Number(byId("designerCotizadorListaPreciosItemPrecio") ? byId("designerCotizadorListaPreciosItemPrecio").value : 0) || 0,
+          moneda: byId("designerCotizadorListaPreciosItemMoneda") ? byId("designerCotizadorListaPreciosItemMoneda").value : "USD",
+          unidad_cobro: byId("designerCotizadorListaPreciosItemUnidad") ? byId("designerCotizadorListaPreciosItemUnidad").value : "",
+          costo_interno: Number(byId("designerCotizadorListaPreciosItemCosto") ? byId("designerCotizadorListaPreciosItemCosto").value : 0) || 0,
+          margen_porcentaje: Number(byId("designerCotizadorListaPreciosItemMargen") ? byId("designerCotizadorListaPreciosItemMargen").value : 0) || 0,
+          activo: byId("designerCotizadorListaPreciosItemActivo") ? byId("designerCotizadorListaPreciosItemActivo").checked : true
+        };
+        const editId = st.listaPreciosItemEditId;
+        const ruta = editId ? "/api/cotizador/items/" + encodeURIComponent(editId) : "/api/cotizador/elementos/" + encodeURIComponent(st.elementoId) + "/items";
+        const metodo = editId ? "PATCH" : "POST";
+        fetchAutenticado(ruta, {method: metodo, headers: {"Accept":"application/json","Content-Type":"application/json"}, body: JSON.stringify(cuerpo)})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo guardar el ítem."); return data; }); })
+          .then(function(){
+            mostrarToast(editId ? "Ítem actualizado." : "Ítem creado.");
+            limpiarFormularioItemListaPreciosCotizadorFase1_();
+            refrescarItemsListaPreciosCotizadorFase1_();
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo guardar el ítem."); });
+      }
+
+      function eliminarItemListaPreciosCotizadorFase1_(itemId){
+        if(!itemId) return;
+        if(!window.confirm("¿Desea eliminar este ítem? Se conservará inactivo (una cotización que ya lo usó lo sigue viendo en su historial).")) return;
+        fetchAutenticado("/api/cotizador/items/" + encodeURIComponent(itemId), {method:"DELETE", headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo eliminar el ítem."); return data; }); })
+          .then(function(){
+            mostrarToast("Ítem eliminado.");
+            refrescarItemsListaPreciosCotizadorFase1_();
+          })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo eliminar el ítem."); });
       }
 
       function renderColumnasTablaCotizadorFase1_(){
@@ -1356,6 +1536,17 @@
         setCheckedCotizadorFase1_("designerCotizadorTablaObligatorio", cfg.obligatorio === true);
         setCheckedCotizadorFase1_("designerCotizadorTablaVisibleCalc", cfg.visible_calculadora !== false);
         setCheckedCotizadorFase1_("designerCotizadorTablaVisibleOferta", cfg.visible_oferta !== false);
+        if(byId("designerCotizadorListaPreciosTipoLista")) byId("designerCotizadorListaPreciosTipoLista").value = cfg.tipo_lista_precios || "UNICA";
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarCantidad", cfg.mostrar_cantidad !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosObligatorio", cfg.seleccion_obligatoria === true);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarPrecio", cfg.mostrar_precio_unitario !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarDescripcion", cfg.mostrar_descripcion !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosMostrarUnidad", cfg.mostrar_unidad_cobro !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorListaPreciosVisibleOferta", cfg.visible_oferta !== false);
+        renderItemsListaPreciosCotizadorFase1_();
+        if(byId("designerCotizadorListaPreciosCodigoDefault")) byId("designerCotizadorListaPreciosCodigoDefault").value = cfg.item_seleccionado_por_defecto && cfg.item_seleccionado_por_defecto !== "PRIMERO_ACTIVO" ? cfg.item_seleccionado_por_defecto : "";
+
         if(byId("designerCotizadorCalculadoModoFormula")) byId("designerCotizadorCalculadoModoFormula").value = "SIMPLE";
         if(byId("designerCotizadorCalculadoOperacion")) byId("designerCotizadorCalculadoOperacion").value = cfg.operacion || "SUMA";
         if(byId("designerCotizadorCalculadoTipoResultado")) byId("designerCotizadorCalculadoTipoResultado").value = cfg.tipo_resultado || "NUMERO";
@@ -1426,6 +1617,18 @@
           if(!(cfg.decimales >= 0)) cfg.decimales = 2;
           cfg.operandos = Array.isArray(st.calculadoOperandosTemp) ? st.calculadoOperandosTemp : [];
         }
+        if(tipo === "LISTA_PRECIOS"){
+          cfg.tipo_lista_precios = byId("designerCotizadorListaPreciosTipoLista") ? byId("designerCotizadorListaPreciosTipoLista").value : "UNICA";
+          cfg.valor_que_alimenta = "PRECIO_UNITARIO";
+          cfg.mostrar_cantidad = byId("designerCotizadorListaPreciosMostrarCantidad") ? byId("designerCotizadorListaPreciosMostrarCantidad").checked : true;
+          cfg.seleccion_obligatoria = byId("designerCotizadorListaPreciosObligatorio") ? byId("designerCotizadorListaPreciosObligatorio").checked : false;
+          cfg.mostrar_precio_unitario = byId("designerCotizadorListaPreciosMostrarPrecio") ? byId("designerCotizadorListaPreciosMostrarPrecio").checked : true;
+          cfg.mostrar_descripcion = byId("designerCotizadorListaPreciosMostrarDescripcion") ? byId("designerCotizadorListaPreciosMostrarDescripcion").checked : true;
+          cfg.mostrar_unidad_cobro = byId("designerCotizadorListaPreciosMostrarUnidad") ? byId("designerCotizadorListaPreciosMostrarUnidad").checked : true;
+          cfg.visible_calculadora = byId("designerCotizadorListaPreciosVisibleCalc") ? byId("designerCotizadorListaPreciosVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorListaPreciosVisibleOferta") ? byId("designerCotizadorListaPreciosVisibleOferta").checked : true;
+          cfg.item_seleccionado_por_defecto = byId("designerCotizadorListaPreciosCodigoDefault") ? (byId("designerCotizadorListaPreciosCodigoDefault").value || "PRIMERO_ACTIVO") : "PRIMERO_ACTIVO";
+        }
         if(tipo === "TABLA"){
           cfg.columnas = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
           cfg.permite_agregar_filas = byId("designerCotizadorTablaPermiteAgregar") ? byId("designerCotizadorTablaPermiteAgregar").checked : true;
@@ -1449,12 +1652,17 @@
         st.tablaColumnasTemp = [];
         st.campoReglasTemp = [];
         st.calculadoOperandosTemp = [];
+        st.listaPreciosItemsActual = [];
+        limpiarFormularioItemListaPreciosCotizadorFase1_();
         cargarConfigVisualComponenteCotizadorFase1_({});
       }
 
       function cargarPropsComponenteCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
         const el = getElementoActualCotizadorFase1_();
         if(!el){ limpiarPropsComponenteCotizadorFase1_(); return; }
+        st.listaPreciosItemsActual = Array.isArray(el.items) ? el.items : [];
+        st.listaPreciosItemEditId = "";
         if(byId("designerCotizadorElementoIdOriginal")) byId("designerCotizadorElementoIdOriginal").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoId")) byId("designerCotizadorElementoId").value = String(el.elemento_id || "").trim();
         if(byId("designerCotizadorElementoTipo")) byId("designerCotizadorElementoTipo").value = String(el.tipo_elemento || "CAMPO").trim().toUpperCase();
@@ -1498,7 +1706,7 @@
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
@@ -1510,7 +1718,7 @@
         }
         const padreId = tipo === "CONTENEDOR" ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
         const fuenteId = tipo === "CAJA_VALOR" ? String(cfgObj.campo_fuente_id || "").trim() : "";
-        const funcionCampo = ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO"].indexOf(tipo) >= 0
+        const funcionCampo = ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) >= 0
           ? String(byId("designerCotizadorFuncionCampo") ? byId("designerCotizadorFuncionCampo").value : "NORMAL").trim().toUpperCase()
           : "NORMAL";
         const registro = {

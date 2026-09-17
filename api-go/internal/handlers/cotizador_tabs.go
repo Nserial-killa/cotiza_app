@@ -33,21 +33,22 @@ type tabCotizador struct {
 }
 
 type elementoTabCotizador struct {
-	ElementoID        string         `json:"elemento_id"`
-	TabID             string         `json:"tab_id"`
-	Tipo              string         `json:"tipo"`
-	TipoElemento      string         `json:"tipo_elemento"`
-	Etiqueta          string         `json:"etiqueta"`
-	CatalogoID        *string        `json:"catalogo_id"`
-	ComponentePadreID *string        `json:"componente_padre_id"`
-	CampoFuenteID     *string        `json:"campo_fuente_id"`
-	FuncionCampo      string         `json:"funcion_campo"`
-	ColumnasAncho     int            `json:"columnas_ancho"`
-	Orden             int            `json:"orden"`
-	Requerido         bool           `json:"requerido"`
-	Configuracion     map[string]any `json:"configuracion"`
-	ConfigJSON        map[string]any `json:"config_json"`
-	Activo            bool           `json:"activo"`
+	ElementoID        string             `json:"elemento_id"`
+	TabID             string             `json:"tab_id"`
+	Tipo              string             `json:"tipo"`
+	TipoElemento      string             `json:"tipo_elemento"`
+	Etiqueta          string             `json:"etiqueta"`
+	CatalogoID        *string            `json:"catalogo_id"`
+	ComponentePadreID *string            `json:"componente_padre_id"`
+	CampoFuenteID     *string            `json:"campo_fuente_id"`
+	FuncionCampo      string             `json:"funcion_campo"`
+	ColumnasAncho     int                `json:"columnas_ancho"`
+	Orden             int                `json:"orden"`
+	Requerido         bool               `json:"requerido"`
+	Configuracion     map[string]any     `json:"configuracion"`
+	ConfigJSON        map[string]any     `json:"config_json"`
+	Activo            bool               `json:"activo"`
+	Items             []listaPreciosItem `json:"items,omitempty"`
 }
 
 type guardarTabCotizadorRequest struct {
@@ -83,20 +84,32 @@ type guardarElementoTabRequest struct {
 // tiposElementoSimple es el conjunto de tipos que GuardarElemento acepta.
 // Ronda 1 del Diseñador (migración 0017) agregó TITULO, CONTENEDOR y
 // CAJA_VALOR a los 4 tipos simples del Sprint 2; Ronda 2 (migración 0018)
-// agrega CAMPO_CALCULADO. LISTA_PRECIOS, ESCENARIOS y SECCIONES_ADICIONALES
-// (ya armados en el HTML) llegan en rondas posteriores — no tocar esto sin
-// su propia migración de esquema.
+// agregó CAMPO_CALCULADO; Ronda 3 (migración 0019) agrega LISTA_PRECIOS.
+// ESCENARIOS y SECCIONES_ADICIONALES (ya armados en el HTML) llegan en
+// rondas posteriores — no tocar esto sin su propia migración de esquema.
 var tiposElementoSimple = map[string]bool{
 	"CAMPO": true, "CAMPO_CATALOGO": true, "LEYENDA": true, "TEXTO_INFORMATIVO": true,
 	"TITULO": true, "CONTENEDOR": true, "CAJA_VALOR": true, "CAMPO_CALCULADO": true,
+	"LISTA_PRECIOS": true,
 }
 
 // tiposConFuncionCampo son los únicos tipos donde "Función del campo" tiene
 // sentido: alimentan un valor propio (numérico o de catálogo) que puede
-// mapearse a un total de cotizacion_versiones. TITULO/CONTENEDOR/CAJA_VALOR/
-// LEYENDA/TEXTO_INFORMATIVO no tienen un valor propio que exportar así.
+// mapearse a un total de cotizacion_versiones. Una Lista de Precios es, en
+// los hechos, otra fuente numérica (Ronda 3) — igual que un Campo numérico o
+// un Campo Calculado. TITULO/CONTENEDOR/CAJA_VALOR/LEYENDA/TEXTO_INFORMATIVO
+// no tienen un valor propio que exportar así.
 var tiposConFuncionCampo = map[string]bool{
-	"CAMPO": true, "CAMPO_CATALOGO": true, "CAMPO_CALCULADO": true,
+	"CAMPO": true, "CAMPO_CATALOGO": true, "CAMPO_CALCULADO": true, "LISTA_PRECIOS": true,
+}
+
+// tiposOperandoCalculadoValidos son los tipos que un Campo Calculado puede
+// usar como operando (Ronda 2 + Ronda 3): un Campo numérico se valida aparte
+// por tipo_campo, así que acá solo van los tipos que no necesitan ese
+// chequeo extra. CAMPO_CATALOGO queda fuera todavía — sus valores no tienen
+// un precio asociado (ver migración 0019, tarea 3).
+var tiposOperandoCalculadoValidos = map[string]bool{
+	"CAMPO_CALCULADO": true, "LISTA_PRECIOS": true,
 }
 
 // funcionesCampoValidas son los 9 roles de "Función del campo" (Ronda 2) más
@@ -204,6 +217,7 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 	}
 	defer rows.Close()
 	elementos := make([]elementoTabCotizador, 0)
+	idsListaPrecios := make([]string, 0)
 	for rows.Next() {
 		var el elementoTabCotizador
 		if err := rows.Scan(&el.ElementoID, &el.TabID, &el.Tipo, &el.Etiqueta, &el.CatalogoID, &el.ComponentePadreID, &el.CampoFuenteID, &el.FuncionCampo, &el.ColumnasAncho, &el.Orden, &el.Requerido, &el.Configuracion, &el.Activo); err != nil {
@@ -212,7 +226,50 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 		}
 		el.TipoElemento = el.Tipo
 		el.ConfigJSON = el.Configuracion
+		if el.Tipo == "LISTA_PRECIOS" {
+			idsListaPrecios = append(idsListaPrecios, el.ElementoID)
+		}
 		elementos = append(elementos, el)
+	}
+	if err := rows.Err(); err != nil {
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer los elementos."})
+		return
+	}
+	if len(idsListaPrecios) > 0 {
+		// El Diseñador (quien configura precios) ve TODOS los ítems,
+		// activos e inactivos — a diferencia de compilador.go/runtime,
+		// que solo exponen los activos y sin costo/margen (ver
+		// incluirItemsListaPrecios en compilador.go).
+		itemsRows, err := h.DB.Query(ctx, `
+			SELECT item_id::text, elemento_id, codigo, nombre, descripcion, precio, moneda,
+			       unidad_cobro, costo_interno, margen_porcentaje, orden, activo
+			FROM lista_precios_items WHERE elemento_id = ANY($1) ORDER BY elemento_id, orden, codigo`, idsListaPrecios)
+		if err != nil {
+			log.Printf("cotizador elementos: error listando ítems de lista de precios: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los ítems de las listas de precios."})
+			return
+		}
+		itemsPorElemento := make(map[string][]listaPreciosItem)
+		for itemsRows.Next() {
+			var item listaPreciosItem
+			if err := itemsRows.Scan(&item.ItemID, &item.ElementoID, &item.Codigo, &item.Nombre, &item.Descripcion, &item.Precio, &item.Moneda, &item.UnidadCobro, &item.CostoInterno, &item.MargenPorcentaje, &item.Orden, &item.Activo); err != nil {
+				itemsRows.Close()
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer los ítems de las listas de precios."})
+				return
+			}
+			itemsPorElemento[item.ElementoID] = append(itemsPorElemento[item.ElementoID], item)
+		}
+		if err := itemsRows.Err(); err != nil {
+			itemsRows.Close()
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer los ítems de las listas de precios."})
+			return
+		}
+		itemsRows.Close()
+		for i := range elementos {
+			if elementos[i].Tipo == "LISTA_PRECIOS" {
+				elementos[i].Items = itemsPorElemento[elementos[i].ElementoID]
+			}
+		}
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "elementos": elementos, "data": elementos})
 }
@@ -409,8 +466,8 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico (Número, Moneda o Porcentaje).", opID)})
 					return
 				}
-			} else if tipoOp != "CAMPO_CALCULADO" {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico o un Campo Calculado.", opID)})
+			} else if !tiposOperandoCalculadoValidos[tipoOp] {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico, una Lista de Precios o un Campo Calculado.", opID)})
 				return
 			}
 		}
@@ -424,6 +481,53 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Los operandos generan una referencia circular: un Campo Calculado no puede depender de sí mismo, ni directa ni indirectamente."})
 			return
 		}
+	}
+
+	if req.Tipo == "LISTA_PRECIOS" {
+		tipoLista := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["tipo_lista_precios"])))
+		if tipoLista != "UNICA" && tipoLista != "MULTIPLE" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_lista_precios debe ser UNICA o MULTIPLE."})
+			return
+		}
+		configuracion["tipo_lista_precios"] = tipoLista
+
+		// valor_que_alimenta queda preparado para más opciones a futuro
+		// (ej. costo unitario, margen) — hoy solo se implementó
+		// PRECIO_UNITARIO (precio × cantidad), ver calcularOperacion en
+		// calculo.go y valorListaPrecios.
+		valorQueAlimenta := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["valor_que_alimenta"])))
+		if valorQueAlimenta == "" || valorQueAlimenta == "<NIL>" {
+			valorQueAlimenta = "PRECIO_UNITARIO"
+		}
+		if valorQueAlimenta != "PRECIO_UNITARIO" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "valor_que_alimenta todavía solo admite PRECIO_UNITARIO."})
+			return
+		}
+		configuracion["valor_que_alimenta"] = valorQueAlimenta
+
+		configuracion["mostrar_cantidad"] = boolDesdeConfiguracion(configuracion, "mostrar_cantidad", true)
+		configuracion["seleccion_obligatoria"] = boolDesdeConfiguracion(configuracion, "seleccion_obligatoria", false)
+		configuracion["mostrar_precio_unitario"] = boolDesdeConfiguracion(configuracion, "mostrar_precio_unitario", true)
+		configuracion["mostrar_descripcion"] = boolDesdeConfiguracion(configuracion, "mostrar_descripcion", true)
+		configuracion["mostrar_unidad_cobro"] = boolDesdeConfiguracion(configuracion, "mostrar_unidad_cobro", true)
+
+		itemDefecto := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["item_seleccionado_por_defecto"])))
+		if itemDefecto == "" || itemDefecto == "<NIL>" || itemDefecto == "PRIMERO_ACTIVO" {
+			itemDefecto = "PRIMERO_ACTIVO"
+		} else {
+			var existeCodigo bool
+			err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM lista_precios_items WHERE elemento_id=$1 AND codigo=$2 AND activo=true)`, req.ElementoID, itemDefecto).Scan(&existeCodigo)
+			if err != nil {
+				log.Printf("cotizador elementos: error validando item_seleccionado_por_defecto de %s: %v", req.ElementoID, err)
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el ítem por defecto."})
+				return
+			}
+			if !existeCodigo {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("item_seleccionado_por_defecto debe ser PRIMERO_ACTIVO o el código de un ítem activo de este elemento (%s no existe).", itemDefecto)})
+				return
+			}
+		}
+		configuracion["item_seleccionado_por_defecto"] = itemDefecto
 	}
 
 	if padreID != "" {
@@ -574,6 +678,27 @@ func enteroDesdeConfiguracion(configuracion map[string]any, clave string) (int, 
 		return numero, true
 	default:
 		return 0, false
+	}
+}
+
+// boolDesdeConfiguracion lee una clave booleana de la configuración JSON de
+// un elemento, con el mismo criterio tolerante que enteroDesdeConfiguracion:
+// json.Unmarshal decodifica un booleano como bool, pero el frontend también
+// puede mandarlo como string. Si la clave no viene, se usa porDefecto —
+// mismo patrón que "editable !== false" ya usa el resto del Diseñador.
+func boolDesdeConfiguracion(configuracion map[string]any, clave string, porDefecto bool) bool {
+	valor, existe := configuracion[clave]
+	if !existe || valor == nil {
+		return porDefecto
+	}
+	switch v := valor.(type) {
+	case bool:
+		return v
+	case string:
+		s := strings.ToUpper(strings.TrimSpace(v))
+		return s == "TRUE" || s == "SI" || s == "1"
+	default:
+		return porDefecto
 	}
 }
 

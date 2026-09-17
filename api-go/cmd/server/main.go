@@ -61,6 +61,7 @@ func main() {
 	reportes := &handlers.ReportesHandler{DB: pool}
 	calculadoras := &handlers.CalculadorasHandler{DB: pool}
 	runtimeCotizador := &handlers.CotizadorRuntimeHandler{DB: pool}
+	listaPreciosItems := &handlers.ListaPreciosItemsHandler{DB: pool}
 	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool}
 	plantillas := &handlers.PlantillasHandler{DB: pool}
 	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
@@ -107,6 +108,9 @@ func main() {
 			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
 			r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
 			r.Delete("/cotizador/elementos/{id}", cotizadorTabs.EliminarElemento)
+			r.Post("/cotizador/elementos/{elemento_id}/items", listaPreciosItems.Crear)
+			r.Patch("/cotizador/items/{item_id}", listaPreciosItems.Editar)
+			r.Delete("/cotizador/items/{item_id}", listaPreciosItems.Eliminar)
 			r.Post("/cotizador/validar", compilador.Validar)
 			r.Post("/cotizador/compilar", compilador.Compilar)
 			r.Get("/cotizador/runtime/{cotizacion_id}", runtimeCotizador.Obtener)
