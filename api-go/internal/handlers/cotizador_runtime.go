@@ -76,6 +76,7 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar los valores de la cotización."})
 		return
 	}
+	incluirValoresCajaValor(runtime.Estructura, valores)
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": valores, "version": runtime.Version})
 }
 
@@ -225,16 +226,25 @@ func indexarElementosRuntime(estructura map[string]any) map[string]elementoRunti
 	for _, tabRaw := range tabs {
 		tab, _ := tabRaw.(map[string]any)
 		elementos, _ := tab["elementos"].([]any)
-		for _, elementoRaw := range elementos {
-			elemento, _ := elementoRaw.(map[string]any)
-			id := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
-			if id == "" {
-				continue
-			}
-			resultado[id] = elementoRuntime{Tipo: strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))), CatalogoID: strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"]))}
-		}
+		indexarElementosRuntimeRecursivo(elementos, resultado)
 	}
 	return resultado
+}
+
+// indexarElementosRuntimeRecursivo baja también a "hijos": desde la Ronda 1
+// del Diseñador un CONTENEDOR anida sus componentes ahí en vez de dejarlos
+// en el array plano de la sección (ver anidarHijosCompilado en compilador.go).
+func indexarElementosRuntimeRecursivo(elementos []any, resultado map[string]elementoRuntime) {
+	for _, elementoRaw := range elementos {
+		elemento, _ := elementoRaw.(map[string]any)
+		id := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
+		if id != "" {
+			resultado[id] = elementoRuntime{Tipo: strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))), CatalogoID: strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"]))}
+		}
+		if hijos, ok := elemento["hijos"].([]any); ok {
+			indexarElementosRuntimeRecursivo(hijos, resultado)
+		}
+	}
 }
 
 func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogo(ctx context.Context, estructura map[string]any) error {
@@ -242,11 +252,17 @@ func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogo(ctx context.Context, e
 	for _, tabRaw := range tabs {
 		tab, _ := tabRaw.(map[string]any)
 		elementos, _ := tab["elementos"].([]any)
-		for _, elementoRaw := range elementos {
-			elemento, _ := elementoRaw.(map[string]any)
-			if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) != "CAMPO_CATALOGO" {
-				continue
-			}
+		if err := h.incluirOpcionesCatalogoRecursivo(ctx, elementos); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogoRecursivo(ctx context.Context, elementos []any) error {
+	for _, elementoRaw := range elementos {
+		elemento, _ := elementoRaw.(map[string]any)
+		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "CAMPO_CATALOGO" {
 			catalogoID := strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"]))
 			rows, err := h.DB.Query(ctx, `
 				SELECT valor_id, COALESCE(clave, ''), texto_visible, valor_sistema, COALESCE(orden, 0)
@@ -272,8 +288,55 @@ func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogo(ctx context.Context, e
 			rows.Close()
 			elemento["opciones"] = opciones
 		}
+		if hijos, ok := elemento["hijos"].([]any); ok {
+			if err := h.incluirOpcionesCatalogoRecursivo(ctx, hijos); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+// incluirValoresCajaValor resuelve, para cada CAJA_VALOR de la estructura
+// (incluidos los anidados dentro de un CONTENEDOR), el valor real guardado
+// de su campo_fuente_id en esta misma cotización/versión; si no hay valor
+// guardado todavía, usa configuracion.valor_por_defecto. El resultado queda
+// en "valor_resuelto", junto a prefijo/sufijo, para que el frontend solo
+// tenga que concatenar sin volver a consultar nada.
+func incluirValoresCajaValor(estructura map[string]any, valores map[string]any) {
+	tabs, _ := estructura["tabs"].([]any)
+	for _, tabRaw := range tabs {
+		tab, _ := tabRaw.(map[string]any)
+		elementos, _ := tab["elementos"].([]any)
+		incluirValoresCajaValorRecursivo(elementos, valores)
+	}
+}
+
+func incluirValoresCajaValorRecursivo(elementos []any, valores map[string]any) {
+	for _, elementoRaw := range elementos {
+		elemento, _ := elementoRaw.(map[string]any)
+		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "CAJA_VALOR" {
+			cfg, _ := elemento["configuracion"].(map[string]any)
+			var resuelto any
+			if cfg != nil {
+				if fuenteRaw, existe := cfg["campo_fuente_id"]; existe && fuenteRaw != nil {
+					fuenteID := strings.TrimSpace(fmt.Sprint(fuenteRaw))
+					if fuenteID != "" {
+						if valor, ok := valores[fuenteID]; ok {
+							resuelto = valor
+						}
+					}
+				}
+				if resuelto == nil {
+					resuelto = cfg["valor_por_defecto"]
+				}
+			}
+			elemento["valor_resuelto"] = resuelto
+		}
+		if hijos, ok := elemento["hijos"].([]any); ok {
+			incluirValoresCajaValorRecursivo(hijos, valores)
+		}
+	}
 }
 
 func (h *CotizadorRuntimeHandler) leerValores(ctx context.Context, cotizacionID string, version int) (map[string]any, error) {

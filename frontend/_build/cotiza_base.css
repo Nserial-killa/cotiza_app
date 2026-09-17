@@ -436,12 +436,34 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .runtime-texto-informativo { grid-column: 1/-1; }
 .runtime-texto-informativo p { margin: 0; color: #7b899d; font-size: 12px; font-style: italic; }
 
+/* Ronda 1 de tipos nuevos: Título, Contenedor, Caja de valor (migración 0017) */
+.runtime-elemento-titulo { grid-column: 1/-1; margin: 4px 0; }
+.runtime-elemento-titulo h2, .runtime-elemento-titulo h3, .runtime-elemento-titulo h4 { margin: 0; color: #0F2A4A; font-weight: 800; }
+.runtime-elemento-titulo h2 { font-size: 18px; }
+.runtime-elemento-titulo h3 { font-size: 15px; }
+.runtime-elemento-titulo h4 { font-size: 13px; }
+
+.runtime-contenedor { grid-column: 1/-1; border: 1px solid #d7e1ee; border-radius: 12px; padding: 14px 16px; background: #f8fafc; }
+.runtime-contenedor-titulo { color: #17345b; font-size: 13px; font-weight: 800; margin-bottom: 10px; }
+.runtime-contenedor-grid { display: grid; gap: 4px 16px; }
+.runtime-contenedor-grid.runtime-contenedor-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.runtime-caja-valor .runtime-caja-valor-display {
+  min-height: 38px; padding: 8px 11px; border: 1px solid #ced9e7; border-radius: 8px;
+  background: #eef6ff; color: #0b3b82; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center;
+}
+
 @media (max-width:900px) {
   .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width:700px) {
   .runtime-grid { grid-template-columns: 1fr; }
   .runtime-grid > * { grid-column: 1 !important; }
+  .runtime-contenedor-grid.runtime-contenedor-cols-2,
+  .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: 1fr; }
 }
 
 /* ---------- Solicitudes de Propuesta ---------- */

@@ -444,12 +444,34 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .runtime-texto-informativo { grid-column: 1/-1; }
 .runtime-texto-informativo p { margin: 0; color: #7b899d; font-size: 12px; font-style: italic; }
 
+/* Ronda 1 de tipos nuevos: Título, Contenedor, Caja de valor (migración 0017) */
+.runtime-elemento-titulo { grid-column: 1/-1; margin: 4px 0; }
+.runtime-elemento-titulo h2, .runtime-elemento-titulo h3, .runtime-elemento-titulo h4 { margin: 0; color: #0F2A4A; font-weight: 800; }
+.runtime-elemento-titulo h2 { font-size: 18px; }
+.runtime-elemento-titulo h3 { font-size: 15px; }
+.runtime-elemento-titulo h4 { font-size: 13px; }
+
+.runtime-contenedor { grid-column: 1/-1; border: 1px solid #d7e1ee; border-radius: 12px; padding: 14px 16px; background: #f8fafc; }
+.runtime-contenedor-titulo { color: #17345b; font-size: 13px; font-weight: 800; margin-bottom: 10px; }
+.runtime-contenedor-grid { display: grid; gap: 4px 16px; }
+.runtime-contenedor-grid.runtime-contenedor-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.runtime-caja-valor .runtime-caja-valor-display {
+  min-height: 38px; padding: 8px 11px; border: 1px solid #ced9e7; border-radius: 8px;
+  background: #eef6ff; color: #0b3b82; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center;
+}
+
 @media (max-width:900px) {
   .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width:700px) {
   .runtime-grid { grid-template-columns: 1fr; }
   .runtime-grid > * { grid-column: 1 !important; }
+  .runtime-contenedor-grid.runtime-contenedor-cols-2,
+  .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: 1fr; }
 }
 
 /* ---------- Solicitudes de Propuesta ---------- */
@@ -3218,6 +3240,17 @@ table tr:last-child td { border-bottom: none; }
               background:#f8fafc;
               color:#334155;
             }
+            .cotizador-preview-caja-valor{
+              border:1px solid #d9e2ef;
+              border-radius:10px;
+              padding:9px 10px;
+              min-height:38px;
+              background:#eef6ff;
+              color:#0b3b82;
+              font-weight:700;
+              display:flex;
+              align-items:center;
+            }
             .cotizador-preview-container{
               border:1px solid #d9e2ef;
               border-radius:16px;
@@ -4852,6 +4885,9 @@ table tr:last-child td { border-bottom: none; }
                       <option value="CAMPO_CATALOGO">Campo Catálogo</option>
                       <option value="LEYENDA">Leyenda</option>
                       <option value="TEXTO_INFORMATIVO">Texto informativo</option>
+                      <option value="TITULO">Título</option>
+                      <option value="CONTENEDOR">Contenedor</option>
+                      <option value="CAJA_VALOR">Caja de valor</option>
                     </select>
                   </div>
 
@@ -5118,7 +5154,6 @@ table tr:last-child td { border-bottom: none; }
                     <div class="field ctz-f-container-cols">
                       <label for="designerCotizadorContenedorColumnas">Columnas del contenedor</label>
                       <select id="designerCotizadorContenedorColumnas" class="select">
-                        <option value="1">1 columna</option>
                         <option value="2">2 columnas</option>
                         <option value="3">3 columnas</option>
                       </select>
@@ -10033,17 +10068,44 @@ window.CotizaApp = (function(){
       // CAMPO -> input de texto. CAMPO_CATALOGO -> select con las
       // opciones que ya vienen resueltas en la respuesta. LEYENDA y
       // TEXTO_INFORMATIVO son solo texto, no tienen valor que guardar.
+      // Ronda 1 (migración 0017) agrega TITULO (encabezado sin input),
+      // CONTENEDOR (tarjeta con sus "hijos" anidados según columnas) y
+      // CAJA_VALOR (solo lectura: el backend ya resolvió valor_resuelto
+      // contra cotizacion_valores o, si no hay, contra valor_por_defecto).
       function renderRuntimeElemento(el, valores){
         const ancho = Math.min(4, Math.max(1, Number(el.columnas_ancho) || 1));
         const requerido = !!el.requerido;
         const estiloSpan = 'style="grid-column:span ' + ancho + '"';
         const valorGuardado = (valores && Object.prototype.hasOwnProperty.call(valores, el.elemento_id)) ? valores[el.elemento_id] : "";
+        const cfg = el.configuracion || {};
 
+        if(el.tipo === "TITULO"){
+          const nivel = String(cfg.nivel || "h3").toLowerCase();
+          const tag = ["h2","h3","h4"].indexOf(nivel) >= 0 ? nivel : "h3";
+          return '<div class="runtime-field runtime-elemento-titulo" ' + estiloSpan + '><' + tag + '>' + escapeHtml(el.etiqueta || "") + '</' + tag + '></div>';
+        }
         if(el.tipo === "LEYENDA"){
           return '<div class="runtime-field runtime-leyenda" ' + estiloSpan + '><h3>' + escapeHtml(el.etiqueta || "") + '</h3></div>';
         }
         if(el.tipo === "TEXTO_INFORMATIVO"){
           return '<div class="runtime-field runtime-texto-informativo" ' + estiloSpan + '><p>' + escapeHtml(el.etiqueta || "") + '</p></div>';
+        }
+        if(el.tipo === "CONTENEDOR"){
+          const cols = Number(cfg.columnas) === 3 ? 3 : 2;
+          const hijos = (el.hijos || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+          const cuerpo = hijos.map(function(h){ return renderRuntimeElemento(h, valores); }).join("");
+          return '<div class="runtime-field runtime-contenedor" ' + estiloSpan + '>' +
+            (el.etiqueta ? '<div class="runtime-contenedor-titulo">' + escapeHtml(el.etiqueta) + '</div>' : '') +
+            '<div class="runtime-contenedor-grid runtime-contenedor-cols-' + cols + '">' + (cuerpo || '<p>Contenedor sin componentes.</p>') + '</div>' +
+            '</div>';
+        }
+        if(el.tipo === "CAJA_VALOR"){
+          const crudo = el.valor_resuelto;
+          const textoValor = (crudo === null || crudo === undefined || crudo === "") ? "" : String(crudo);
+          return '<div class="field runtime-field runtime-caja-valor" ' + estiloSpan + '>' +
+            '<label>' + escapeHtml(el.etiqueta || "") + '</label>' +
+            '<div class="runtime-caja-valor-display">' + escapeHtml(String(cfg.prefijo || "")) + escapeHtml(textoValor) + escapeHtml(String(cfg.sufijo || "")) + '</div>' +
+            '</div>';
         }
         if(el.tipo === "CAMPO_CATALOGO"){
           const opciones = el.opciones || [];
@@ -10076,6 +10138,18 @@ window.CotizaApp = (function(){
         });
       }
 
+      // Recorre elementos y sus "hijos" (componentes dentro de un
+      // CONTENEDOR) marcando cuáles son guardables: solo CAMPO y
+      // CAMPO_CATALOGO tienen valor propio. TITULO/CONTENEDOR/LEYENDA/
+      // TEXTO_INFORMATIVO/CAJA_VALOR no se guardan (Caja de valor
+      // refleja otro campo, no tiene input propio).
+      function recolectarElementosGuardablesRuntimeCotizador_(elementos, destino){
+        (elementos || []).forEach(function(el){
+          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO") destino[el.elemento_id] = true;
+          if(Array.isArray(el.hijos)) recolectarElementosGuardablesRuntimeCotizador_(el.hijos, destino);
+        });
+      }
+
       // Junta los valores de todas las tabs (solo CAMPO y
       // CAMPO_CATALOGO — Leyenda/Texto informativo no se guardan) y
       // los manda con POST /api/cotizador/runtime/{id}/valores.
@@ -10086,9 +10160,7 @@ window.CotizaApp = (function(){
 
         const idsGuardables = {};
         ((rt.estructura && rt.estructura.tabs) || []).forEach(function(tab){
-          (tab.elementos || []).forEach(function(el){
-            if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO") idsGuardables[el.elemento_id] = true;
-          });
+          recolectarElementosGuardablesRuntimeCotizador_(tab.elementos, idsGuardables);
         });
         const valoresAEnviar = {};
         Object.keys(rt.valores || {}).forEach(function(id){
@@ -16130,10 +16202,12 @@ window.CotizaApp = (function(){
         const desc = String(e.descripcion || "").trim();
         const cfg = parseConfigElementoCotizadorFase1_(e.config_json);
         if(tipo === "TEXTO_INFORMATIVO") return '<div class="cotizador-preview-legend"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc ? '<div>'+escapeHtml(desc)+'</div>' : '')+'</div>';
+        if(tipo === "TITULO") return renderTituloPreviewCotizadorFase1_(etiqueta, cfg);
         if(tipo === "LEYENDA") return renderLeyendaPreviewCotizadorFase1_(etiqueta, desc, cfg);
         if(tipo === "CONTENEDOR") return renderContenedorPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc);
         if(tipo === "TABLA") return renderTablaPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAMPO_CATALOGO") return renderCampoCatalogoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
+        if(tipo === "CAJA_VALOR") return renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta);
         return renderCampoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
       }
 
@@ -16181,6 +16255,14 @@ window.CotizaApp = (function(){
         return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'+control+(desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div>';
       }
 
+      function renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta){
+        const prefijo = String((cfg && cfg.prefijo) || "").trim();
+        const sufijo = String((cfg && cfg.sufijo) || "").trim();
+        const defecto = String((cfg && cfg.valor_por_defecto) || "0.00").trim();
+        return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'
+          + '<div class="cotizador-preview-caja-valor">'+escapeHtml(prefijo)+escapeHtml(defecto)+escapeHtml(sufijo)+'</div></div>';
+      }
+
       function opcionesCatalogoPreviewCotizadorFase1_(catalogoId){
         const st = getCotizadorFase1State_();
         catalogoId = String(catalogoId || "").trim();
@@ -16204,9 +16286,11 @@ window.CotizaApp = (function(){
       function iconoComponenteCotizadorFase1_(tipo){
         tipo = String(tipo || "").toUpperCase();
         if(tipo === "TEXTO_INFORMATIVO") return "T";
+        if(tipo === "TITULO") return "H";
         if(tipo === "LEYENDA") return "i";
         if(tipo === "CONTENEDOR") return "▣";
         if(tipo === "TABLA") return "▦";
+        if(tipo === "CAJA_VALOR") return "$";
         return "Aa";
       }
 
@@ -16440,6 +16524,7 @@ window.CotizaApp = (function(){
       function llenarSelectCamposYReglasCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const tablaSel = byId("designerCotizadorTablaCampoDisponible");
+        const cajaValorSel = byId("designerCotizadorCajaValorCampoFuente");
         const reglaSel = byId("designerCotizadorCampoRegla");
         const reglaCatalogoSel = byId("designerCotizadorCampoCatalogoRegla");
         const catalogoSel = byId("designerCotizadorCampoCatalogoId");
@@ -16456,6 +16541,20 @@ window.CotizaApp = (function(){
             tablaSel.appendChild(opt);
           });
           tablaSel.value = actual;
+        }
+
+        if(cajaValorSel){
+          const actual = cajaValorSel.value;
+          const campos = camposDisponiblesTablaCotizadorFase1_();
+          cajaValorSel.innerHTML = '<option value="">Sin campo fuente</option>';
+          campos.forEach(function(el){
+            const id = String(el.elemento_id || "").trim();
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = labelElementoCampoCotizadorFase1_(el);
+            cajaValorSel.appendChild(opt);
+          });
+          cajaValorSel.value = actual;
         }
 
         if(catalogoSel){
@@ -16668,6 +16767,13 @@ window.CotizaApp = (function(){
 
         if(byId("designerCotizadorContenedorColumnas")) byId("designerCotizadorContenedorColumnas").value = String(cfg.columnas || 2);
         if(byId("designerCotizadorContenedorEstilo")) byId("designerCotizadorContenedorEstilo").value = cfg.estilo || "card";
+
+        if(byId("designerCotizadorCajaValorCampoFuente")) byId("designerCotizadorCajaValorCampoFuente").value = cfg.campo_fuente_id || "";
+        if(byId("designerCotizadorCajaValorDefault")) byId("designerCotizadorCajaValorDefault").value = cfg.valor_por_defecto || "";
+        if(byId("designerCotizadorCajaValorPrefijo")) byId("designerCotizadorCajaValorPrefijo").value = cfg.prefijo || "";
+        if(byId("designerCotizadorCajaValorSufijo")) byId("designerCotizadorCajaValorSufijo").value = cfg.sufijo || "";
+        setCheckedCotizadorFase1_("designerCotizadorCajaValorVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorCajaValorVisibleOferta", cfg.visible_oferta !== false);
         if(byId("designerCotizadorTablaPermiteAgregar")) byId("designerCotizadorTablaPermiteAgregar").checked = cfg.permite_agregar_filas !== false;
         if(byId("designerCotizadorTablaPermiteEliminar")) byId("designerCotizadorTablaPermiteEliminar").checked = cfg.permite_eliminar_filas !== false;
         if(byId("designerCotizadorTablaEditableUsuario")) byId("designerCotizadorTablaEditableUsuario").checked = cfg.tabla_editable !== false;
@@ -16721,6 +16827,14 @@ window.CotizaApp = (function(){
         if(tipo === "CONTENEDOR"){
           cfg.columnas = Number(byId("designerCotizadorContenedorColumnas") ? byId("designerCotizadorContenedorColumnas").value : 2) || 2;
           cfg.estilo = byId("designerCotizadorContenedorEstilo") ? byId("designerCotizadorContenedorEstilo").value : "card";
+        }
+        if(tipo === "CAJA_VALOR"){
+          cfg.campo_fuente_id = byId("designerCotizadorCajaValorCampoFuente") ? byId("designerCotizadorCajaValorCampoFuente").value : "";
+          cfg.valor_por_defecto = byId("designerCotizadorCajaValorDefault") ? byId("designerCotizadorCajaValorDefault").value : "";
+          cfg.prefijo = byId("designerCotizadorCajaValorPrefijo") ? byId("designerCotizadorCajaValorPrefijo").value : "";
+          cfg.sufijo = byId("designerCotizadorCajaValorSufijo") ? byId("designerCotizadorCajaValorSufijo").value : "";
+          cfg.visible_calculadora = byId("designerCotizadorCajaValorVisibleCalc") ? byId("designerCotizadorCajaValorVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorCajaValorVisibleOferta") ? byId("designerCotizadorCajaValorVisibleOferta").checked : true;
         }
         if(tipo === "TABLA"){
           cfg.columnas = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
@@ -16791,18 +16905,22 @@ window.CotizaApp = (function(){
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
         const catalogoId = tipo === "CAMPO_CATALOGO" ? String(cfgObj.catalogo_id || "").trim() : "";
         if(tipo === "CAMPO_CATALOGO" && !catalogoId){ mostrarToast("Seleccione el catálogo del componente."); return; }
+        const padreId = tipo === "CONTENEDOR" ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
+        const fuenteId = tipo === "CAJA_VALOR" ? String(cfgObj.campo_fuente_id || "").trim() : "";
         const registro = {
           elemento_id: elementoId,
           tab_id: st.tabId,
           tipo: tipo,
           etiqueta: etiqueta,
           catalogo_id: catalogoId || null,
+          componente_padre_id: padreId || null,
+          campo_fuente_id: fuenteId || null,
           columnas_ancho: 1,
           orden: byId("designerCotizadorElementoOrden") ? byId("designerCotizadorElementoOrden").value : "",
           requerido: !!cfgObj.obligatorio,

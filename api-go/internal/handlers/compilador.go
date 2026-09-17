@@ -35,14 +35,20 @@ type resumenCompilacion struct {
 }
 
 type elementoCompilado struct {
-	ElementoID    string         `json:"elemento_id"`
-	Tipo          string         `json:"tipo"`
-	Etiqueta      *string        `json:"etiqueta"`
-	CatalogoID    *string        `json:"catalogo_id"`
-	ColumnasAncho int            `json:"columnas_ancho"`
-	Orden         int            `json:"orden"`
-	Requerido     bool           `json:"requerido"`
-	Configuracion map[string]any `json:"configuracion"`
+	ElementoID    string              `json:"elemento_id"`
+	Tipo          string              `json:"tipo"`
+	Etiqueta      *string             `json:"etiqueta"`
+	CatalogoID    *string             `json:"catalogo_id"`
+	ColumnasAncho int                 `json:"columnas_ancho"`
+	Orden         int                 `json:"orden"`
+	Requerido     bool                `json:"requerido"`
+	Configuracion map[string]any      `json:"configuracion"`
+	Hijos         []elementoCompilado `json:"hijos,omitempty"`
+
+	// componentePadreID no se serializa: solo sirve para armar el
+	// anidado hijos/CONTENEDOR en anidarHijosCompilado antes de
+	// devolver la respuesta.
+	componentePadreID string
 }
 
 type tabCompilado struct {
@@ -179,6 +185,7 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	rows, err := h.DB.Query(ctx, `
 		SELECT t.tab_id, t.nombre, t.descripcion, t.alcance, t.orden,
 		       e.elemento_id, e.tipo, e.etiqueta, e.catalogo_id,
+		       e.componente_padre_id, e.campo_fuente_id,
 		       e.columnas_ancho, e.orden, e.requerido, e.configuracion,
 		       CASE WHEN e.catalogo_id IS NULL THEN NULL ELSE c.activo END
 		FROM tabs_cotizador t
@@ -197,11 +204,12 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		var orden int
 		var elementoID, tipo *string
 		var etiqueta, catalogoID *string
+		var componentePadreID, campoFuenteID *string
 		var columnasAncho, elementoOrden *int
 		var requerido *bool
 		var configuracion map[string]any
 		var catalogoActivo *bool
-		if err := rows.Scan(&tabID, &nombre, &descripcion, &alcance, &orden, &elementoID, &tipo, &etiqueta, &catalogoID, &columnasAncho, &elementoOrden, &requerido, &configuracion, &catalogoActivo); err != nil {
+		if err := rows.Scan(&tabID, &nombre, &descripcion, &alcance, &orden, &elementoID, &tipo, &etiqueta, &catalogoID, &componentePadreID, &campoFuenteID, &columnasAncho, &elementoOrden, &requerido, &configuracion, &catalogoActivo); err != nil {
 			return resultado, err
 		}
 		indice, existe := tabsPorID[tabID]
@@ -217,7 +225,14 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		if cfg == nil {
 			cfg = map[string]any{}
 		}
-		el := elementoCompilado{ElementoID: *elementoID, Tipo: valorString(tipo), Etiqueta: etiqueta, CatalogoID: catalogoID, ColumnasAncho: valorInt(columnasAncho), Orden: valorInt(elementoOrden), Requerido: valorBool(requerido), Configuracion: cfg}
+		el := elementoCompilado{ElementoID: *elementoID, Tipo: valorString(tipo), Etiqueta: etiqueta, CatalogoID: catalogoID, ColumnasAncho: valorInt(columnasAncho), Orden: valorInt(elementoOrden), Requerido: valorBool(requerido), Configuracion: cfg, componentePadreID: valorString(componentePadreID)}
+		if el.Tipo == "CAJA_VALOR" {
+			if fuente := valorString(campoFuenteID); fuente != "" {
+				el.Configuracion["campo_fuente_id"] = fuente
+			} else {
+				delete(el.Configuracion, "campo_fuente_id")
+			}
+		}
 		resultado.Tabs[indice].Elementos = append(resultado.Tabs[indice].Elementos, el)
 		resultado.Resumen.ElementosTab++
 		if el.Tipo == "CAMPO" {
@@ -243,11 +258,49 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 			resultado.Advertencias = append(resultado.Advertencias, fmt.Sprintf("La sección %s (%s) no tiene elementos activos.", tab.Nombre, tab.TabID))
 		}
 	}
+	for i := range resultado.Tabs {
+		resultado.Tabs[i].Elementos = anidarHijosCompilado(resultado.Tabs[i].Elementos, &resultado)
+	}
 	if err := h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM reglas WHERE activo=true`).Scan(&resultado.Resumen.Reglas); err != nil {
 		return resultado, err
 	}
 	resultado.Valido = len(resultado.Errores) == 0
 	return resultado, nil
+}
+
+// anidarHijosCompilado saca de la lista plana de una sección los elementos
+// que tienen componente_padre_id y los mueve al array "hijos" del
+// Contenedor correspondiente. Solo hay un nivel de anidado en esta ronda
+// (no hay contenedores dentro de contenedores todavía). Un padre inexistente,
+// inactivo (ya filtrado por el WHERE e.activo=true) o que no sea CONTENEDOR
+// se reporta como error de compilación y el elemento se deja en el nivel
+// superior para no perderlo silenciosamente.
+func anidarHijosCompilado(elementos []elementoCompilado, resultado *resultadoValidacion) []elementoCompilado {
+	porID := make(map[string]int, len(elementos))
+	for i, el := range elementos {
+		porID[el.ElementoID] = i
+	}
+	hijosPorPadre := make(map[string][]elementoCompilado)
+	top := make([]elementoCompilado, 0, len(elementos))
+	for _, el := range elementos {
+		if el.componentePadreID == "" {
+			top = append(top, el)
+			continue
+		}
+		indicePadre, existe := porID[el.componentePadreID]
+		if !existe || elementos[indicePadre].Tipo != "CONTENEDOR" {
+			resultado.Errores = append(resultado.Errores, fmt.Sprintf("El elemento %s referencia un componente padre (%s) que no existe o no es un Contenedor activo.", el.ElementoID, el.componentePadreID))
+			top = append(top, el)
+			continue
+		}
+		hijosPorPadre[el.componentePadreID] = append(hijosPorPadre[el.componentePadreID], el)
+	}
+	for i := range top {
+		if hijos, ok := hijosPorPadre[top[i].ElementoID]; ok {
+			top[i].Hijos = hijos
+		}
+	}
+	return top
 }
 
 func respuestaCompilador(resultado resultadoValidacion, compilado bool, version, compiladoID string) map[string]any {

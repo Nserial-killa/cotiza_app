@@ -116,6 +116,168 @@ func TestCotizadorElementos_ValidaCatalogoSegunTipo(t *testing.T) {
 	}
 }
 
+// TestCotizadorElementos_ContenedorConHijos cubre la Ronda 1 de tipos
+// nuevos (migración 0017): crea un Contenedor de 2 columnas y dos Campos
+// con componente_padre_id apuntando a él, dentro del mismo tab.
+func TestCotizadorElementos_ContenedorConHijos(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-CONT-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Contenedores", "activo": true,
+	})
+	contenedorID := "TEST-EL-CONT-" + sufijoUnico()
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": contenedorID, "tab_id": tabID, "tipo": "CONTENEDOR", "etiqueta": "Datos del cliente",
+		"orden": 1, "configuracion": map[string]any{"columnas": 2, "estilo": "card"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear contenedor: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	for i, sufijo := range []string{"A", "B"} {
+		rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+			"elemento_id": "TEST-EL-HIJO-" + sufijo + "-" + sufijoUnico(), "tab_id": tabID,
+			"tipo": "CAMPO", "etiqueta": "Campo " + sufijo, "componente_padre_id": contenedorID,
+			"orden": i + 2, "activo": true,
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("crear hijo %s: esperaba 200, dio %d: %s", sufijo, rec.Code, rec.Body.String())
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cotizador/elementos?tab_id="+url.QueryEscape(tabID), nil)
+	rec = httptest.NewRecorder()
+	handler.ListarElementos(rec, req)
+	var res struct {
+		OK        bool                   `json:"ok"`
+		Elementos []elementoTabCotizador `json:"elementos"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	if !res.OK || len(res.Elementos) != 3 {
+		t.Fatalf("esperaba 3 elementos (contenedor + 2 hijos): %+v", res)
+	}
+	hijos := 0
+	for _, el := range res.Elementos {
+		if el.ComponentePadreID != nil && *el.ComponentePadreID == contenedorID {
+			hijos++
+		}
+	}
+	if hijos != 2 {
+		t.Fatalf("esperaba 2 hijos con componente_padre_id=%s, obtuvo %d: %+v", contenedorID, hijos, res.Elementos)
+	}
+}
+
+func TestCotizadorElementos_ContenedorValidaColumnasYSinPadre(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-CONT-VAL-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Validación contenedor", "activo": true,
+	})
+
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CONT-BAD-COLS-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CONTENEDOR", "etiqueta": "Malo", "configuracion": map[string]any{"columnas": 5}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("columnas=5: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	otroContenedorID := "TEST-EL-CONT-OTRO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": otroContenedorID, "tab_id": tabID, "tipo": "CONTENEDOR", "etiqueta": "Otro",
+		"configuracion": map[string]any{"columnas": 2}, "activo": true,
+	})
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CONT-CON-PADRE-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CONTENEDOR", "etiqueta": "No debería poder tener padre", "componente_padre_id": otroContenedorID,
+		"configuracion": map[string]any{"columnas": 2}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("contenedor con padre: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCotizadorElementos_PadreDebeSerContenedorActivoDelMismoTab(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-PADRE-" + sufijoUnico()
+	otroTabID := "TEST-TAB-PADRE-OTRO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Padre", "activo": true,
+	})
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": otroTabID, "calculadora_id": calculadoraID, "nombre": "Otro tab", "activo": true,
+	})
+
+	campoID := "TEST-EL-NO-CONTENEDOR-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "No es contenedor", "activo": true,
+	})
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-HIJO-BAD-TIPO-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CAMPO", "etiqueta": "Hijo", "componente_padre_id": campoID, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("padre no es CONTENEDOR: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	contenedorOtroTabID := "TEST-EL-CONT-OTRO-TAB-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": contenedorOtroTabID, "tab_id": otroTabID, "tipo": "CONTENEDOR", "etiqueta": "Contenedor de otro tab",
+		"configuracion": map[string]any{"columnas": 2}, "activo": true,
+	})
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-HIJO-OTRO-TAB-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CAMPO", "etiqueta": "Hijo cruzado", "componente_padre_id": contenedorOtroTabID, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("padre de otro tab: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCotizadorElementos_CajaValorValidaCampoFuente(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-CAJA-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Caja de valor", "activo": true,
+	})
+	campoID := "TEST-EL-FUENTE-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Total", "activo": true,
+	})
+
+	cajaID := "TEST-EL-CAJA-" + sufijoUnico()
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": cajaID, "tab_id": tabID, "tipo": "CAJA_VALOR", "etiqueta": "Total mostrado",
+		"campo_fuente_id": campoID, "configuracion": map[string]any{"prefijo": "US$ ", "valor_por_defecto": "0.00"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear caja de valor: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CAJA-SIN-FUENTE-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CAJA_VALOR", "etiqueta": "Sin campo fuente", "configuracion": map[string]any{"valor_por_defecto": "0.00"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("caja de valor sin campo fuente debe ser válida: %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CAJA-FUENTE-INEXISTENTE-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CAJA_VALOR", "etiqueta": "Fuente inexistente", "campo_fuente_id": "NO-EXISTE-" + sufijoUnico(), "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("campo_fuente_id inexistente: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CAMPO-CON-FUENTE-" + sufijoUnico(), "tab_id": tabID,
+		"tipo": "CAMPO", "etiqueta": "No debería aceptar fuente", "campo_fuente_id": campoID, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("campo_fuente_id en tipo CAMPO: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCotizadorTabs_EliminarInactivaTabYElementos(t *testing.T) {
 	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	tabID := "TEST-TAB-DELETE-" + sufijoUnico()

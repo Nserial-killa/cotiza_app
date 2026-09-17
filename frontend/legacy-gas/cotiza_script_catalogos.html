@@ -656,10 +656,12 @@
         const desc = String(e.descripcion || "").trim();
         const cfg = parseConfigElementoCotizadorFase1_(e.config_json);
         if(tipo === "TEXTO_INFORMATIVO") return '<div class="cotizador-preview-legend"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc ? '<div>'+escapeHtml(desc)+'</div>' : '')+'</div>';
+        if(tipo === "TITULO") return renderTituloPreviewCotizadorFase1_(etiqueta, cfg);
         if(tipo === "LEYENDA") return renderLeyendaPreviewCotizadorFase1_(etiqueta, desc, cfg);
         if(tipo === "CONTENEDOR") return renderContenedorPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc);
         if(tipo === "TABLA") return renderTablaPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAMPO_CATALOGO") return renderCampoCatalogoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
+        if(tipo === "CAJA_VALOR") return renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta);
         return renderCampoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
       }
 
@@ -707,6 +709,14 @@
         return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'+control+(desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div>';
       }
 
+      function renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta){
+        const prefijo = String((cfg && cfg.prefijo) || "").trim();
+        const sufijo = String((cfg && cfg.sufijo) || "").trim();
+        const defecto = String((cfg && cfg.valor_por_defecto) || "0.00").trim();
+        return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'
+          + '<div class="cotizador-preview-caja-valor">'+escapeHtml(prefijo)+escapeHtml(defecto)+escapeHtml(sufijo)+'</div></div>';
+      }
+
       function opcionesCatalogoPreviewCotizadorFase1_(catalogoId){
         const st = getCotizadorFase1State_();
         catalogoId = String(catalogoId || "").trim();
@@ -730,9 +740,11 @@
       function iconoComponenteCotizadorFase1_(tipo){
         tipo = String(tipo || "").toUpperCase();
         if(tipo === "TEXTO_INFORMATIVO") return "T";
+        if(tipo === "TITULO") return "H";
         if(tipo === "LEYENDA") return "i";
         if(tipo === "CONTENEDOR") return "▣";
         if(tipo === "TABLA") return "▦";
+        if(tipo === "CAJA_VALOR") return "$";
         return "Aa";
       }
 
@@ -966,6 +978,7 @@
       function llenarSelectCamposYReglasCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const tablaSel = byId("designerCotizadorTablaCampoDisponible");
+        const cajaValorSel = byId("designerCotizadorCajaValorCampoFuente");
         const reglaSel = byId("designerCotizadorCampoRegla");
         const reglaCatalogoSel = byId("designerCotizadorCampoCatalogoRegla");
         const catalogoSel = byId("designerCotizadorCampoCatalogoId");
@@ -982,6 +995,20 @@
             tablaSel.appendChild(opt);
           });
           tablaSel.value = actual;
+        }
+
+        if(cajaValorSel){
+          const actual = cajaValorSel.value;
+          const campos = camposDisponiblesTablaCotizadorFase1_();
+          cajaValorSel.innerHTML = '<option value="">Sin campo fuente</option>';
+          campos.forEach(function(el){
+            const id = String(el.elemento_id || "").trim();
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = labelElementoCampoCotizadorFase1_(el);
+            cajaValorSel.appendChild(opt);
+          });
+          cajaValorSel.value = actual;
         }
 
         if(catalogoSel){
@@ -1194,6 +1221,13 @@
 
         if(byId("designerCotizadorContenedorColumnas")) byId("designerCotizadorContenedorColumnas").value = String(cfg.columnas || 2);
         if(byId("designerCotizadorContenedorEstilo")) byId("designerCotizadorContenedorEstilo").value = cfg.estilo || "card";
+
+        if(byId("designerCotizadorCajaValorCampoFuente")) byId("designerCotizadorCajaValorCampoFuente").value = cfg.campo_fuente_id || "";
+        if(byId("designerCotizadorCajaValorDefault")) byId("designerCotizadorCajaValorDefault").value = cfg.valor_por_defecto || "";
+        if(byId("designerCotizadorCajaValorPrefijo")) byId("designerCotizadorCajaValorPrefijo").value = cfg.prefijo || "";
+        if(byId("designerCotizadorCajaValorSufijo")) byId("designerCotizadorCajaValorSufijo").value = cfg.sufijo || "";
+        setCheckedCotizadorFase1_("designerCotizadorCajaValorVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorCajaValorVisibleOferta", cfg.visible_oferta !== false);
         if(byId("designerCotizadorTablaPermiteAgregar")) byId("designerCotizadorTablaPermiteAgregar").checked = cfg.permite_agregar_filas !== false;
         if(byId("designerCotizadorTablaPermiteEliminar")) byId("designerCotizadorTablaPermiteEliminar").checked = cfg.permite_eliminar_filas !== false;
         if(byId("designerCotizadorTablaEditableUsuario")) byId("designerCotizadorTablaEditableUsuario").checked = cfg.tabla_editable !== false;
@@ -1247,6 +1281,14 @@
         if(tipo === "CONTENEDOR"){
           cfg.columnas = Number(byId("designerCotizadorContenedorColumnas") ? byId("designerCotizadorContenedorColumnas").value : 2) || 2;
           cfg.estilo = byId("designerCotizadorContenedorEstilo") ? byId("designerCotizadorContenedorEstilo").value : "card";
+        }
+        if(tipo === "CAJA_VALOR"){
+          cfg.campo_fuente_id = byId("designerCotizadorCajaValorCampoFuente") ? byId("designerCotizadorCajaValorCampoFuente").value : "";
+          cfg.valor_por_defecto = byId("designerCotizadorCajaValorDefault") ? byId("designerCotizadorCajaValorDefault").value : "";
+          cfg.prefijo = byId("designerCotizadorCajaValorPrefijo") ? byId("designerCotizadorCajaValorPrefijo").value : "";
+          cfg.sufijo = byId("designerCotizadorCajaValorSufijo") ? byId("designerCotizadorCajaValorSufijo").value : "";
+          cfg.visible_calculadora = byId("designerCotizadorCajaValorVisibleCalc") ? byId("designerCotizadorCajaValorVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorCajaValorVisibleOferta") ? byId("designerCotizadorCajaValorVisibleOferta").checked : true;
         }
         if(tipo === "TABLA"){
           cfg.columnas = Array.isArray(st.tablaColumnasTemp) ? st.tablaColumnasTemp : [];
@@ -1317,18 +1359,22 @@
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
         const catalogoId = tipo === "CAMPO_CATALOGO" ? String(cfgObj.catalogo_id || "").trim() : "";
         if(tipo === "CAMPO_CATALOGO" && !catalogoId){ mostrarToast("Seleccione el catálogo del componente."); return; }
+        const padreId = tipo === "CONTENEDOR" ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
+        const fuenteId = tipo === "CAJA_VALOR" ? String(cfgObj.campo_fuente_id || "").trim() : "";
         const registro = {
           elemento_id: elementoId,
           tab_id: st.tabId,
           tipo: tipo,
           etiqueta: etiqueta,
           catalogo_id: catalogoId || null,
+          componente_padre_id: padreId || null,
+          campo_fuente_id: fuenteId || null,
           columnas_ancho: 1,
           orden: byId("designerCotizadorElementoOrden") ? byId("designerCotizadorElementoOrden").value : "",
           requerido: !!cfgObj.obligatorio,

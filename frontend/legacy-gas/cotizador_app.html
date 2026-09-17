@@ -460,6 +460,17 @@
               background:#f8fafc;
               color:#334155;
             }
+            .cotizador-preview-caja-valor{
+              border:1px solid #d9e2ef;
+              border-radius:10px;
+              padding:9px 10px;
+              min-height:38px;
+              background:#eef6ff;
+              color:#0b3b82;
+              font-weight:700;
+              display:flex;
+              align-items:center;
+            }
             .cotizador-preview-container{
               border:1px solid #d9e2ef;
               border-radius:16px;
@@ -2094,6 +2105,9 @@
                       <option value="CAMPO_CATALOGO">Campo Catálogo</option>
                       <option value="LEYENDA">Leyenda</option>
                       <option value="TEXTO_INFORMATIVO">Texto informativo</option>
+                      <option value="TITULO">Título</option>
+                      <option value="CONTENEDOR">Contenedor</option>
+                      <option value="CAJA_VALOR">Caja de valor</option>
                     </select>
                   </div>
 
@@ -2360,7 +2374,6 @@
                     <div class="field ctz-f-container-cols">
                       <label for="designerCotizadorContenedorColumnas">Columnas del contenedor</label>
                       <select id="designerCotizadorContenedorColumnas" class="select">
-                        <option value="1">1 columna</option>
                         <option value="2">2 columnas</option>
                         <option value="3">3 columnas</option>
                       </select>

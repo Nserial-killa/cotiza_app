@@ -87,6 +87,65 @@ func TestCompilador_TabSinElementosEsAdvertencia(t *testing.T) {
 	}
 }
 
+// TestCompilador_AnidaHijosDeContenedor cubre la Ronda 1 de tipos nuevos
+// (migración 0017): un Contenedor con dos Campos hijos no debe aparecer con
+// esos hijos en el array plano "elementos" del tab compilado — deben quedar
+// anidados en su "hijos".
+func TestCompilador_AnidaHijosDeContenedor(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-COMP-CONT-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Contenedor compilado", "activo": true,
+	})
+	contenedorID := "TEST-COMP-CONT-EL-" + sufijoUnico()
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": contenedorID, "tab_id": tabID, "tipo": "CONTENEDOR", "etiqueta": "Datos",
+		"orden": 1, "configuracion": map[string]any{"columnas": 2}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear contenedor: %s", rec.Body.String())
+	}
+	hijoAID := "TEST-COMP-HIJO-A-" + sufijoUnico()
+	hijoBID := "TEST-COMP-HIJO-B-" + sufijoUnico()
+	for i, id := range []string{hijoAID, hijoBID} {
+		rec = postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+			"elemento_id": id, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Campo " + id,
+			"componente_padre_id": contenedorID, "orden": i + 2, "activo": true,
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("crear hijo %s: %s", id, rec.Body.String())
+		}
+	}
+
+	handler := &CompiladorHandler{DB: tabsHandler.DB}
+	res := postCompilador(t, handler.Validar, calculadoraID)
+	if !res.Valido {
+		t.Fatalf("esperaba válido, errores: %+v", res.Errores)
+	}
+
+	// postCompilador no expone los tabs compilados (solo el resumen), así
+	// que se vuelve a llamar validarConfiguracion directo para inspeccionar
+	// la estructura anidada.
+	resultado, err := handler.validarConfiguracion(context.Background(), calculadoraID)
+	if err != nil {
+		t.Fatalf("validarConfiguracion: %v", err)
+	}
+	if len(resultado.Tabs) != 1 {
+		t.Fatalf("esperaba 1 tab, obtuvo %d", len(resultado.Tabs))
+	}
+	elementos := resultado.Tabs[0].Elementos
+	if len(elementos) != 1 || elementos[0].ElementoID != contenedorID {
+		t.Fatalf("esperaba solo el contenedor en el nivel plano, obtuvo: %+v", elementos)
+	}
+	if len(elementos[0].Hijos) != 2 {
+		t.Fatalf("esperaba 2 hijos anidados en el contenedor, obtuvo %d: %+v", len(elementos[0].Hijos), elementos[0].Hijos)
+	}
+	idsHijos := map[string]bool{elementos[0].Hijos[0].ElementoID: true, elementos[0].Hijos[1].ElementoID: true}
+	if !idsHijos[hijoAID] || !idsHijos[hijoBID] {
+		t.Fatalf("hijos anidados no son los esperados: %+v", elementos[0].Hijos)
+	}
+}
+
 func TestCompilador_DosPublicacionesVersionanYDejanUnaActiva(t *testing.T) {
 	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	tabID := "TEST-COMP-PUB-" + sufijoUnico()
