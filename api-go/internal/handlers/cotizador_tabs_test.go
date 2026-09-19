@@ -197,6 +197,52 @@ func TestCotizadorElementos_ContenedorValidaColumnasYSinPadre(t *testing.T) {
 	}
 }
 
+func TestCotizadorElementos_OpcionesPropuestaValidaConfiguracionYAdmiteHijos(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-OPCIONES-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Opciones", "activo": true,
+	})
+	campoPrincipalID := "TEST-EL-OPC-PRINCIPAL-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoPrincipalID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Precio", "activo": true,
+	})
+	padreID := "TEST-EL-OPCIONES-" + sufijoUnico()
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": padreID, "tab_id": tabID, "tipo": "OPCIONES_PROPUESTA", "etiqueta": "Planes",
+		"configuracion": map[string]any{
+			"cantidad_inicial": 2, "nombres_sugeridos": "Starter, Premium", "vista_editar": "PESTANAS",
+			"vista_resumen": "CAJAS", "vista_oferta": "TABLA_COMPARATIVA", "campo_principal_id": campoPrincipalID,
+			"permitir_duplicar": true, "permitir_eliminar": true, "permitir_renombrar": true,
+		}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear Opciones de Propuesta: %d: %s", rec.Code, rec.Body.String())
+	}
+	hijoID := "TEST-EL-OPC-HIJO-" + sufijoUnico()
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": hijoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Licencias",
+		"componente_padre_id": padreID, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear hijo de Opciones de Propuesta: %d: %s", rec.Code, rec.Body.String())
+	}
+
+	casosInvalidos := []map[string]any{
+		{"cantidad_inicial": 0, "vista_editar": "PESTANAS", "vista_resumen": "CAJAS", "vista_oferta": "CAJAS"},
+		{"cantidad_inicial": 1, "vista_editar": "CARRUSEL", "vista_resumen": "CAJAS", "vista_oferta": "CAJAS"},
+	}
+	for _, configuracion := range casosInvalidos {
+		rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+			"elemento_id": "TEST-EL-OPC-INVALIDO-" + sufijoUnico(), "tab_id": tabID,
+			"tipo": "OPCIONES_PROPUESTA", "etiqueta": "Inválido", "configuracion": configuracion, "activo": true,
+		})
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("configuración inválida debía responder 400: %+v -> %d %s", configuracion, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestCotizadorElementos_PadreDebeSerContenedorActivoDelMismoTab(t *testing.T) {
 	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	tabID := "TEST-TAB-PADRE-" + sufijoUnico()

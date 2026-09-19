@@ -52,6 +52,7 @@ func main() {
 	auth := &handlers.AuthHandler{DB: pool}
 	catalogos := &handlers.CatalogosHandler{DB: pool}
 	cotizadorTabs := &handlers.CotizadorTabsHandler{DB: pool}
+	seccionesAdicionales := &handlers.SeccionesAdicionalesHandler{DB: pool}
 	compilador := &handlers.CompiladorHandler{DB: pool}
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 	reglas := &handlers.ReglasHandler{DB: pool}
@@ -109,6 +110,9 @@ func main() {
 			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
 			r.Post("/cotizador/elementos", cotizadorTabs.GuardarElemento)
 			r.Delete("/cotizador/elementos/{id}", cotizadorTabs.EliminarElemento)
+			r.Get("/cotizador/secciones-reutilizables", seccionesAdicionales.ListarReutilizables)
+			r.Post("/cotizador/elementos/{elemento_id}/secciones", seccionesAdicionales.Asociar)
+			r.Delete("/cotizador/elementos/{elemento_id}/secciones/{tab_id}", seccionesAdicionales.Desasociar)
 			r.Post("/cotizador/elementos/{elemento_id}/items", listaPreciosItems.Crear)
 			r.Patch("/cotizador/items/{item_id}", listaPreciosItems.Editar)
 			r.Delete("/cotizador/items/{item_id}", listaPreciosItems.Eliminar)
@@ -119,6 +123,7 @@ func main() {
 			r.Post("/cotizador/compilar", compilador.Compilar)
 			r.Get("/cotizador/runtime/{cotizacion_id}", runtimeCotizador.Obtener)
 			r.Post("/cotizador/runtime/{cotizacion_id}/valores", runtimeCotizador.GuardarValores)
+			r.Post("/cotizador/runtime/{cotizacion_id}/opciones", runtimeCotizador.AdministrarOpciones)
 			r.Route("/reglas", func(r chi.Router) {
 				r.Get("/", reglas.Listar)
 				r.Post("/", reglas.Guardar)

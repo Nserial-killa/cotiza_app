@@ -146,6 +146,46 @@ func TestCompilador_AnidaHijosDeContenedor(t *testing.T) {
 	}
 }
 
+func TestCompilador_AnidaHijosYConfiguracionDeOpcionesPropuesta(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-COMP-OPC-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Planes", "activo": true,
+	})
+	padreID := "TEST-COMP-OPC-PADRE-" + sufijoUnico()
+	hijoID := "TEST-COMP-OPC-HIJO-" + sufijoUnico()
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": padreID, "tab_id": tabID, "tipo": "OPCIONES_PROPUESTA", "etiqueta": "Opciones",
+		"configuracion": map[string]any{
+			"cantidad_inicial": 2, "nombres_sugeridos": "Starter, Premium", "vista_editar": "PESTANAS",
+			"vista_resumen": "CAJAS", "vista_oferta": "TABLA_COMPARATIVA", "permitir_duplicar": true,
+		}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear padre: %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": hijoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Precio",
+		"componente_padre_id": padreID, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear hijo: %d: %s", rec.Code, rec.Body.String())
+	}
+	handler := &CompiladorHandler{DB: tabsHandler.DB}
+	resultado, err := handler.validarConfiguracion(context.Background(), calculadoraID)
+	if err != nil || !resultado.Valido {
+		t.Fatalf("compilar opciones: resultado=%+v err=%v", resultado, err)
+	}
+	elementos := resultado.Tabs[0].Elementos
+	if len(elementos) != 1 || elementos[0].ElementoID != padreID || len(elementos[0].Hijos) != 1 || elementos[0].Hijos[0].ElementoID != hijoID {
+		t.Fatalf("estructura de opciones no quedó anidada: %+v", elementos)
+	}
+	cfg := elementos[0].Configuracion
+	if cfg["cantidad_inicial"] != float64(2) || cfg["nombres_sugeridos"] != "Starter, Premium" || cfg["vista_editar"] != "PESTANAS" {
+		t.Fatalf("configuración de opciones incompleta en compilado: %+v", cfg)
+	}
+}
+
 func TestCompilador_DosPublicacionesVersionanYDejanUnaActiva(t *testing.T) {
 	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	tabID := "TEST-COMP-PUB-" + sufijoUnico()

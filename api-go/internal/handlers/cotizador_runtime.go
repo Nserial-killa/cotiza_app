@@ -25,14 +25,28 @@ type CotizadorRuntimeHandler struct {
 }
 
 type guardarValoresRuntimeRequest struct {
-	Version int                        `json:"version"`
-	Valores map[string]json.RawMessage `json:"valores"`
+	Version          int                         `json:"version"`
+	Valores          map[string]json.RawMessage  `json:"valores"`
+	ValoresPorOpcion []guardarValorOpcionRuntime `json:"valores_por_opcion"`
+}
+
+type guardarValorOpcionRuntime struct {
+	ElementoID string          `json:"elemento_id"`
+	OpcionID   string          `json:"opcion_id"`
+	Valor      json.RawMessage `json:"valor"`
+}
+
+type valorPendienteRuntime struct {
+	ElementoID string
+	OpcionID   string
+	Valor      json.RawMessage
 }
 
 type elementoRuntime struct {
 	Tipo             string
 	CatalogoID       string
 	TipoListaPrecios string
+	PadreOpcionesID  string
 
 	// Solo para TABLA (Ronda 4): columnas válidas de esta tabla (columna_id
 	// -> true) y si se permite agregar/quitar filas al guardar.
@@ -77,6 +91,11 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las opciones de catálogo."})
 		return
 	}
+	if err := h.asegurarOpcionesPropuesta(ctx, &runtime); err != nil {
+		log.Printf("cotizador runtime: error preparando opciones de %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible preparar las opciones de propuesta."})
+		return
+	}
 	valores, err := h.leerValores(ctx, h.DB, cotizacionID, runtime.Version)
 	if err != nil {
 		log.Printf("cotizador runtime: error leyendo valores de %s: %v", cotizacionID, err)
@@ -84,6 +103,7 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		return
 	}
 	resolverCamposCalculados(indexarElementosCompletoRuntime(runtime.Estructura), valores)
+	resolverCamposCalculadosPorOpcion(indexarElementosCompletoRuntime(runtime.Estructura), runtime.Elementos, valores)
 	incluirValoresCajaValor(runtime.Estructura, valores)
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": valores, "version": runtime.Version})
 }
@@ -97,7 +117,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	if req.Version <= 0 || req.Valores == nil {
+	if req.Version <= 0 || (req.Valores == nil && req.ValoresPorOpcion == nil) {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar version y valores."})
 		return
 	}
@@ -108,11 +128,53 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		h.responderError(w, "guardando runtime", cotizacionID, err)
 		return
 	}
+	pendientes := make([]valorPendienteRuntime, 0, len(req.Valores)+len(req.ValoresPorOpcion))
 	for elementoID, valor := range req.Valores {
-		elementoID = strings.TrimSpace(elementoID)
+		pendientes = append(pendientes, valorPendienteRuntime{ElementoID: strings.TrimSpace(elementoID), Valor: valor})
+	}
+	for _, valor := range req.ValoresPorOpcion {
+		pendientes = append(pendientes, valorPendienteRuntime{
+			ElementoID: strings.TrimSpace(valor.ElementoID),
+			OpcionID:   strings.TrimSpace(valor.OpcionID),
+			Valor:      valor.Valor,
+		})
+	}
+	vistos := make(map[string]bool, len(pendientes))
+	for _, pendiente := range pendientes {
+		elementoID := pendiente.ElementoID
+		valor := pendiente.Valor
 		elemento, existe := runtime.Elementos[elementoID]
 		if !existe {
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El elemento %s no pertenece a la estructura compilada de esta cotización.", elementoID)})
+			return
+		}
+		clave := elementoID + "\x00" + pendiente.OpcionID
+		if vistos[clave] {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El valor de %s está repetido para la misma opción.", elementoID)})
+			return
+		}
+		vistos[clave] = true
+		if elemento.PadreOpcionesID != "" {
+			if pendiente.OpcionID == "" {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El elemento %s pertenece a Opciones de Propuesta y debe indicar opcion_id.", elementoID)})
+				return
+			}
+			var opcionValida bool
+			if err := h.DB.QueryRow(ctx, `
+				SELECT EXISTS(
+					SELECT 1 FROM cotizacion_opciones
+					WHERE opcion_id=$1 AND cotizacion_id=$2 AND numero_version=$3 AND elemento_padre_id=$4
+				)`, pendiente.OpcionID, cotizacionID, req.Version, elemento.PadreOpcionesID).Scan(&opcionValida); err != nil {
+				log.Printf("cotizador runtime: error validando opción %s: %v", pendiente.OpcionID, err)
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar la opción de propuesta."})
+				return
+			}
+			if !opcionValida {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("La opción %s no pertenece al componente padre de %s.", pendiente.OpcionID, elementoID)})
+				return
+			}
+		} else if pendiente.OpcionID != "" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El elemento %s no pertenece a Opciones de Propuesta y no admite opcion_id.", elementoID)})
 			return
 		}
 		if !json.Valid(valor) {
@@ -180,7 +242,10 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 				}
 			}
 			var previoRaw []byte
-			errPrevio := h.DB.QueryRow(ctx, `SELECT valor FROM cotizacion_valores WHERE cotizacion_id=$1 AND version=$2 AND elemento_id=$3`, cotizacionID, req.Version, elementoID).Scan(&previoRaw)
+			errPrevio := h.DB.QueryRow(ctx, `
+				SELECT valor FROM cotizacion_valores
+				WHERE cotizacion_id=$1 AND version=$2 AND elemento_id=$3
+				  AND opcion_id IS NOT DISTINCT FROM NULLIF($4, '')`, cotizacionID, req.Version, elementoID, pendiente.OpcionID).Scan(&previoRaw)
 			previoFilas := 0
 			if errPrevio == nil {
 				var previoParsed map[string]any
@@ -211,18 +276,28 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		return
 	}
 	defer tx.Rollback(ctx)
-	for elementoID, valor := range req.Valores {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO cotizacion_valores (cotizacion_id, version, elemento_id, valor)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (cotizacion_id, version, elemento_id) DO UPDATE SET valor=EXCLUDED.valor`,
-			cotizacionID, req.Version, strings.TrimSpace(elementoID), string(valor))
+	for _, pendiente := range pendientes {
+		if pendiente.OpcionID == "" {
+			_, err = tx.Exec(ctx, `
+				INSERT INTO cotizacion_valores (cotizacion_id, version, elemento_id, opcion_id, valor)
+				VALUES ($1, $2, $3, NULL, $4)
+				ON CONFLICT (cotizacion_id, version, elemento_id) WHERE opcion_id IS NULL
+				DO UPDATE SET valor=EXCLUDED.valor`,
+				cotizacionID, req.Version, pendiente.ElementoID, string(pendiente.Valor))
+		} else {
+			_, err = tx.Exec(ctx, `
+				INSERT INTO cotizacion_valores (cotizacion_id, version, elemento_id, opcion_id, valor)
+				VALUES ($1, $2, $3, $4, $5)
+				ON CONFLICT (cotizacion_id, version, elemento_id, opcion_id) WHERE opcion_id IS NOT NULL
+				DO UPDATE SET valor=EXCLUDED.valor`,
+				cotizacionID, req.Version, pendiente.ElementoID, pendiente.OpcionID, string(pendiente.Valor))
+		}
 		if err != nil {
 			break
 		}
 	}
 	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-	comentario := fmt.Sprintf("Se actualizaron %d valor(es) del cotizador.", len(req.Valores))
+	comentario := fmt.Sprintf("Se actualizaron %d valor(es) del cotizador.", len(pendientes))
 	if err == nil {
 		err = insertarHistorial(ctx, tx, cotizacionID, &req.Version, "valores_actualizados", nil, nil, comentario, usuarioID)
 	}
@@ -237,7 +312,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar los valores de la cotización."})
 		return
 	}
-	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "version": req.Version, "valores_guardados": len(req.Valores)})
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "version": req.Version, "valores_guardados": len(pendientes)})
 }
 
 func (h *CotizadorRuntimeHandler) cargarContexto(ctx context.Context, cotizacionID string, versionSolicitada int, fijar bool) (contextoRuntime, error) {
@@ -304,7 +379,7 @@ func indexarElementosRuntime(estructura map[string]any) map[string]elementoRunti
 	for _, tabRaw := range tabs {
 		tab, _ := tabRaw.(map[string]any)
 		elementos, _ := tab["elementos"].([]any)
-		indexarElementosRuntimeRecursivo(elementos, resultado)
+		indexarElementosRuntimeRecursivo(elementos, resultado, "")
 	}
 	return resultado
 }
@@ -312,7 +387,7 @@ func indexarElementosRuntime(estructura map[string]any) map[string]elementoRunti
 // indexarElementosRuntimeRecursivo baja también a "hijos": desde la Ronda 1
 // del Diseñador un CONTENEDOR anida sus componentes ahí en vez de dejarlos
 // en el array plano de la sección (ver anidarHijosCompilado en compilador.go).
-func indexarElementosRuntimeRecursivo(elementos []any, resultado map[string]elementoRuntime) {
+func indexarElementosRuntimeRecursivo(elementos []any, resultado map[string]elementoRuntime, padreOpcionesID string) {
 	for _, elementoRaw := range elementos {
 		elemento, _ := elementoRaw.(map[string]any)
 		id := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
@@ -344,10 +419,15 @@ func indexarElementosRuntimeRecursivo(elementos []any, resultado map[string]elem
 				ColumnasTabla:         columnasTabla,
 				PermitirAgregarFilas:  permitirAgregar,
 				PermitirEliminarFilas: permitirEliminar,
+				PadreOpcionesID:       padreOpcionesID,
 			}
 		}
 		if hijos, ok := elemento["hijos"].([]any); ok {
-			indexarElementosRuntimeRecursivo(hijos, resultado)
+			nuevoPadreOpcionesID := padreOpcionesID
+			if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "OPCIONES_PROPUESTA" {
+				nuevoPadreOpcionesID = id
+			}
+			indexarElementosRuntimeRecursivo(hijos, resultado, nuevoPadreOpcionesID)
 		}
 	}
 }
@@ -670,6 +750,121 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 	return resueltos
 }
 
+// resolverCamposCalculadosPorOpcion aplica el mismo cálculo de la ruta
+// tradicional, pero conserva un resultado por opcion_id para los componentes
+// que viven dentro de OPCIONES_PROPUESTA. Un operando externo al componente
+// sigue usando su valor global; un operando de otra colección de opciones se
+// considera ambiguo y no se resuelve.
+func resolverCamposCalculadosPorOpcion(elementosPorID map[string]map[string]any, metadatos map[string]elementoRuntime, valores map[string]any) {
+	for padreID, padre := range elementosPorID {
+		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(padre["tipo"]))) != "OPCIONES_PROPUESTA" {
+			continue
+		}
+		opcionesIDs := make([]string, 0)
+		switch opciones := padre["opciones"].(type) {
+		case []cotizacionOpcion:
+			for _, opcion := range opciones {
+				opcionesIDs = append(opcionesIDs, opcion.OpcionID)
+			}
+		case []any:
+			for _, opcionRaw := range opciones {
+				opcion, _ := opcionRaw.(map[string]any)
+				opcionesIDs = append(opcionesIDs, strings.TrimSpace(fmt.Sprint(opcion["opcion_id"])))
+			}
+		}
+		for _, opcionID := range opcionesIDs {
+			if opcionID == "" {
+				continue
+			}
+			resueltos := make(map[string]float64)
+			enProceso := make(map[string]bool)
+			var resolver func(string) (float64, bool)
+			resolver = func(id string) (float64, bool) {
+				if valor, ok := resueltos[id]; ok {
+					return valor, true
+				}
+				elemento, existe := elementosPorID[id]
+				if !existe {
+					return 0, false
+				}
+				meta := metadatos[id]
+				if meta.PadreOpcionesID != "" && meta.PadreOpcionesID != padreID {
+					return 0, false
+				}
+				valorGuardado := valores[id]
+				if meta.PadreOpcionesID == padreID {
+					porOpcion, _ := valorGuardado.(map[string]any)
+					valorGuardado = porOpcion[opcionID]
+				}
+				tipo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"])))
+				if tipo == "LISTA_PRECIOS" {
+					cfg, _ := elemento["configuracion"].(map[string]any)
+					valorLista, _ := valorGuardado.(map[string]any)
+					resultado, ok := valorListaPrecios(fmt.Sprint(cfg["tipo_lista_precios"]), valorLista, precioPorItemDesdeConfiguracion(cfg))
+					if ok {
+						resueltos[id] = resultado
+					}
+					return resultado, ok
+				}
+				if tipo == "TABLA" {
+					cfg, _ := elemento["configuracion"].(map[string]any)
+					valorTabla, _ := valorGuardado.(map[string]any)
+					resultado, ok := valorTotalTabla(cfg, valorTabla)
+					if ok {
+						resueltos[id] = resultado
+					}
+					return resultado, ok
+				}
+				if tipo != "CAMPO_CALCULADO" {
+					return numeroDesdeValor(valorGuardado)
+				}
+				if enProceso[id] {
+					return 0, false
+				}
+				enProceso[id] = true
+				defer delete(enProceso, id)
+				cfg, _ := elemento["configuracion"].(map[string]any)
+				operandos := operandosDesdeConfiguracion(cfg)
+				valoresOperandos := make([]float64, 0, len(operandos))
+				for _, operandoID := range operandos {
+					valorOperando, ok := resolver(operandoID)
+					if !ok {
+						return 0, false
+					}
+					valoresOperandos = append(valoresOperandos, valorOperando)
+				}
+				decimales, ok := enteroDesdeConfiguracion(cfg, "decimales")
+				if !ok {
+					decimales = 2
+				}
+				resultado, err := calcularOperacion(valoresOperandos, strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["operacion"]))), decimales)
+				if err != nil {
+					return 0, false
+				}
+				resueltos[id] = resultado
+				return resultado, true
+			}
+
+			for id, meta := range metadatos {
+				if meta.PadreOpcionesID != padreID || (meta.Tipo != "CAMPO_CALCULADO" && meta.Tipo != "LISTA_PRECIOS" && meta.Tipo != "TABLA") {
+					continue
+				}
+				elemento := elementosPorID[id]
+				porOpcion, _ := elemento["valores_resueltos_por_opcion"].(map[string]any)
+				if porOpcion == nil {
+					porOpcion = make(map[string]any)
+				}
+				if valor, ok := resolver(id); ok {
+					porOpcion[opcionID] = valor
+				} else {
+					porOpcion[opcionID] = nil
+				}
+				elemento["valores_resueltos_por_opcion"] = porOpcion
+			}
+		}
+	}
+}
+
 // columnaPorFuncionCampo mapea cada rol de "Función del campo" (Ronda 2,
 // migración 0018) a su columna en cotizacion_versiones. NORMAL no mapea a
 // nada — no actualiza totales.
@@ -777,7 +972,7 @@ func actualizarColumnaCotizacionVersion(ctx context.Context, tx pgx.Tx, cotizaci
 }
 
 func (h *CotizadorRuntimeHandler) leerValores(ctx context.Context, q consultadorRuntime, cotizacionID string, version int) (map[string]any, error) {
-	rows, err := q.Query(ctx, `SELECT elemento_id, valor FROM cotizacion_valores WHERE cotizacion_id=$1 AND version=$2`, cotizacionID, version)
+	rows, err := q.Query(ctx, `SELECT elemento_id, opcion_id, valor FROM cotizacion_valores WHERE cotizacion_id=$1 AND version=$2`, cotizacionID, version)
 	if err != nil {
 		return nil, err
 	}
@@ -785,15 +980,25 @@ func (h *CotizadorRuntimeHandler) leerValores(ctx context.Context, q consultador
 	valores := make(map[string]any)
 	for rows.Next() {
 		var elementoID string
+		var opcionID *string
 		var raw []byte
-		if err := rows.Scan(&elementoID, &raw); err != nil {
+		if err := rows.Scan(&elementoID, &opcionID, &raw); err != nil {
 			return nil, err
 		}
 		var valor any
 		if err := json.Unmarshal(raw, &valor); err != nil {
 			return nil, err
 		}
-		valores[elementoID] = valor
+		if opcionID == nil {
+			valores[elementoID] = valor
+			continue
+		}
+		porOpcion, _ := valores[elementoID].(map[string]any)
+		if porOpcion == nil {
+			porOpcion = make(map[string]any)
+		}
+		porOpcion[*opcionID] = valor
+		valores[elementoID] = porOpcion
 	}
 	return valores, rows.Err()
 }

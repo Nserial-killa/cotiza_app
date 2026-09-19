@@ -22,14 +22,18 @@ type CotizadorTabsHandler struct {
 }
 
 type tabCotizador struct {
-	TabID         string  `json:"tab_id"`
-	CalculadoraID string  `json:"calculadora_id"`
-	Nombre        string  `json:"nombre"`
-	NombreTab     string  `json:"nombre_tab"`
-	Descripcion   *string `json:"descripcion"`
-	Alcance       string  `json:"alcance"`
-	Orden         int     `json:"orden"`
-	Activo        bool    `json:"activo"`
+	TabID                string  `json:"tab_id"`
+	CalculadoraID        string  `json:"calculadora_id"`
+	CalculadoraOrigenID  string  `json:"calculadora_origen_id"`
+	Nombre               string  `json:"nombre"`
+	NombreTab            string  `json:"nombre_tab"`
+	Descripcion          *string `json:"descripcion"`
+	Alcance              string  `json:"alcance"`
+	Orden                int     `json:"orden"`
+	Activo               bool    `json:"activo"`
+	EsPropia             bool    `json:"es_propia"`
+	SoloLectura          bool    `json:"solo_lectura"`
+	ElementoAsociacionID *string `json:"elemento_asociacion_id,omitempty"`
 }
 
 type elementoTabCotizador struct {
@@ -67,6 +71,8 @@ type guardarTabCotizadorRequest struct {
 type guardarElementoTabRequest struct {
 	ElementoID        string          `json:"elemento_id"`
 	TabID             string          `json:"tab_id"`
+	CalculadoraID     string          `json:"calculadora_id"`
+	CotizadorID       string          `json:"cotizador_id"`
 	Tipo              string          `json:"tipo"`
 	TipoElemento      string          `json:"tipo_elemento"`
 	Etiqueta          string          `json:"etiqueta"`
@@ -86,13 +92,13 @@ type guardarElementoTabRequest struct {
 // Ronda 1 del Diseñador (migración 0017) agregó TITULO, CONTENEDOR y
 // CAJA_VALOR a los 4 tipos simples del Sprint 2; Ronda 2 (migración 0018)
 // agregó CAMPO_CALCULADO; Ronda 3 (migración 0019) agregó LISTA_PRECIOS;
-// Ronda 4 (migración 0020) agrega TABLA. ESCENARIOS y SECCIONES_ADICIONALES
-// (ya armados en el HTML) llegan en rondas posteriores — no tocar esto sin
-// su propia migración de esquema.
+// Ronda 4 (migración 0020) agrega TABLA y Ronda 5 (migración 0021)
+// OPCIONES_PROPUESTA y Ronda 6 (migración 0022) SECCIONES_ADICIONALES.
 var tiposElementoSimple = map[string]bool{
 	"CAMPO": true, "CAMPO_CATALOGO": true, "LEYENDA": true, "TEXTO_INFORMATIVO": true,
 	"TITULO": true, "CONTENEDOR": true, "CAJA_VALOR": true, "CAMPO_CALCULADO": true,
-	"LISTA_PRECIOS": true, "TABLA": true,
+	"LISTA_PRECIOS": true, "TABLA": true, "OPCIONES_PROPUESTA": true,
+	"SECCIONES_ADICIONALES": true,
 }
 
 // tiposConFuncionCampo son los únicos tipos donde "Función del campo" tiene
@@ -136,10 +142,17 @@ func (h *CotizadorTabsHandler) ListarTabs(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	rows, err := h.DB.Query(ctx, `
-		SELECT tab_id, calculadora_id, nombre, descripcion, alcance, orden, activo
-		FROM tabs_cotizador
-		WHERE calculadora_id = $1
-		ORDER BY orden, nombre, tab_id`, calculadoraID)
+		SELECT t.tab_id, t.calculadora_id, t.nombre, t.descripcion, t.alcance,
+		       t.orden, t.activo, true AS es_propia, NULL::text AS elemento_asociacion_id
+		FROM tabs_cotizador t
+		WHERE t.calculadora_id = $1
+		UNION ALL
+		SELECT t.tab_id, t.calculadora_id, t.nombre, t.descripcion, t.alcance,
+		       t.orden, t.activo, false AS es_propia, a.elemento_id
+		FROM tabs_cotizador_asociaciones a
+		JOIN tabs_cotizador t ON t.tab_id = a.tab_id
+		WHERE a.calculadora_id = $1 AND t.calculadora_id <> $1
+		ORDER BY es_propia DESC, orden, nombre, tab_id`, calculadoraID)
 	if err != nil {
 		log.Printf("cotizador tabs: error listando %s: %v", calculadoraID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar las secciones."})
@@ -149,11 +162,13 @@ func (h *CotizadorTabsHandler) ListarTabs(w http.ResponseWriter, r *http.Request
 	tabs := make([]tabCotizador, 0)
 	for rows.Next() {
 		var tab tabCotizador
-		if err := rows.Scan(&tab.TabID, &tab.CalculadoraID, &tab.Nombre, &tab.Descripcion, &tab.Alcance, &tab.Orden, &tab.Activo); err != nil {
+		if err := rows.Scan(&tab.TabID, &tab.CalculadoraID, &tab.Nombre, &tab.Descripcion, &tab.Alcance, &tab.Orden, &tab.Activo, &tab.EsPropia, &tab.ElementoAsociacionID); err != nil {
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer las secciones."})
 			return
 		}
 		tab.NombreTab = tab.Nombre
+		tab.CalculadoraOrigenID = tab.CalculadoraID
+		tab.SoloLectura = !tab.EsPropia
 		tabs = append(tabs, tab)
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "tabs": tabs, "data": tabs})
@@ -186,9 +201,38 @@ func (h *CotizadorTabsHandler) GuardarTab(w http.ResponseWriter, r *http.Request
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "alcance debe ser PROPIO o REUTILIZABLE."})
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
-	_, err := h.DB.Exec(ctx, `
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible iniciar el guardado de la sección."})
+		return
+	}
+	defer tx.Rollback(ctx)
+	var calculadoraActual, alcanceActual string
+	err = tx.QueryRow(ctx, `SELECT calculadora_id, alcance FROM tabs_cotizador WHERE tab_id=$1 FOR UPDATE`, req.TabID).Scan(&calculadoraActual, &alcanceActual)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		log.Printf("cotizador tabs: error validando %s: %v", req.TabID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar la sección."})
+		return
+	}
+	if err == nil && calculadoraActual != req.CalculadoraID {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "La sección pertenece a otro cotizador y es de solo lectura desde este diseñador."})
+		return
+	}
+	if err == nil && alcanceActual == "REUTILIZABLE" && req.Alcance == "PROPIO" {
+		var asociaciones int
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM tabs_cotizador_asociaciones WHERE tab_id=$1`, req.TabID).Scan(&asociaciones); err != nil {
+			log.Printf("cotizador tabs: error consultando asociaciones de %s: %v", req.TabID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar las asociaciones de la sección."})
+			return
+		}
+		if asociaciones > 0 {
+			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "La sección está asociada a otro cotizador. Desasóciela antes de cambiar su alcance a PROPIO."})
+			return
+		}
+	}
+	_, err = tx.Exec(ctx, `
 		INSERT INTO tabs_cotizador (tab_id, calculadora_id, nombre, descripcion, alcance, orden, activo)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (tab_id) DO UPDATE SET
@@ -196,6 +240,9 @@ func (h *CotizadorTabsHandler) GuardarTab(w http.ResponseWriter, r *http.Request
 			descripcion = EXCLUDED.descripcion,
 			alcance = EXCLUDED.alcance, orden = EXCLUDED.orden, activo = EXCLUDED.activo`,
 		req.TabID, req.CalculadoraID, req.Nombre, req.Descripcion, req.Alcance, int(req.Orden), req.Activo)
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
 	if err != nil {
 		log.Printf("cotizador tabs: error guardando %s: %v", req.TabID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar la sección."})
@@ -378,12 +425,13 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 	if req.CampoFuenteID != nil {
 		fuenteID = strings.ToUpper(strings.TrimSpace(*req.CampoFuenteID))
 	}
-	if req.Tipo == "CONTENEDOR" && padreID != "" {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Contenedor no puede tener componente_padre_id: todavía no hay anidado de contenedores."})
+	esComponentePadre := req.Tipo == "CONTENEDOR" || req.Tipo == "OPCIONES_PROPUESTA"
+	if esComponentePadre && padreID != "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Contenedor u Opciones de Propuesta no puede tener componente_padre_id."})
 		return
 	}
-	if req.Tipo == "CONTENEDOR" && fuenteID != "" {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Contenedor no puede tener campo_fuente_id."})
+	if esComponentePadre && fuenteID != "" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Contenedor u Opciones de Propuesta no puede tener campo_fuente_id."})
 		return
 	}
 	if req.Tipo != "CAJA_VALOR" && fuenteID != "" {
@@ -396,6 +444,76 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El Contenedor debe indicar columnas: 2 o 3."})
 			return
 		}
+	}
+	if req.Tipo == "OPCIONES_PROPUESTA" {
+		cantidadInicial, ok := enteroDesdeConfiguracion(configuracion, "cantidad_inicial")
+		if !ok || cantidadInicial <= 0 {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "cantidad_inicial debe ser un entero positivo."})
+			return
+		}
+		configuracion["cantidad_inicial"] = cantidadInicial
+
+		nombres, err := normalizarNombresSugeridos(configuracion["nombres_sugeridos"])
+		if err != nil {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		configuracion["nombres_sugeridos"] = strings.Join(nombres, ", ")
+
+		vistas := []struct {
+			campo      string
+			porDefecto string
+			permitidas map[string]bool
+		}{
+			{"vista_editar", "PESTANAS", map[string]bool{"PESTANAS": true, "ACORDEON": true}},
+			{"vista_resumen", "CAJAS", map[string]bool{"CAJAS": true, "TABLA_COMPARATIVA": true, "NINGUNA": true}},
+			{"vista_oferta", "TABLA_COMPARATIVA", map[string]bool{"TABLA_COMPARATIVA": true, "CAJAS": true, "SOLO_SELECCIONADA": true}},
+		}
+		for _, vista := range vistas {
+			valor := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion[vista.campo])))
+			if valor == "" || valor == "<NIL>" {
+				valor = vista.porDefecto
+			}
+			if !vista.permitidas[valor] {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": vista.campo + " no tiene un valor válido."})
+				return
+			}
+			configuracion[vista.campo] = valor
+		}
+
+		campoPrincipalID := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["campo_principal_id"])))
+		if campoPrincipalID == "<NIL>" {
+			campoPrincipalID = ""
+		}
+		configuracion["campo_principal_id"] = campoPrincipalID
+		configuracion["permitir_duplicar"] = boolDesdeConfiguracion(configuracion, "permitir_duplicar", true)
+		configuracion["permitir_eliminar"] = boolDesdeConfiguracion(configuracion, "permitir_eliminar", true)
+		configuracion["permitir_renombrar"] = boolDesdeConfiguracion(configuracion, "permitir_renombrar", true)
+		configuracion["permitir_recomendado"] = boolDesdeConfiguracion(configuracion, "permitir_recomendado", true)
+		configuracion["visible_calculadora"] = boolDesdeConfiguracion(configuracion, "visible_calculadora", true)
+		configuracion["visible_oferta"] = boolDesdeConfiguracion(configuracion, "visible_oferta", true)
+	}
+	if req.Tipo == "SECCIONES_ADICIONALES" {
+		presentacion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["presentacion"])))
+		if presentacion == "" || presentacion == "<NIL>" {
+			presentacion = "CHECKS"
+		}
+		if presentacion != "CHECKS" && presentacion != "LISTA_MULTIPLE" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "presentacion debe ser CHECKS o LISTA_MULTIPLE."})
+			return
+		}
+		columnas, ok := enteroDesdeConfiguracion(configuracion, "columnas")
+		if !ok {
+			columnas = 2
+		}
+		if columnas != 1 && columnas != 2 && columnas != 4 && columnas != 6 {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "columnas debe ser 1, 2, 4 o 6 para Secciones Adicionales."})
+			return
+		}
+		configuracion["presentacion"] = presentacion
+		configuracion["columnas"] = columnas
+		configuracion["visible_calculadora"] = boolDesdeConfiguracion(configuracion, "visible_calculadora", true)
+		configuracion["visible_oferta"] = boolDesdeConfiguracion(configuracion, "visible_oferta", false)
 	}
 
 	req.FuncionCampo = strings.ToUpper(strings.TrimSpace(req.FuncionCampo))
@@ -413,6 +531,48 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
+	solicitanteID := strings.ToUpper(strings.TrimSpace(req.CalculadoraID))
+	if solicitanteID == "" {
+		solicitanteID = strings.ToUpper(strings.TrimSpace(req.CotizadorID))
+	}
+	if solicitanteID != "" {
+		var calculadoraDuena string
+		err := h.DB.QueryRow(ctx, `SELECT calculadora_id FROM tabs_cotizador WHERE tab_id=$1`, req.TabID).Scan(&calculadoraDuena)
+		if errors.Is(err, pgx.ErrNoRows) {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "La sección indicada no existe."})
+			return
+		}
+		if err != nil {
+			log.Printf("cotizador elementos: error validando dueño de %s: %v", req.TabID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar la sección."})
+			return
+		}
+		if calculadoraDuena != solicitanteID {
+			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "La sección pertenece a otro cotizador y su estructura es de solo lectura."})
+			return
+		}
+	}
+	if req.Tipo == "OPCIONES_PROPUESTA" {
+		campoPrincipalID := strings.TrimSpace(fmt.Sprint(configuracion["campo_principal_id"]))
+		if campoPrincipalID != "" {
+			if campoPrincipalID == req.ElementoID {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "campo_principal_id debe referenciar otro elemento."})
+				return
+			}
+			var tabCampo string
+			var activoCampo bool
+			err := h.DB.QueryRow(ctx, `SELECT tab_id, activo FROM elementos_tab_cotizador WHERE elemento_id=$1`, campoPrincipalID).Scan(&tabCampo, &activoCampo)
+			if errors.Is(err, pgx.ErrNoRows) || (err == nil && (tabCampo != req.TabID || !activoCampo)) {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "campo_principal_id debe ser otro elemento activo del mismo tab."})
+				return
+			}
+			if err != nil {
+				log.Printf("cotizador elementos: error validando campo principal %s: %v", campoPrincipalID, err)
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar campo_principal_id."})
+				return
+			}
+		}
+	}
 
 	if req.FuncionCampo != "NORMAL" {
 		var calculadoraID string
@@ -632,8 +792,8 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el componente padre."})
 			return
 		}
-		if tipoPadre != "CONTENEDOR" {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El componente padre debe ser de tipo CONTENEDOR."})
+		if tipoPadre != "CONTENEDOR" && tipoPadre != "OPCIONES_PROPUESTA" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El componente padre debe ser de tipo CONTENEDOR u OPCIONES_PROPUESTA."})
 			return
 		}
 		if !activoPadre {
@@ -706,6 +866,36 @@ func operandosDesdeConfiguracion(configuracion map[string]any) []string {
 		}
 	}
 	return operandos
+}
+
+// normalizarNombresSugeridos acepta el texto separado por comas que usa el
+// Diseñador y tolera también un array JSON para clientes de API. Los vacíos
+// se descartan; el runtime completa los nombres faltantes como "Opción N".
+func normalizarNombresSugeridos(valor any) ([]string, error) {
+	partes := make([]string, 0)
+	switch v := valor.(type) {
+	case nil:
+		return partes, nil
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return partes, nil
+		}
+		partes = strings.Split(v, ",")
+	case []any:
+		for _, item := range v {
+			partes = append(partes, fmt.Sprint(item))
+		}
+	default:
+		return nil, errors.New("nombres_sugeridos debe ser una lista separada por comas")
+	}
+	resultado := make([]string, 0, len(partes))
+	for _, parte := range partes {
+		nombre := strings.TrimSpace(parte)
+		if nombre != "" {
+			resultado = append(resultado, nombre)
+		}
+	}
+	return resultado, nil
 }
 
 // tieneReferenciaCircular recorre, en profundidad, la cadena de operandos de

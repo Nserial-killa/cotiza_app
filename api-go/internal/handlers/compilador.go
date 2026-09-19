@@ -47,7 +47,8 @@ type elementoCompilado struct {
 	Hijos         []elementoCompilado `json:"hijos,omitempty"`
 
 	// componentePadreID no se serializa: solo sirve para armar el
-	// anidado hijos/CONTENEDOR en anidarHijosCompilado antes de
+	// anidado hijos/CONTENEDOR u OPCIONES_PROPUESTA en
+	// anidarHijosCompilado antes de
 	// devolver la respuesta.
 	componentePadreID string
 }
@@ -184,16 +185,30 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		Errores:       make([]string, 0), Advertencias: make([]string, 0), Tabs: make([]tabCompilado, 0),
 	}
 	rows, err := h.DB.Query(ctx, `
+		WITH tabs_disponibles AS (
+			SELECT t.tab_id, 0 AS origen_orden
+			FROM tabs_cotizador t
+			WHERE t.calculadora_id=$1 AND t.activo=true
+			UNION
+			SELECT a.tab_id, 1 AS origen_orden
+			FROM tabs_cotizador_asociaciones a
+			JOIN tabs_cotizador t ON t.tab_id=a.tab_id
+			WHERE a.calculadora_id=$1 AND t.activo=true
+		)
 		SELECT t.tab_id, t.nombre, t.descripcion, t.alcance, t.orden,
 		       e.elemento_id, e.tipo, e.etiqueta, e.catalogo_id,
 		       e.componente_padre_id, e.campo_fuente_id, e.funcion_campo,
 		       e.columnas_ancho, e.orden, e.requerido, e.configuracion,
 		       CASE WHEN e.catalogo_id IS NULL THEN NULL ELSE c.activo END
-		FROM tabs_cotizador t
-		LEFT JOIN elementos_tab_cotizador e ON e.tab_id=t.tab_id AND e.activo=true
+		FROM tabs_disponibles td
+		JOIN tabs_cotizador t ON t.tab_id=td.tab_id
+		-- SECCIONES_ADICIONALES es un selector de diseño. En ejecución se
+		-- reemplaza por las tabs referenciadas, no por un control editable.
+		LEFT JOIN elementos_tab_cotizador e
+		       ON e.tab_id=t.tab_id AND e.activo=true
+		      AND e.tipo<>'SECCIONES_ADICIONALES'
 		LEFT JOIN catalogos c ON c.catalogo_id=e.catalogo_id
-		WHERE t.calculadora_id=$1 AND t.activo=true
-		ORDER BY t.orden, t.tab_id, e.orden, e.elemento_id`, calculadoraID)
+		ORDER BY td.origen_orden, t.orden, t.tab_id, e.orden, e.elemento_id`, calculadoraID)
 	if err != nil {
 		return resultado, err
 	}
@@ -427,11 +442,10 @@ func tipoDatoDesdeElementoReferenciado(tipo string, cfg map[string]any) string {
 
 // anidarHijosCompilado saca de la lista plana de una sección los elementos
 // que tienen componente_padre_id y los mueve al array "hijos" del
-// Contenedor correspondiente. Solo hay un nivel de anidado en esta ronda
-// (no hay contenedores dentro de contenedores todavía). Un padre inexistente,
-// inactivo (ya filtrado por el WHERE e.activo=true) o que no sea CONTENEDOR
-// se reporta como error de compilación y el elemento se deja en el nivel
-// superior para no perderlo silenciosamente.
+// padre correspondiente (CONTENEDOR u OPCIONES_PROPUESTA). Solo hay un nivel
+// de anidado: los componentes padre no pueden estar dentro de otro padre. Un
+// padre inexistente, inactivo o de otro tipo se reporta como error y el hijo
+// queda arriba para no perderlo silenciosamente.
 func anidarHijosCompilado(elementos []elementoCompilado, resultado *resultadoValidacion) []elementoCompilado {
 	porID := make(map[string]int, len(elementos))
 	for i, el := range elementos {
@@ -445,8 +459,12 @@ func anidarHijosCompilado(elementos []elementoCompilado, resultado *resultadoVal
 			continue
 		}
 		indicePadre, existe := porID[el.componentePadreID]
-		if !existe || elementos[indicePadre].Tipo != "CONTENEDOR" {
-			resultado.Errores = append(resultado.Errores, fmt.Sprintf("El elemento %s referencia un componente padre (%s) que no existe o no es un Contenedor activo.", el.ElementoID, el.componentePadreID))
+		tipoPadre := ""
+		if existe {
+			tipoPadre = elementos[indicePadre].Tipo
+		}
+		if !existe || (tipoPadre != "CONTENEDOR" && tipoPadre != "OPCIONES_PROPUESTA") {
+			resultado.Errores = append(resultado.Errores, fmt.Sprintf("El elemento %s referencia un componente padre (%s) que no existe o no es un Contenedor/Opciones de Propuesta activo.", el.ElementoID, el.componentePadreID))
 			top = append(top, el)
 			continue
 		}

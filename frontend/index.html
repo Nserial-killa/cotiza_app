@@ -498,6 +498,35 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .runtime-tabla { grid-column: 1/-1; }
 .runtime-lp-table-wrap { overflow-x: auto; }
 
+/* Ronda 5: Opciones de Propuesta. Cada panel reutiliza la grilla del
+   formulario, pero mantiene un contexto de valores independiente. */
+.runtime-opciones { grid-column: 1/-1; border: 1px solid #cbd9ea; border-radius: 14px; background: #f8fbff; padding: 14px; }
+.runtime-opciones-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.runtime-opciones-head > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.runtime-opciones-head strong { color: #0f2a4a; font-size: 14px; font-weight: 800; }
+.runtime-opciones-head span { color: #7b899d; font-size: 11px; }
+.runtime-opcion-tabs { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 8px; }
+.runtime-opcion-tab { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; border: 1px solid #cbd9ea; border-radius: 9px 9px 0 0; background: #fff; color: #56667d; padding: 8px 13px; font-size: 12px; font-weight: 750; cursor: pointer; }
+.runtime-opcion-tab span { color: #c88900; }
+.runtime-opcion-tab.active { border-color: #1768de; background: #eaf3ff; color: #0b4fa8; box-shadow: inset 0 -2px 0 #1768de; }
+.runtime-opcion-panel { border: 1px solid #d7e1ee; border-radius: 10px; background: #fff; padding: 13px; margin-top: 8px; }
+.runtime-opcion-panel.recomendada { border-color: #e2b94d; box-shadow: 0 0 0 2px rgba(226,185,77,.12); }
+.runtime-opcion-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #eef1f6; }
+.runtime-opcion-panel-head > strong { color: #17345b; font-size: 12px; }
+.runtime-opcion-panel-head > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.runtime-opcion-eliminar { color: #b42318; }
+.runtime-opcion-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px 16px; align-items: start; }
+
+@media (max-width:900px) {
+  .runtime-opcion-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:700px) {
+  .runtime-opciones-head, .runtime-opcion-panel-head { align-items: flex-start; flex-direction: column; }
+  .runtime-opcion-panel-head > div { justify-content: flex-start; }
+  .runtime-opcion-grid { grid-template-columns: 1fr; }
+  .runtime-opcion-grid > * { grid-column: 1 !important; }
+}
+
 /* ---------- Solicitudes de Propuesta ---------- */
 .solicitudes-page { --request-border:#d7e1ee; --request-ink:#082650; --request-muted:#7b899d; }
 
@@ -4060,6 +4089,16 @@ table tr:last-child td { border-bottom: none; }
             .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-desc{order:100;}
             .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-checks-extra{order:110;}
             .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-actions{order:900;}
+            .cotizador-secciones-adicionales-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;}
+            .cotizador-seccion-reutilizable{display:flex;gap:9px;align-items:flex-start;padding:10px 11px;border:1px solid #dce6f3;border-radius:10px;background:#fff;cursor:pointer;}
+            .cotizador-seccion-reutilizable input{margin-top:3px;}
+            .cotizador-seccion-reutilizable strong,.cotizador-seccion-reutilizable small{display:block;}
+            .cotizador-seccion-reutilizable strong{font-size:13px;color:#102a52;}
+            .cotizador-seccion-reutilizable small{margin-top:3px;font-size:11px;color:#64748b;}
+            .cotizador-tree-item.is-associated{border-color:#f5c36a;background:#fffbeb;}
+            .cotizador-tree-item.is-associated .cotizador-tree-actions{color:#9a4d08;}
+            .cotizador-associated-remove{border:0;background:transparent;color:#b45309;font:inherit;font-weight:800;cursor:pointer;padding:2px 4px;}
+            @media(max-width:780px){.cotizador-secciones-adicionales-lista{grid-template-columns:1fr;}}
             .cotizador-preview-selector-extra{
               border:1px dashed #fdba74;
               background:#fff7ed;
@@ -4516,24 +4555,24 @@ table tr:last-child td { border-bottom: none; }
 
 
             /* V50AQ - Opciones de Propuesta / Escenarios */
-            .cotizador-component-card[data-tipo="ESCENARIOS"] .cotizador-component-icon{background:#eef2ff;color:#3730a3;}
+            .cotizador-component-card[data-tipo="OPCIONES_PROPUESTA"] .cotizador-component-icon{background:#eef2ff;color:#3730a3;}
             .cotizador-component-modal-form-v50o .ctz-f-checks-scenario{grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-scenario-initial{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-scenario-names{order:50;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-scenario-edit-view{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-scenario-summary-view{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-scenario-offer-view{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-scenario-main-field{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-name{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-order{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-label{order:120;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-parent{order:130;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-desc{order:140;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-checks-scenario{order:150;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="ESCENARIOS"] .ctz-f-actions{order:900;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-code{order:10;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-status{order:20;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-type{order:30;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-initial{order:40;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-names{order:50;grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-edit-view{order:60;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-summary-view{order:70;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-offer-view{order:80;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-main-field{order:90;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-name{order:100;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-order{order:110;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-label{order:120;grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-parent{order:130;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-desc{order:140;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-checks-scenario{order:150;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-actions{order:900;}
             .cotizador-design-scenario{border:1px solid #c7d2fe;background:linear-gradient(180deg,#eef2ff,#ffffff);border-radius:16px;padding:10px;margin-bottom:12px;}
             .cotizador-design-scenario.inactive{opacity:.62;border-style:dashed;}
             .cotizador-design-scenario .cotizador-design-container-children{border-left:3px solid #c7d2fe;margin-left:18px;padding-left:12px;}
@@ -4860,6 +4899,9 @@ table tr:last-child td { border-bottom: none; }
                       <div class="cotizador-props-note" style="margin-top:6px;">
                         PROPIO se muestra solo en el cotizador actual. REUTILIZABLE puede aparecer también en otros cotizadores.
                       </div>
+                      <div id="designerCotizadorTabSoloLectura" class="cotizador-props-note hidden" style="margin-top:8px;">
+                        Sección asociada desde otro cotizador. Puede consultarla aquí, pero su estructura se edita únicamente desde el cotizador de origen.
+                      </div>
                     </div>
                     <label class="param-switch" style="padding-top:0;min-height:34px;">
                       <input id="designerCotizadorTabActivo" type="checkbox" checked> Activo
@@ -4915,6 +4957,8 @@ table tr:last-child td { border-bottom: none; }
                       <option value="CAMPO_CALCULADO">Campo Calculado</option>
                       <option value="LISTA_PRECIOS">Lista de Precios</option>
                       <option value="TABLA">Tabla</option>
+                      <option value="OPCIONES_PROPUESTA">Opciones de Propuesta</option>
+                      <option value="SECCIONES_ADICIONALES">Secciones Adicionales</option>
                     </select>
                   </div>
 
@@ -5162,7 +5206,7 @@ table tr:last-child td { border-bottom: none; }
                     </div>
                   </div>
 
-                  <div id="designerCotizadorConfigEscenarios" class="cotizador-config-group" data-component-config="ESCENARIOS">
+                  <div id="designerCotizadorConfigEscenarios" class="cotizador-config-group" data-component-config="OPCIONES_PROPUESTA">
                     <div class="field ctz-f-scenario-initial">
                       <label for="designerCotizadorEscenariosCantidadInicial">Cantidad inicial de opciones</label>
                       <input id="designerCotizadorEscenariosCantidadInicial" class="input" type="number" min="1" max="6" placeholder="1">
@@ -5442,7 +5486,11 @@ table tr:last-child td { border-bottom: none; }
                   </div>
 
                   <div id="designerCotizadorChecksSeccionesAdicionales" class="cotizador-check-panel cotizador-full-row ctz-f-checks-extra" data-checks-for="SECCIONES_ADICIONALES">
-                    <div class="cotizador-check-panel-title">Visibilidad</div>
+                    <div class="cotizador-check-panel-title">Secciones reutilizables disponibles</div>
+                    <div id="designerCotizadorSeccionesAdicionalesLista" class="cotizador-secciones-adicionales-lista">
+                      <div class="cotizador-mini-empty">Seleccione un cotizador para consultar secciones reutilizables.</div>
+                    </div>
+                    <div class="cotizador-check-panel-title" style="margin-top:14px;">Visibilidad</div>
                     <div class="cotizador-check-row cotizador-check-row-2">
                       <label class="param-switch"><input id="designerCotizadorSeccionesAdicionalesVisibleCalc" type="checkbox" checked> Visible en calculadora</label>
                       <label class="param-switch"><input id="designerCotizadorSeccionesAdicionalesVisibleOferta" type="checkbox"> Visible en oferta</label>
@@ -5475,7 +5523,7 @@ table tr:last-child td { border-bottom: none; }
                     </div>
                   </div>
 
-                  <div id="designerCotizadorChecksEscenarios" class="cotizador-check-panel cotizador-full-row ctz-f-checks-scenario" data-checks-for="ESCENARIOS">
+                  <div id="designerCotizadorChecksEscenarios" class="cotizador-check-panel cotizador-full-row ctz-f-checks-scenario" data-checks-for="OPCIONES_PROPUESTA">
                     <div class="cotizador-check-panel-title">Opciones de propuesta</div>
                     <div class="cotizador-check-row cotizador-check-row-4">
                       <label class="param-switch"><input id="designerCotizadorEscenariosPermitirDuplicar" type="checkbox" checked> Permitir duplicar</label>
@@ -9993,12 +10041,54 @@ window.CotizaApp = (function(){
             version: res.version || c.version || 1,
             estructura: res.estructura || {tabs:[]},
             valores: res.valores || {},
-            tabActivoId: tabs.length ? tabs[0].tab_id : ""
+            tabActivoId: tabs.length ? tabs[0].tab_id : "",
+            opcionActivaPorPadre: {}
           };
+          inicializarOpcionesActivasRuntime_();
           renderRuntimeCotizador();
         }catch(error){
           if(contenido) contenido.innerHTML = '<div class="card"><p>' + escapeHtml(error && error.message ? error.message : "No fue posible cargar el formulario del cotizador.") + '</p></div>';
         }
+      }
+
+      function recorrerElementosRuntime_(elementos, callback){
+        (elementos || []).forEach(function(el){
+          callback(el);
+          if(Array.isArray(el.hijos)) recorrerElementosRuntime_(el.hijos, callback);
+        });
+      }
+
+      function inicializarOpcionesActivasRuntime_(){
+        const rt = state.cotizadorRuntime;
+        if(!rt) return;
+        rt.opcionActivaPorPadre = rt.opcionActivaPorPadre || {};
+        ((rt.estructura && rt.estructura.tabs) || []).forEach(function(tab){
+          recorrerElementosRuntime_(tab.elementos, function(el){
+            if(el.tipo !== "OPCIONES_PROPUESTA") return;
+            const opciones = el.opciones || [];
+            const actual = rt.opcionActivaPorPadre[el.elemento_id];
+            if(!opciones.some(function(op){ return op.opcion_id === actual; })){
+              rt.opcionActivaPorPadre[el.elemento_id] = opciones.length ? opciones[0].opcion_id : "";
+            }
+          });
+        });
+      }
+
+      async function recargarRuntimeCotizador_(){
+        const rt = state.cotizadorRuntime;
+        if(!rt) return;
+        const tabActivo = rt.tabActivoId;
+        const opcionesActivas = Object.assign({}, rt.opcionActivaPorPadre || {});
+        const resp = await fetchAutenticado("/api/cotizador/runtime/" + encodeURIComponent(rt.cotizacionId) + "?version=" + encodeURIComponent(rt.version));
+        let res = null;
+        try{ res = await resp.json(); }catch(e){ res = null; }
+        if(!resp.ok || !res || !res.ok) throw new Error((res && res.error) || "No fue posible actualizar el formulario.");
+        rt.estructura = res.estructura || {tabs:[]};
+        rt.valores = res.valores || {};
+        rt.tabActivoId = tabActivo;
+        rt.opcionActivaPorPadre = opcionesActivas;
+        inicializarOpcionesActivasRuntime_();
+        renderRuntimeCotizador();
       }
 
       // Pinta la tira de tabs y los campos de la tab activa. Se
@@ -10038,6 +10128,19 @@ window.CotizaApp = (function(){
           });
         });
 
+        contenido.querySelectorAll(".runtime-opcion-tab").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            leerValoresFormularioActual();
+            rt.opcionActivaPorPadre[btn.dataset.padreId] = btn.dataset.opcionId;
+            renderRuntimeCotizador();
+          });
+        });
+        contenido.querySelectorAll("[data-runtime-opcion-accion]").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            administrarOpcionRuntime_(btn.dataset.runtimeOpcionAccion, btn.dataset.padreId, btn.dataset.opcionId || "");
+          });
+        });
+
         // Lista de Precios MULTIPLE: agregar/quitar cambia la cantidad de
         // filas (no un simple valor), así que primero se captura lo que
         // ya había en pantalla y recién después se re-renderiza completo
@@ -10046,10 +10149,12 @@ window.CotizaApp = (function(){
           btn.addEventListener("click", function(){
             leerValoresFormularioActual();
             const id = btn.dataset.elementoId;
+            const opcionID = btn.dataset.opcionId || "";
             if(!id) return;
-            rt.valores[id] = rt.valores[id] || {};
-            if(!Array.isArray(rt.valores[id].filas)) rt.valores[id].filas = [];
-            rt.valores[id].filas.push({item_id: "", cantidad: 1});
+            const valor = valorRuntimeActual_(rt.valores, id, opcionID) || {};
+            if(!Array.isArray(valor.filas)) valor.filas = [];
+            valor.filas.push({item_id: "", cantidad: 1});
+            asignarValorRuntime_(rt.valores, id, opcionID, valor);
             renderRuntimeCotizador();
           });
         });
@@ -10057,9 +10162,12 @@ window.CotizaApp = (function(){
           btn.addEventListener("click", function(){
             leerValoresFormularioActual();
             const id = btn.dataset.elementoId;
+            const opcionID = btn.dataset.opcionId || "";
             const idx = Number(btn.dataset.fila);
-            if(!id || !rt.valores[id] || !Array.isArray(rt.valores[id].filas)) return;
-            rt.valores[id].filas.splice(idx, 1);
+            const valor = valorRuntimeActual_(rt.valores, id, opcionID);
+            if(!id || !valor || !Array.isArray(valor.filas)) return;
+            valor.filas.splice(idx, 1);
+            asignarValorRuntime_(rt.valores, id, opcionID, valor);
             renderRuntimeCotizador();
           });
         });
@@ -10078,10 +10186,12 @@ window.CotizaApp = (function(){
           btn.addEventListener("click", function(){
             leerValoresFormularioActual();
             const id = btn.dataset.elementoId;
+            const opcionID = btn.dataset.opcionId || "";
             if(!id) return;
-            rt.valores[id] = rt.valores[id] || {};
-            if(!Array.isArray(rt.valores[id].filas)) rt.valores[id].filas = [];
-            rt.valores[id].filas.push({});
+            const valor = valorRuntimeActual_(rt.valores, id, opcionID) || {};
+            if(!Array.isArray(valor.filas)) valor.filas = [];
+            valor.filas.push({});
+            asignarValorRuntime_(rt.valores, id, opcionID, valor);
             renderRuntimeCotizador();
           });
         });
@@ -10089,9 +10199,12 @@ window.CotizaApp = (function(){
           btn.addEventListener("click", function(){
             leerValoresFormularioActual();
             const id = btn.dataset.elementoId;
+            const opcionID = btn.dataset.opcionId || "";
             const idx = Number(btn.dataset.fila);
-            if(!id || !rt.valores[id] || !Array.isArray(rt.valores[id].filas)) return;
-            rt.valores[id].filas.splice(idx, 1);
+            const valor = valorRuntimeActual_(rt.valores, id, opcionID);
+            if(!id || !valor || !Array.isArray(valor.filas)) return;
+            valor.filas.splice(idx, 1);
+            asignarValorRuntime_(rt.valores, id, opcionID, valor);
             renderRuntimeCotizador();
           });
         });
@@ -10103,6 +10216,100 @@ window.CotizaApp = (function(){
         });
       }
 
+      function atributoOpcionRuntime_(opcionID){
+        return opcionID ? ' data-opcion-id="' + escapeHtml(opcionID) + '"' : "";
+      }
+
+      function valorRuntimeActual_(valores, elementoID, opcionID){
+        if(!valores || !Object.prototype.hasOwnProperty.call(valores, elementoID)) return undefined;
+        if(!opcionID) return valores[elementoID];
+        const porOpcion = valores[elementoID];
+        return porOpcion && typeof porOpcion === "object" ? porOpcion[opcionID] : undefined;
+      }
+
+      function asignarValorRuntime_(valores, elementoID, opcionID, valor){
+        if(!opcionID){ valores[elementoID] = valor; return; }
+        if(!valores[elementoID] || typeof valores[elementoID] !== "object" || Array.isArray(valores[elementoID])) valores[elementoID] = {};
+        valores[elementoID][opcionID] = valor;
+      }
+
+      function valorResueltoRuntime_(elemento, opcionID){
+        if(opcionID){
+          const calculados = elemento.valores_resueltos_por_opcion;
+          if(calculados && typeof calculados === "object" && Object.prototype.hasOwnProperty.call(calculados, opcionID)) return calculados[opcionID];
+          const resuelto = elemento.valor_resuelto;
+          if(resuelto && typeof resuelto === "object" && Object.prototype.hasOwnProperty.call(resuelto, opcionID)) return resuelto[opcionID];
+        }
+        return elemento.valor_resuelto;
+      }
+
+      function buscarElementoRuntime_(elementoID){
+        const rt = state.cotizadorRuntime;
+        let encontrado = null;
+        ((rt && rt.estructura && rt.estructura.tabs) || []).some(function(tab){
+          recorrerElementosRuntime_(tab.elementos, function(el){ if(!encontrado && el.elemento_id === elementoID) encontrado = el; });
+          return !!encontrado;
+        });
+        return encontrado;
+      }
+
+      async function administrarOpcionRuntime_(accion, padreID, opcionID){
+        const rt = state.cotizadorRuntime;
+        const padre = buscarElementoRuntime_(padreID);
+        if(!rt || !padre) return;
+        leerValoresFormularioActual();
+        let nombre = "";
+        let esRecomendada = null;
+        const actual = (padre.opciones || []).find(function(op){ return op.opcion_id === opcionID; });
+        if(accion === "AGREGAR"){
+          nombre = window.prompt("Nombre de la nueva opción:", "Opción " + ((padre.opciones || []).length + 1));
+          if(nombre === null) return;
+        }else if(accion === "DUPLICAR"){
+          nombre = window.prompt("Nombre de la copia:", ((actual && actual.nombre) || "Opción") + " copia");
+          if(nombre === null) return;
+        }else if(accion === "RENOMBRAR"){
+          nombre = window.prompt("Nuevo nombre de la opción:", (actual && actual.nombre) || "");
+          if(nombre === null) return;
+        }else if(accion === "ELIMINAR"){
+          if(!window.confirm("¿Eliminar la opción \"" + ((actual && actual.nombre) || "seleccionada") + "\" y sus valores?")) return;
+        }else if(accion === "RECOMENDAR"){
+          esRecomendada = !(actual && actual.es_recomendada);
+        }
+        try{
+          const payload = {version:rt.version, elemento_padre_id:padreID, accion:accion, opcion_id:opcionID, nombre:String(nombre || "").trim()};
+          if(esRecomendada !== null) payload.es_recomendada = esRecomendada;
+          const anteriores = (padre.opciones || []).map(function(op){ return op.opcion_id; });
+          const resp = await fetchAutenticado("/api/cotizador/runtime/" + encodeURIComponent(rt.cotizacionId) + "/opciones", {
+            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+          });
+          let res = null;
+          try{ res = await resp.json(); }catch(e){ res = null; }
+          if(!resp.ok || !res || !res.ok){ mostrarToast((res && res.error) || "No se pudo actualizar la opción."); return; }
+          padre.opciones = res.opciones || [];
+          const nueva = padre.opciones.find(function(op){ return anteriores.indexOf(op.opcion_id) < 0; });
+          if(accion === "DUPLICAR" && nueva){
+            Object.keys(rt.valores || {}).forEach(function(elementoID){
+              const porOpcion = rt.valores[elementoID];
+              if(porOpcion && typeof porOpcion === "object" && Object.prototype.hasOwnProperty.call(porOpcion, opcionID)){
+                porOpcion[nueva.opcion_id] = JSON.parse(JSON.stringify(porOpcion[opcionID]));
+              }
+            });
+          }
+          if(accion === "ELIMINAR"){
+            Object.keys(rt.valores || {}).forEach(function(elementoID){
+              const porOpcion = rt.valores[elementoID];
+              if(porOpcion && typeof porOpcion === "object") delete porOpcion[opcionID];
+            });
+          }
+          if(nueva) rt.opcionActivaPorPadre[padreID] = nueva.opcion_id;
+          inicializarOpcionesActivasRuntime_();
+          renderRuntimeCotizador();
+          mostrarToast(res.mensaje || "Opciones actualizadas.");
+        }catch(error){
+          mostrarToast(error && error.message ? error.message : "No se pudo actualizar la opción.");
+        }
+      }
+
       // CAMPO -> input de texto. CAMPO_CATALOGO -> select con las
       // opciones que ya vienen resueltas en la respuesta. LEYENDA y
       // TEXTO_INFORMATIVO son solo texto, no tienen valor que guardar.
@@ -10110,11 +10317,12 @@ window.CotizaApp = (function(){
       // CONTENEDOR (tarjeta con sus "hijos" anidados según columnas) y
       // CAJA_VALOR (solo lectura: el backend ya resolvió valor_resuelto
       // contra cotizacion_valores o, si no hay, contra valor_por_defecto).
-      function renderRuntimeElemento(el, valores){
+      function renderRuntimeElemento(el, valores, opcionID){
         const ancho = Math.min(4, Math.max(1, Number(el.columnas_ancho) || 1));
         const requerido = !!el.requerido;
         const estiloSpan = 'style="grid-column:span ' + ancho + '"';
-        const valorGuardado = (valores && Object.prototype.hasOwnProperty.call(valores, el.elemento_id)) ? valores[el.elemento_id] : "";
+        const valorGuardadoRaw = valorRuntimeActual_(valores, el.elemento_id, opcionID);
+        const valorGuardado = valorGuardadoRaw === undefined ? "" : valorGuardadoRaw;
         const cfg = el.configuracion || {};
 
         // "Visible en calculadora" aplica a cualquier tipo, no solo a
@@ -10135,17 +10343,45 @@ window.CotizaApp = (function(){
         if(el.tipo === "TEXTO_INFORMATIVO"){
           return '<div class="runtime-field runtime-texto-informativo" ' + estiloSpan + '><p>' + escapeHtml(el.etiqueta || "") + '</p></div>';
         }
+        if(el.tipo === "OPCIONES_PROPUESTA"){
+          const rt = state.cotizadorRuntime;
+          const opciones = (el.opciones || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+          if(!opciones.length) return '<div class="runtime-field runtime-opciones" ' + estiloSpan + '><p>No hay opciones disponibles.</p></div>';
+          const vista = String(cfg.vista_editar || "PESTANAS").toUpperCase();
+          let activa = rt && rt.opcionActivaPorPadre ? rt.opcionActivaPorPadre[el.elemento_id] : "";
+          if(!opciones.some(function(op){ return op.opcion_id === activa; })) activa = opciones[0].opcion_id;
+          const tabs = opciones.map(function(op){
+            return '<button type="button" class="runtime-opcion-tab' + (op.opcion_id === activa ? ' active' : '') + '" data-padre-id="' + escapeHtml(el.elemento_id) + '" data-opcion-id="' + escapeHtml(op.opcion_id) + '">' +
+              escapeHtml(op.nombre || "Opción") + (op.es_recomendada ? '<span aria-label="Recomendada">★</span>' : '') + '</button>';
+          }).join("");
+          const accionesGlobales = cfg.permitir_duplicar !== false ? '<button type="button" class="btn btn-ghost btn-mini" data-runtime-opcion-accion="AGREGAR" data-padre-id="' + escapeHtml(el.elemento_id) + '">+ Agregar opción</button>' : '';
+          function panelOpcion(op){
+            const cuerpo = (el.hijos || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); }).map(function(h){ return renderRuntimeElemento(h, valores, op.opcion_id); }).join("");
+            const acciones =
+              (cfg.permitir_recomendado !== false ? '<button type="button" class="btn btn-ghost btn-mini" data-runtime-opcion-accion="RECOMENDAR" data-padre-id="' + escapeHtml(el.elemento_id) + '" data-opcion-id="' + escapeHtml(op.opcion_id) + '">' + (op.es_recomendada ? 'Quitar recomendación' : '★ Recomendar') + '</button>' : '') +
+              (cfg.permitir_renombrar !== false ? '<button type="button" class="btn btn-ghost btn-mini" data-runtime-opcion-accion="RENOMBRAR" data-padre-id="' + escapeHtml(el.elemento_id) + '" data-opcion-id="' + escapeHtml(op.opcion_id) + '">Renombrar</button>' : '') +
+              (cfg.permitir_duplicar !== false ? '<button type="button" class="btn btn-ghost btn-mini" data-runtime-opcion-accion="DUPLICAR" data-padre-id="' + escapeHtml(el.elemento_id) + '" data-opcion-id="' + escapeHtml(op.opcion_id) + '">Duplicar</button>' : '') +
+              (cfg.permitir_eliminar !== false ? '<button type="button" class="btn btn-ghost btn-mini runtime-opcion-eliminar" data-runtime-opcion-accion="ELIMINAR" data-padre-id="' + escapeHtml(el.elemento_id) + '" data-opcion-id="' + escapeHtml(op.opcion_id) + '">Eliminar</button>' : '');
+            return '<div class="runtime-opcion-panel' + (op.es_recomendada ? ' recomendada' : '') + '">' +
+              '<div class="runtime-opcion-panel-head"><strong>' + escapeHtml(op.nombre || "Opción") + (op.es_recomendada ? ' · Recomendada' : '') + '</strong><div>' + acciones + '</div></div>' +
+              '<div class="runtime-opcion-grid">' + (cuerpo || '<p>Esta opción no tiene campos.</p>') + '</div></div>';
+          }
+          const paneles = vista === "ACORDEON" ? opciones.map(panelOpcion).join("") : panelOpcion(opciones.find(function(op){ return op.opcion_id === activa; }) || opciones[0]);
+          return '<section class="runtime-field runtime-opciones" ' + estiloSpan + '>' +
+            '<div class="runtime-opciones-head"><div><strong>' + escapeHtml(el.etiqueta || "Opciones de propuesta") + '</strong><span>' + opciones.length + ' opción' + (opciones.length === 1 ? '' : 'es') + '</span></div>' + accionesGlobales + '</div>' +
+            (vista === "PESTANAS" ? '<div class="runtime-opcion-tabs">' + tabs + '</div>' : '') + paneles + '</section>';
+        }
         if(el.tipo === "CONTENEDOR"){
           const cols = Number(cfg.columnas) === 3 ? 3 : 2;
           const hijos = (el.hijos || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
-          const cuerpo = hijos.map(function(h){ return renderRuntimeElemento(h, valores); }).join("");
+          const cuerpo = hijos.map(function(h){ return renderRuntimeElemento(h, valores, opcionID); }).join("");
           return '<div class="runtime-field runtime-contenedor" ' + estiloSpan + '>' +
             (el.etiqueta ? '<div class="runtime-contenedor-titulo">' + escapeHtml(el.etiqueta) + '</div>' : '') +
             '<div class="runtime-contenedor-grid runtime-contenedor-cols-' + cols + '">' + (cuerpo || '<p>Contenedor sin componentes.</p>') + '</div>' +
             '</div>';
         }
         if(el.tipo === "CAJA_VALOR"){
-          const crudo = el.valor_resuelto;
+          const crudo = valorResueltoRuntime_(el, opcionID);
           const textoValor = (crudo === null || crudo === undefined || crudo === "") ? "" : String(crudo);
           return '<div class="field runtime-field runtime-caja-valor" ' + estiloSpan + '>' +
             '<label>' + escapeHtml(el.etiqueta || "") + '</label>' +
@@ -10153,7 +10389,7 @@ window.CotizaApp = (function(){
             '</div>';
         }
         if(el.tipo === "CAMPO_CALCULADO"){
-          const crudo = el.valor_resuelto;
+          const crudo = valorResueltoRuntime_(el, opcionID);
           const tipoResultado = String(cfg.tipo_resultado || "NUMERO").toUpperCase();
           const decimalesRaw = Number(cfg.decimales);
           const decimales = Number.isFinite(decimalesRaw) ? decimalesRaw : 2;
@@ -10170,10 +10406,10 @@ window.CotizaApp = (function(){
             '</div>';
         }
         if(el.tipo === "LISTA_PRECIOS"){
-          return renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido);
+          return renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido, opcionID);
         }
         if(el.tipo === "TABLA"){
-          return renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido);
+          return renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido, opcionID);
         }
         if(el.tipo === "CAMPO_CATALOGO"){
           const opciones = el.opciones || [];
@@ -10183,14 +10419,14 @@ window.CotizaApp = (function(){
           }).join("");
           return '<div class="field runtime-field" ' + estiloSpan + '>' +
             '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
-            '<select class="select runtime-input" data-elemento-id="' + escapeHtml(el.elemento_id) + '">' + optionsHtml + '</select>' +
+            '<select class="select runtime-input" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + '>' + optionsHtml + '</select>' +
             '</div>';
         }
         // CAMPO
         const valorTexto = (valorGuardado === null || valorGuardado === undefined) ? "" : valorGuardado;
         return '<div class="field runtime-field" ' + estiloSpan + '>' +
           '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
-          '<input class="input runtime-input" type="text" data-elemento-id="' + escapeHtml(el.elemento_id) + '" value="' + escapeHtml(valorTexto) + '"' + (requerido ? ' required' : '') + '>' +
+          '<input class="input runtime-input" type="text" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + ' value="' + escapeHtml(valorTexto) + '"' + (requerido ? ' required' : '') + '>' +
           '</div>';
       }
 
@@ -10210,7 +10446,7 @@ window.CotizaApp = (function(){
       // Tabla de filas de una Lista de Precios MULTIPLE. El total se
       // recalcula con los precios ya embebidos en cfg.items (nunca hace
       // falta volver a pedirle nada al backend para mostrarlo).
-      function renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio){
+      function renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio, opcionID){
         if(!filas.length){
           return '<div class="runtime-lp-empty">Sin filas agregadas.</div>';
         }
@@ -10222,10 +10458,10 @@ window.CotizaApp = (function(){
           const subtotal = precio * cantidad;
           total += subtotal;
           return '<tr>'
-            + '<td><select class="select runtime-lp-multi-item" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">' + opcionesItemListaPreciosRuntime_(items, fila.item_id, mostrarPrecio) + '</select></td>'
-            + '<td><input type="number" class="input runtime-lp-multi-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '" value="' + escapeHtml(String(cantidad)) + '" min="0" step="any"></td>'
+            + '<td><select class="select runtime-lp-multi-item" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + ' data-fila="' + idx + '">' + opcionesItemListaPreciosRuntime_(items, fila.item_id, mostrarPrecio) + '</select></td>'
+            + '<td><input type="number" class="input runtime-lp-multi-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + ' data-fila="' + idx + '" value="' + escapeHtml(String(cantidad)) + '" min="0" step="any"></td>'
             + '<td class="runtime-lp-subtotal">' + escapeHtml(formatoMoneda(subtotal)) + '</td>'
-            + '<td><button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-quitar" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">Quitar</button></td>'
+            + '<td><button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-quitar" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + ' data-fila="' + idx + '">Quitar</button></td>'
             + '</tr>';
         }).join("");
         return '<table class="runtime-lp-table"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Subtotal</th><th></th></tr></thead><tbody>' + filasHtml + '</tbody></table>'
@@ -10236,7 +10472,7 @@ window.CotizaApp = (function(){
       // MULTIPLE es una tabla de filas editable con total al pie. Los
       // ítems (código/nombre/precio/moneda/unidad_cobro, nunca costo/margen)
       // ya vienen embebidos en cfg.items desde el compilado.
-      function renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido){
+      function renderRuntimeListaPrecios_(el, cfg, valorGuardado, estiloSpan, requerido, opcionID){
         const items = Array.isArray(cfg.items) ? cfg.items : [];
         const tipoLista = String(cfg.tipo_lista_precios || "UNICA").toUpperCase();
         const mostrarCantidad = cfg.mostrar_cantidad !== false;
@@ -10246,10 +10482,10 @@ window.CotizaApp = (function(){
 
         if(tipoLista === "MULTIPLE"){
           const filas = (valorGuardado && Array.isArray(valorGuardado.filas)) ? valorGuardado.filas : [];
-          return '<div class="field runtime-field runtime-lista-precios runtime-lp-multiple" ' + estiloSpan + ' data-lista-precios-id="' + escapeHtml(elementoID) + '">'
+          return '<div class="field runtime-field runtime-lista-precios runtime-lp-multiple" ' + estiloSpan + ' data-lista-precios-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + '>'
             + etiquetaHtml
-            + renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio)
-            + '<button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-agregar" data-elemento-id="' + escapeHtml(elementoID) + '">+ Agregar fila</button>'
+            + renderRuntimeListaPreciosMultipleFilas_(elementoID, items, filas, mostrarPrecio, opcionID)
+            + '<button type="button" class="btn btn-ghost btn-mini runtime-lp-multi-agregar" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + '>+ Agregar fila</button>'
             + '</div>';
         }
 
@@ -10272,18 +10508,18 @@ window.CotizaApp = (function(){
         return '<div class="field runtime-field runtime-lista-precios" ' + estiloSpan + '>'
           + etiquetaHtml
           + '<div class="runtime-lp-unica-fila">'
-          + '<select class="select runtime-lp-unica-select" data-elemento-id="' + escapeHtml(elementoID) + '"' + (requerido ? ' required' : '') + '>' + opcionesItemListaPreciosRuntime_(items, seleccionado, mostrarPrecio) + '</select>'
-          + (mostrarCantidad ? '<input type="number" class="input runtime-lp-unica-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '" value="' + escapeHtml(String(cantidad)) + '" min="0" step="any">' : '')
+          + '<select class="select runtime-lp-unica-select" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + (requerido ? ' required' : '') + '>' + opcionesItemListaPreciosRuntime_(items, seleccionado, mostrarPrecio) + '</select>'
+          + (mostrarCantidad ? '<input type="number" class="input runtime-lp-unica-cantidad" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + ' value="' + escapeHtml(String(cantidad)) + '" min="0" step="any">' : '')
           + '</div>'
           + '</div>';
       }
 
       // Un <input> por celda según tipo_dato de la columna — Número/Moneda/
       // Porcentaje son numéricos, el resto (Texto) es texto libre.
-      function celdaTablaRuntime_(tipoDato, valor, elementoID, columnaID, fila){
+      function celdaTablaRuntime_(tipoDato, valor, elementoID, columnaID, fila, opcionID){
         const esNumerico = ["NUMERO", "MONEDA", "PORCENTAJE"].indexOf(String(tipoDato || "").toUpperCase()) >= 0;
         const val = (valor === null || valor === undefined) ? "" : valor;
-        return '<input type="' + (esNumerico ? "number" : "text") + '" class="input runtime-tabla-celda" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + fila + '" data-columna-id="' + escapeHtml(columnaID) + '" value="' + escapeHtml(String(val)) + '"' + (esNumerico ? ' step="any"' : '') + '>';
+        return '<input type="' + (esNumerico ? "number" : "text") + '" class="input runtime-tabla-celda" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + ' data-fila="' + fila + '" data-columna-id="' + escapeHtml(columnaID) + '" value="' + escapeHtml(String(val)) + '"' + (esNumerico ? ' step="any"' : '') + '>';
       }
 
       // TABLA (Ronda 4): filas dinámicas, un input por celda según el tipo
@@ -10292,7 +10528,7 @@ window.CotizaApp = (function(){
       // agregar/quitar fila solo si el Diseñador los permitió, y el total
       // (ya resuelto por el backend en valor_resuelto, misma idea que Lista
       // de Precios y Campo Calculado) al pie si hay una columna numérica.
-      function renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido){
+      function renderRuntimeTabla_(el, cfg, valorGuardado, estiloSpan, requerido, opcionID){
         const elementoID = el.elemento_id;
         const columnas = (Array.isArray(cfg.columnas) ? cfg.columnas.slice() : []).sort(function(a, b){ return (a.orden || 0) - (b.orden || 0); });
         const filas = (valorGuardado && Array.isArray(valorGuardado.filas)) ? valorGuardado.filas : [];
@@ -10302,22 +10538,22 @@ window.CotizaApp = (function(){
         const th = columnas.map(function(c){ return '<th>' + escapeHtml(c.etiqueta || "Columna") + '</th>'; }).join("") + (permitirEliminar ? '<th></th>' : '');
         const colspan = columnas.length + (permitirEliminar ? 1 : 0);
         const filasHtml = filas.length ? filas.map(function(fila, idx){
-          const celdas = columnas.map(function(c){ return '<td>' + celdaTablaRuntime_(c.tipo_dato, fila[c.columna_id], elementoID, c.columna_id, idx) + '</td>'; }).join("");
-          const quitar = permitirEliminar ? '<td><button type="button" class="btn btn-ghost btn-mini runtime-tabla-quitar" data-elemento-id="' + escapeHtml(elementoID) + '" data-fila="' + idx + '">Quitar</button></td>' : '';
+          const celdas = columnas.map(function(c){ return '<td>' + celdaTablaRuntime_(c.tipo_dato, fila[c.columna_id], elementoID, c.columna_id, idx, opcionID) + '</td>'; }).join("");
+          const quitar = permitirEliminar ? '<td><button type="button" class="btn btn-ghost btn-mini runtime-tabla-quitar" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + ' data-fila="' + idx + '">Quitar</button></td>' : '';
           return '<tr>' + celdas + quitar + '</tr>';
         }).join("") : ('<tr><td colspan="' + Math.max(colspan, 1) + '" class="runtime-lp-empty">Sin filas agregadas.</td></tr>');
 
-        const totalRaw = el.valor_resuelto;
+        const totalRaw = valorResueltoRuntime_(el, opcionID);
         let totalHtml = "";
         if(totalRaw !== null && totalRaw !== undefined){
           const unidad = cfg.unidad ? (" " + cfg.unidad) : "";
           totalHtml = '<div class="runtime-lp-total">' + escapeHtml(cfg.etiqueta_total || "TOTAL") + ': ' + escapeHtml(formatoNumero(totalRaw)) + escapeHtml(unidad) + '</div>';
         }
 
-        return '<div class="field runtime-field runtime-tabla" ' + estiloSpan + ' data-tabla-id="' + escapeHtml(elementoID) + '">'
+        return '<div class="field runtime-field runtime-tabla" ' + estiloSpan + ' data-tabla-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + '>'
           + '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>'
           + '<div class="runtime-lp-table-wrap"><table class="runtime-lp-table"><thead><tr>' + th + '</tr></thead><tbody>' + filasHtml + '</tbody></table></div>'
-          + (permitirAgregar ? '<button type="button" class="btn btn-ghost btn-mini runtime-tabla-agregar" data-elemento-id="' + escapeHtml(elementoID) + '">+ Agregar fila</button>' : '')
+          + (permitirAgregar ? '<button type="button" class="btn btn-ghost btn-mini runtime-tabla-agregar" data-elemento-id="' + escapeHtml(elementoID) + '"' + atributoOpcionRuntime_(opcionID) + '>+ Agregar fila</button>' : '')
           + totalHtml
           + '</div>';
       }
@@ -10330,7 +10566,7 @@ window.CotizaApp = (function(){
         if(!rt) return;
         document.querySelectorAll("#gestorRuntimeContenido .runtime-input").forEach(function(input){
           const id = input.dataset.elementoId;
-          if(id) rt.valores[id] = input.value;
+          if(id) asignarValorRuntime_(rt.valores, id, input.dataset.opcionId || "", input.value);
         });
         // Lista de Precios UNICA: no lleva clase .runtime-input (su valor
         // es un objeto, no un string plano) — se lee aparte.
@@ -10339,12 +10575,13 @@ window.CotizaApp = (function(){
           if(!id) return;
           const fila = select.closest(".runtime-lista-precios");
           const cantidadInput = fila ? fila.querySelector(".runtime-lp-unica-cantidad") : null;
-          rt.valores[id] = {item_id: select.value, cantidad: cantidadInput ? (Number(cantidadInput.value) || 1) : 1};
+          asignarValorRuntime_(rt.valores, id, select.dataset.opcionId || "", {item_id: select.value, cantidad: cantidadInput ? (Number(cantidadInput.value) || 1) : 1});
         });
         // Lista de Precios MULTIPLE: una fila por <tr>, leídas por índice.
         document.querySelectorAll("#gestorRuntimeContenido [data-lista-precios-id]").forEach(function(cont){
           const id = cont.dataset.listaPreciosId;
           if(!id) return;
+          const opcionID = cont.dataset.opcionId || "";
           const filas = [];
           cont.querySelectorAll(".runtime-lp-multi-item").forEach(function(select){
             const idx = Number(select.dataset.fila);
@@ -10356,13 +10593,14 @@ window.CotizaApp = (function(){
             filas[idx] = filas[idx] || {item_id: "", cantidad: 1};
             filas[idx].cantidad = Number(input.value) || 0;
           });
-          rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
+          asignarValorRuntime_(rt.valores, id, opcionID, {filas: filas.filter(function(f){ return f; })});
         });
         // TABLA (Ronda 4): una fila por <tr>, columna_id como clave —
         // mismo criterio de índice por posición que Lista de Precios MULTIPLE.
         document.querySelectorAll("#gestorRuntimeContenido [data-tabla-id]").forEach(function(cont){
           const id = cont.dataset.tablaId;
           if(!id) return;
+          const opcionID = cont.dataset.opcionId || "";
           const filas = [];
           cont.querySelectorAll(".runtime-tabla-celda").forEach(function(input){
             const idx = Number(input.dataset.fila);
@@ -10371,7 +10609,7 @@ window.CotizaApp = (function(){
             filas[idx] = filas[idx] || {};
             filas[idx][columnaId] = input.value;
           });
-          rt.valores[id] = {filas: filas.filter(function(f){ return f; })};
+          asignarValorRuntime_(rt.valores, id, opcionID, {filas: filas.filter(function(f){ return f; })});
         });
       }
 
@@ -10381,10 +10619,11 @@ window.CotizaApp = (function(){
       // TITULO/CONTENEDOR/LEYENDA/TEXTO_INFORMATIVO/CAJA_VALOR/
       // CAMPO_CALCULADO no se guardan (son de solo lectura o reflejan otro
       // campo, no tienen input propio).
-      function recolectarElementosGuardablesRuntimeCotizador_(elementos, destino){
+      function recolectarElementosGuardablesRuntimeCotizador_(elementos, destino, padreOpcionesID){
         (elementos || []).forEach(function(el){
-          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS" || el.tipo === "TABLA") destino[el.elemento_id] = true;
-          if(Array.isArray(el.hijos)) recolectarElementosGuardablesRuntimeCotizador_(el.hijos, destino);
+          if(el.tipo === "CAMPO" || el.tipo === "CAMPO_CATALOGO" || el.tipo === "LISTA_PRECIOS" || el.tipo === "TABLA") destino[el.elemento_id] = padreOpcionesID || "";
+          const padreHijos = el.tipo === "OPCIONES_PROPUESTA" ? el.elemento_id : (padreOpcionesID || "");
+          if(Array.isArray(el.hijos)) recolectarElementosGuardablesRuntimeCotizador_(el.hijos, destino, padreHijos);
         });
       }
 
@@ -10398,18 +10637,28 @@ window.CotizaApp = (function(){
 
         const idsGuardables = {};
         ((rt.estructura && rt.estructura.tabs) || []).forEach(function(tab){
-          recolectarElementosGuardablesRuntimeCotizador_(tab.elementos, idsGuardables);
+          recolectarElementosGuardablesRuntimeCotizador_(tab.elementos, idsGuardables, "");
         });
         const valoresAEnviar = {};
+        const valoresPorOpcion = [];
         Object.keys(rt.valores || {}).forEach(function(id){
-          if(idsGuardables[id]) valoresAEnviar[id] = rt.valores[id];
+          if(!Object.prototype.hasOwnProperty.call(idsGuardables, id)) return;
+          if(!idsGuardables[id]){
+            valoresAEnviar[id] = rt.valores[id];
+            return;
+          }
+          const porOpcion = rt.valores[id];
+          if(!porOpcion || typeof porOpcion !== "object") return;
+          Object.keys(porOpcion).forEach(function(opcionID){
+            valoresPorOpcion.push({elemento_id:id, opcion_id:opcionID, valor:porOpcion[opcionID]});
+          });
         });
 
         try{
           const resp = await fetchAutenticado("/api/cotizador/runtime/" + encodeURIComponent(rt.cotizacionId) + "/valores", {
             method: "POST",
             headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({version: rt.version, valores: valoresAEnviar})
+            body: JSON.stringify({version: rt.version, valores: valoresAEnviar, valores_por_opcion: valoresPorOpcion})
           });
           let res = null;
           try{ res = await resp.json(); }catch(e){ res = null; }
@@ -15829,6 +16078,8 @@ window.CotizaApp = (function(){
           calculadoOperandosTemp:[],
           listaPreciosItemsActual:[],
           listaPreciosItemEditId:"",
+          seccionesReutilizables:[],
+          cargandoSeccionesReutilizables:false,
           cotizadorId:"",
           tabId:"",
           elementoId:"",
@@ -15926,6 +16177,57 @@ window.CotizaApp = (function(){
           .catch(function(err){ if(onFail) onFail(err); });
       }
 
+      function cargarSeccionesReutilizablesCotizadorFase1_(onOk){
+        const st = getCotizadorFase1State_();
+        const cont = byId("designerCotizadorSeccionesAdicionalesLista");
+        if(!st.cotizadorId){ st.seccionesReutilizables=[]; renderSeccionesReutilizablesCotizadorFase1_(); if(onOk) onOk(); return; }
+        if(st.cargandoSeccionesReutilizables) return;
+        st.cargandoSeccionesReutilizables = true;
+        if(cont) cont.innerHTML = '<div class="cotizador-mini-empty">Cargando secciones reutilizables...</div>';
+        fetchAutenticado("/api/cotizador/secciones-reutilizables?calculadora_id=" + encodeURIComponent(st.cotizadorId), {headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudieron cargar las secciones reutilizables."); return data; }); })
+          .then(function(data){ st.seccionesReutilizables = Array.isArray(data.secciones) ? data.secciones : rowsFromRespuestaFase1_(data); renderSeccionesReutilizablesCotizadorFase1_(); if(onOk) onOk(); })
+          .catch(function(err){ st.seccionesReutilizables=[]; if(cont) cont.innerHTML='<div class="cotizador-mini-empty">'+escapeHtml((err&&err.message)||"No se pudieron cargar las secciones.")+'</div>'; })
+          .finally(function(){ st.cargandoSeccionesReutilizables=false; });
+      }
+
+      function renderSeccionesReutilizablesCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("designerCotizadorSeccionesAdicionalesLista");
+        if(!cont) return;
+        const secciones = Array.isArray(st.seccionesReutilizables) ? st.seccionesReutilizables : [];
+        if(!secciones.length){ cont.innerHTML='<div class="cotizador-mini-empty">No hay secciones reutilizables de otros cotizadores.</div>'; return; }
+        cont.innerHTML = secciones.map(function(s){
+          const id=String(s.tab_id||"").trim();
+          return '<label class="cotizador-seccion-reutilizable"><input type="checkbox" data-seccion-reutilizable="'+escapeHtml(id)+'" '+(s.asociada?'checked':'')+'>'
+            +'<span><strong>'+escapeHtml(s.nombre||id)+'</strong><small>'+escapeHtml(s.calculadora_origen||s.calculadora_origen_id||"Cotizador de origen")+'</small></span></label>';
+        }).join("");
+      }
+
+      function sincronizarSeccionesAdicionalesCotizadorFase1_(elementoId, onOk, onFail){
+        const st = getCotizadorFase1State_();
+        const seleccionadas = Array.from(document.querySelectorAll('[data-seccion-reutilizable]:checked')).map(function(chk){ return String(chk.getAttribute("data-seccion-reutilizable")||"").trim().toUpperCase(); });
+        const seleccion = {};
+        seleccionadas.forEach(function(id){ seleccion[id]=true; });
+        const operaciones = [];
+        (st.seccionesReutilizables||[]).forEach(function(s){
+          const tabId=String(s.tab_id||"").trim().toUpperCase();
+          if(s.asociada && !seleccion[tabId]) operaciones.push({metodo:"DELETE", elemento:String(s.elemento_asociacion_id||elementoId), tabId:tabId});
+        });
+        const nuevas = seleccionadas.filter(function(id){ return !(st.seccionesReutilizables||[]).some(function(s){ return String(s.tab_id||"").trim().toUpperCase()===id && s.asociada; }); });
+        if(nuevas.length) operaciones.push({metodo:"POST", elemento:elementoId, tabIds:nuevas});
+        let indice=0;
+        function siguiente(){
+          if(indice>=operaciones.length){ if(onOk) onOk(); return; }
+          const op=operaciones[indice++];
+          const url="/api/cotizador/elementos/"+encodeURIComponent(op.elemento)+"/secciones"+(op.metodo==="DELETE"?"/"+encodeURIComponent(op.tabId):"");
+          const opciones={method:op.metodo,headers:{"Accept":"application/json"}};
+          if(op.metodo==="POST"){ opciones.headers["Content-Type"]="application/json"; opciones.body=JSON.stringify({tab_ids:op.tabIds}); }
+          fetchAutenticado(url,opciones).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok||!data.ok) throw new Error(data.error||"No se pudo actualizar la asociación."); }); }).then(siguiente).catch(function(err){ if(onFail) onFail(err); });
+        }
+        siguiente();
+      }
+
       function normalizarAlcanceSeccionCotizadorFase1_(value){
         return String(value || "PROPIO").trim().toUpperCase() === "REUTILIZABLE" ? "REUTILIZABLE" : "PROPIO";
       }
@@ -15943,6 +16245,7 @@ window.CotizaApp = (function(){
           st.cargado = false;
           st.tabs = [];
           st.elementos = [];
+          st.seccionesReutilizables = [];
           st.relaciones = [];
           renderCotizadorFase1_();
           cargarDatosCotizadorFase1_(true);
@@ -16229,9 +16532,7 @@ window.CotizaApp = (function(){
       function tabAplicaACotizadorFase1_(tab){
         const st = getCotizadorFase1State_();
         const cot = String((tab && (tab.cotizador_id || tab.calculadora_id)) || "").trim().toUpperCase();
-        const alcance = alcanceTabCotizadorFase1_(tab);
-        if(alcance === "REUTILIZABLE") return true;
-        return !cot || cot === st.cotizadorId;
+        return tab && (tab.es_propia === false || tab.solo_lectura === true || !cot || cot === st.cotizadorId);
       }
 
       function tabsActivosCotizadorFase1_(){
@@ -16265,15 +16566,21 @@ window.CotizaApp = (function(){
           const nombre = String(t.nombre_tab || id).trim();
           const desc = String(t.descripcion || "").trim();
           const alcance = alcanceTabCotizadorFase1_(t);
+          const asociada = t.es_propia === false || t.solo_lectura === true;
           const active = id === st.tabId ? " active selected" : "";
-          const alcanceTxt = alcance === "REUTILIZABLE" ? "Reutilizable" : "Propio";
-          return '<button class="cotizador-tree-item'+active+'" type="button" data-tab-id="'+escapeHtml(id)+'">'
+          const alcanceTxt = asociada ? "Asociada" : (alcance === "REUTILIZABLE" ? "Reutilizable" : "Propio");
+          const origen = asociada ? String(t.calculadora_origen_id || t.calculadora_id || "").trim() : "";
+          const quitar = asociada && t.elemento_asociacion_id ? '<span class="cotizador-associated-remove" role="button" tabindex="0" data-desasociar-tab="'+escapeHtml(id)+'" data-desasociar-elemento="'+escapeHtml(t.elemento_asociacion_id)+'">Quitar</span>' : '';
+          return '<button class="cotizador-tree-item'+active+(asociada?' is-associated':'')+'" type="button" data-tab-id="'+escapeHtml(id)+'">'
             + '<span class="cotizador-tree-dot">'+escapeHtml(String(numeroOrdenCotizadorFase1_(t.orden) === 9999 ? idx+1 : t.orden))+'</span>'
-            + '<div class="cotizador-tree-main"><strong>'+escapeHtml(nombre)+'</strong><small>'+escapeHtml(desc || id)+'</small></div>'
-            + '<span class="cotizador-tree-actions">'+escapeHtml(alcanceTxt)+'</span></button>';
+            + '<div class="cotizador-tree-main"><strong>'+escapeHtml(nombre)+'</strong><small>'+escapeHtml(asociada ? ("Desde "+origen+(desc?" · "+desc:"")) : (desc || id))+'</small></div>'
+            + '<span class="cotizador-tree-actions">'+escapeHtml(alcanceTxt)+quitar+'</span></button>';
         }).join("");
         cont.querySelectorAll("[data-tab-id]").forEach(function(btn){
           btn.addEventListener("click",function(){ seleccionarTabCotizadorFase1_(btn.getAttribute("data-tab-id")); });
+        });
+        cont.querySelectorAll("[data-desasociar-tab]").forEach(function(btn){
+          btn.addEventListener("click",function(e){ e.preventDefault(); e.stopPropagation(); desasociarTabCotizadorFase1_(btn.getAttribute("data-desasociar-elemento"),btn.getAttribute("data-desasociar-tab")); });
         });
         cargarPropsSeccionCotizadorFase1_();
       }
@@ -16283,11 +16590,27 @@ window.CotizaApp = (function(){
         return (st.tabs || []).find(function(t){ return String(t.tab_id || "").trim().toUpperCase() === st.tabId; }) || null;
       }
 
+      function tabSoloLecturaCotizadorFase1_(tab){
+        tab = tab || getTabActualCotizadorFase1_();
+        return !!(tab && (tab.es_propia === false || tab.solo_lectura === true));
+      }
+
+      function desasociarTabCotizadorFase1_(elementoId, tabId){
+        if(!elementoId || !tabId) return;
+        if(!window.confirm("¿Quitar esta sección asociada? La sección original y su contenido no se eliminarán.")) return;
+        fetchAutenticado("/api/cotizador/elementos/"+encodeURIComponent(elementoId)+"/secciones/"+encodeURIComponent(tabId), {method:"DELETE",headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok||!data.ok) throw new Error(data.error||"No se pudo quitar la sección."); return data; }); })
+          .then(function(){ const st=getCotizadorFase1State_(); st.tabId=""; st.elementoId=""; mostrarToast("Sección desasociada. La original permanece intacta."); cargarDatosCotizadorFase1_(true); })
+          .catch(function(err){ mostrarToast((err&&err.message)||"No se pudo quitar la sección."); });
+      }
+
       function seleccionarTabCotizadorFase1_(tabId){
         const st = getCotizadorFase1State_();
         st.tabId = String(tabId || "").trim().toUpperCase();
         st.elementoId = "";
         st.elementos = [];
+        const tabSeleccionada = getTabActualCotizadorFase1_();
+        if(tabSeleccionada && (tabSeleccionada.es_propia === false || tabSeleccionada.solo_lectura === true)) st.modoVista = "preview";
         renderTabsCotizadorFase1_();
         renderComponentesCotizadorFase1_();
         listarElementosCotizadorApiFase1_(st.tabId, function(res){
@@ -16317,6 +16640,10 @@ window.CotizaApp = (function(){
 
       function setModoVistaCotizadorFase1_(modo){
         const st = getCotizadorFase1State_();
+        if(modo !== "preview" && tabSoloLecturaCotizadorFase1_()){
+          mostrarToast("La sección asociada es de solo lectura. Edítela desde su cotizador de origen.");
+          modo = "preview";
+        }
         st.modoVista = modo === "preview" ? "preview" : "diseno";
         actualizarBotonesModoVistaCotizadorFase1_();
         renderComponentesCotizadorFase1_();
@@ -16324,12 +16651,15 @@ window.CotizaApp = (function(){
 
       function actualizarBotonesModoVistaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
-        const esPreview = st.modoVista === "preview";
+        const soloLectura = tabSoloLecturaCotizadorFase1_();
+        const esPreview = st.modoVista === "preview" || soloLectura;
+        if(soloLectura) st.modoVista = "preview";
         if(byId("btnDesignerModoDisenoCotizador")) byId("btnDesignerModoDisenoCotizador").classList.toggle("active", !esPreview);
+        if(byId("btnDesignerModoDisenoCotizador")) byId("btnDesignerModoDisenoCotizador").disabled = soloLectura;
         if(byId("btnDesignerModoPreviewCotizador")) byId("btnDesignerModoPreviewCotizador").classList.toggle("active", esPreview);
         if(byId("btnDesignerNuevoComponenteCotizador")){
           byId("btnDesignerNuevoComponenteCotizador").classList.toggle("hidden", esPreview);
-          byId("btnDesignerNuevoComponenteCotizador").disabled = esPreview || !getTabActualCotizadorFase1_();
+          byId("btnDesignerNuevoComponenteCotizador").disabled = esPreview || soloLectura || !getTabActualCotizadorFase1_();
         }
       }
 
@@ -16358,6 +16688,7 @@ window.CotizaApp = (function(){
         cont.innerHTML = renderComponentesDisenoAgrupadosCotizadorFase1_(els);
         cont.querySelectorAll("[data-elemento-id]").forEach(function(btn){
           btn.addEventListener("click",function(e){
+            if(tabSoloLecturaCotizadorFase1_()) return;
             e.stopPropagation();
             seleccionarComponenteCotizadorFase1_(btn.getAttribute("data-elemento-id"));
           });
@@ -16394,11 +16725,11 @@ window.CotizaApp = (function(){
         const etiqueta = String(e.etiqueta || e.label_visible || e.nombre_elemento || id).trim();
         const desc = String(e.descripcion || "").trim();
         const hijos = hijosPorPadre[id] || [];
-        if(tipo === "CONTENEDOR"){
+        if(tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA"){
           const hijosHtml = hijos.length
             ? hijos.map(function(h){ return renderComponenteDisenoCotizadorFase1_(h, hijosPorPadre, nivel + 1); }).join("")
-            : '<div class="cotizador-container-empty">Contenedor sin campos asignados.</div>';
-          return '<div class="cotizador-design-container" data-container-id="'+escapeHtml(id)+'">'
+            : '<div class="cotizador-container-empty">'+(tipo === "OPCIONES_PROPUESTA" ? "Opciones de Propuesta sin campos asignados." : "Contenedor sin campos asignados.")+'</div>';
+          return '<div class="cotizador-design-container'+(tipo === "OPCIONES_PROPUESTA" ? " cotizador-design-scenario" : "")+'" data-container-id="'+escapeHtml(id)+'">'
             + renderTarjetaComponenteDisenoCotizadorFase1_(e, nivel, true)
             + '<div class="cotizador-design-container-children">'+hijosHtml+'</div>'
             + '</div>';
@@ -16453,6 +16784,8 @@ window.CotizaApp = (function(){
         if(tipo === "TITULO") return renderTituloPreviewCotizadorFase1_(etiqueta, cfg);
         if(tipo === "LEYENDA") return renderLeyendaPreviewCotizadorFase1_(etiqueta, desc, cfg);
         if(tipo === "CONTENEDOR") return renderContenedorPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc);
+        if(tipo === "OPCIONES_PROPUESTA") return renderOpcionesPropuestaPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc);
+        if(tipo === "SECCIONES_ADICIONALES") return renderSeccionesAdicionalesPreviewCotizadorFase1_(cfg, etiqueta, desc);
         if(tipo === "TABLA") return renderTablaPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAMPO_CATALOGO") return renderCampoCatalogoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAJA_VALOR") return renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta);
@@ -16494,6 +16827,32 @@ window.CotizaApp = (function(){
         const cls = cols === 3 ? " cols-3" : cols === 2 ? " cols-2" : "";
         const cuerpo = hijos.length ? hijos.map(function(h){ return renderComponentePreviewCotizadorFase1_(h, hijosPorPadre); }).join("") : '<div class="cotizador-preview-empty">Contenedor sin campos asignados.</div>';
         return '<div class="cotizador-preview-container"><div class="cotizador-preview-container-head"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc ? '<span>'+escapeHtml(desc)+'</span>' : '')+'</div><div class="cotizador-preview-grid'+cls+'">'+cuerpo+'</div></div>';
+      }
+
+      function renderOpcionesPropuestaPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc){
+        const id = String(e.elemento_id || "").trim();
+        const hijos = hijosPorPadre[id] || [];
+        const cantidad = Math.max(1, Number(cfg.cantidad_inicial || 1) || 1);
+        const sugeridos = String(cfg.nombres_sugeridos || "").split(",").map(function(n){ return n.trim(); }).filter(Boolean);
+        const nombres = [];
+        for(let i=0;i<cantidad;i++) nombres.push(sugeridos[i] || ("Opción " + (i+1)));
+        const tabs = nombres.map(function(nombre,idx){
+          return '<button type="button" class="cotizador-preview-scenario-tab'+(idx===0?' active':'')+'" disabled>'+escapeHtml(nombre)+'</button>';
+        }).join("");
+        const cuerpo = hijos.map(function(h){ return renderComponentePreviewCotizadorFase1_(h,hijosPorPadre); }).join("");
+        return '<div class="cotizador-preview-scenarios">'
+          + '<div class="cotizador-preview-scenarios-head"><div class="cotizador-preview-scenarios-title"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc?'<span>'+escapeHtml(desc)+'</span>':'')+'</div></div>'
+          + '<div class="cotizador-preview-scenario-tabs">'+tabs+'</div>'
+          + '<div class="cotizador-preview-scenario-body">'+(cuerpo||'<div class="cotizador-preview-empty">Agregue componentes hijos para completar cada opción.</div>')+'</div>'
+          + '</div>';
+      }
+
+      function renderSeccionesAdicionalesPreviewCotizadorFase1_(cfg, etiqueta, desc){
+        const st = getCotizadorFase1State_();
+        const seleccionadas = (st.seccionesReutilizables||[]).filter(function(s){ return s.asociada; });
+        const items = seleccionadas.map(function(s){ return '<span class="cotizador-preview-scenario-tab active">'+escapeHtml(s.nombre||s.tab_id)+'</span>'; }).join("");
+        return '<div class="cotizador-preview-container"><div class="cotizador-preview-container-head"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc?'<span>'+escapeHtml(desc)+'</span>':'')+'</div>'
+          +'<div class="cotizador-preview-scenario-tabs">'+(items||'<span class="cotizador-preview-empty">Sin secciones reutilizables seleccionadas.</span>')+'</div></div>';
       }
 
       function renderCampoPreviewCotizadorFase1_(e, cfg, etiqueta, desc){
@@ -16571,6 +16930,8 @@ window.CotizaApp = (function(){
         if(tipo === "TITULO") return "H";
         if(tipo === "LEYENDA") return "i";
         if(tipo === "CONTENEDOR") return "▣";
+        if(tipo === "OPCIONES_PROPUESTA") return "⇶";
+        if(tipo === "SECCIONES_ADICIONALES") return "↗";
         if(tipo === "TABLA") return "▦";
         if(tipo === "CAJA_VALOR") return "$";
         if(tipo === "CAMPO_CALCULADO") return "ƒ";
@@ -16614,6 +16975,10 @@ window.CotizaApp = (function(){
         ["designerCotizadorTabIdOriginal","designerCotizadorTabId","designerCotizadorTabNombre","designerCotizadorTabDescripcion","designerCotizadorTabOrden"].forEach(function(id){ if(byId(id)) byId(id).value=""; });
         if(byId("designerCotizadorTabAlcance")) byId("designerCotizadorTabAlcance").value = "PROPIO";
         if(byId("designerCotizadorTabActivo")) byId("designerCotizadorTabActivo").checked = true;
+        ["designerCotizadorTabId","designerCotizadorTabNombre","designerCotizadorTabDescripcion","designerCotizadorTabOrden","designerCotizadorTabAlcance","designerCotizadorTabActivo"].forEach(function(id){ if(byId(id)) byId(id).disabled=false; });
+        if(byId("designerCotizadorTabSoloLectura")) byId("designerCotizadorTabSoloLectura").classList.add("hidden");
+        if(byId("btnDesignerGuardarSeccionCotizador")) byId("btnDesignerGuardarSeccionCotizador").classList.remove("hidden");
+        if(byId("btnDesignerAplicabilidadSeccion")) byId("btnDesignerAplicabilidadSeccion").classList.remove("hidden");
         if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.add("hidden");
         if(byId("designerCotizadorPropsTipoChip")) byId("designerCotizadorPropsTipoChip").textContent = "Sin selección";
         if(byId("designerCotizadorPropsVacio")) byId("designerCotizadorPropsVacio").classList.remove("hidden");
@@ -16632,7 +16997,12 @@ window.CotizaApp = (function(){
         if(byId("designerCotizadorTabOrden")) byId("designerCotizadorTabOrden").value = tab.orden || "";
         if(byId("designerCotizadorTabAlcance")) byId("designerCotizadorTabAlcance").value = alcanceTabCotizadorFase1_(tab);
         if(byId("designerCotizadorTabActivo")) byId("designerCotizadorTabActivo").checked = normalizarActivoCotizadorFase1_(tab.activo);
-        if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.remove("hidden");
+        const soloLectura = tabSoloLecturaCotizadorFase1_(tab);
+        ["designerCotizadorTabId","designerCotizadorTabNombre","designerCotizadorTabDescripcion","designerCotizadorTabOrden","designerCotizadorTabAlcance","designerCotizadorTabActivo"].forEach(function(id){ if(byId(id)) byId(id).disabled=soloLectura; });
+        if(byId("designerCotizadorTabSoloLectura")) byId("designerCotizadorTabSoloLectura").classList.toggle("hidden",!soloLectura);
+        if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.toggle("hidden",soloLectura);
+        if(byId("btnDesignerGuardarSeccionCotizador")) byId("btnDesignerGuardarSeccionCotizador").classList.toggle("hidden",soloLectura);
+        if(byId("btnDesignerAplicabilidadSeccion")) byId("btnDesignerAplicabilidadSeccion").classList.toggle("hidden",soloLectura);
         cargarResumenAplicabilidadSeccionCotizadorFase1_();
       }
 
@@ -16654,6 +17024,7 @@ window.CotizaApp = (function(){
 
       function guardarTabCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         const idOriginal = String(byId("designerCotizadorTabIdOriginal") ? byId("designerCotizadorTabIdOriginal").value : "").trim().toUpperCase();
         const tabId = String(byId("designerCotizadorTabId") ? byId("designerCotizadorTabId").value : "").trim().toUpperCase();
         const nombre = String(byId("designerCotizadorTabNombre") ? byId("designerCotizadorTabNombre").value : "").trim();
@@ -16678,6 +17049,7 @@ window.CotizaApp = (function(){
 
       function eliminarTabCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("Use Quitar para desasociar esta sección sin borrar la original."); return; }
         const tabId = String(st.tabId || "").trim().toUpperCase();
         if(!tabId){ mostrarToast("Seleccione una sección guardada para eliminar."); return; }
         if(!window.confirm("¿Desea eliminar la sección " + tabId + "? Sus elementos también quedarán inactivos.")) return;
@@ -16864,6 +17236,7 @@ window.CotizaApp = (function(){
         const reglaSel = byId("designerCotizadorCampoRegla");
         const reglaCatalogoSel = byId("designerCotizadorCampoCatalogoRegla");
         const catalogoSel = byId("designerCotizadorCampoCatalogoId");
+        const campoPrincipalSel = byId("designerCotizadorEscenariosCampoPrincipal");
 
         if(tablaSel){
           const actual = tablaSel.value;
@@ -16915,6 +17288,23 @@ window.CotizaApp = (function(){
             catalogoSel.appendChild(opt);
           });
           catalogoSel.value = actual;
+        }
+
+        if(campoPrincipalSel){
+          const actual = campoPrincipalSel.value;
+          const elementoActual = String(st.elementoId || "").trim();
+          campoPrincipalSel.innerHTML = '<option value="">Sin campo principal</option>';
+          (st.elementos || []).filter(function(el){
+            return String(el.tab_id || "").trim() === st.tabId
+              && String(el.elemento_id || "").trim() !== elementoActual
+              && normalizarActivoCotizadorFase1_(el.activo);
+          }).sort(function(a,b){ return numeroOrdenCotizadorFase1_(a.orden)-numeroOrdenCotizadorFase1_(b.orden); }).forEach(function(el){
+            const opt = document.createElement("option");
+            opt.value = String(el.elemento_id || "").trim();
+            opt.textContent = labelElementoCampoCotizadorFase1_(el);
+            campoPrincipalSel.appendChild(opt);
+          });
+          campoPrincipalSel.value = actual;
         }
 
         [reglaSel, reglaCatalogoSel].forEach(function(sel){
@@ -16970,15 +17360,18 @@ window.CotizaApp = (function(){
         const etiquetaLabel = byId("designerCotizadorEtiquetaLabel");
         const descripcionLabel = byId("designerCotizadorDescripcionLabel");
         if(etiquetaLabel){
-          etiquetaLabel.textContent = tipo === "TITULO" ? "Texto del título" : tipo === "LEYENDA" ? "Texto de la leyenda" : tipo === "TABLA" ? "Título de la tabla" : tipo === "CONTENEDOR" ? "Título del contenedor" : "Etiqueta visible";
+          etiquetaLabel.textContent = tipo === "TITULO" ? "Texto del título" : tipo === "LEYENDA" ? "Texto de la leyenda" : tipo === "TABLA" ? "Título de la tabla" : tipo === "CONTENEDOR" ? "Título del contenedor" : tipo === "OPCIONES_PROPUESTA" ? "Título de las opciones" : tipo === "SECCIONES_ADICIONALES" ? "Título del selector de secciones" : "Etiqueta visible";
         }
         if(descripcionLabel){
           descripcionLabel.textContent = tipo === "LEYENDA" ? "Texto complementario / ayuda" : "Descripción / ayuda";
         }
         const padreWrap = byId("designerCotizadorElementoPadreWrap");
         if(padreWrap){
-          const hayContenedores = elementosDeTabCotizadorFase1_().some(function(e){ return String(e.tipo_elemento || "").toUpperCase() === "CONTENEDOR" && String(e.elemento_id || "") !== String(getCotizadorFase1State_().elementoId || ""); });
-          padreWrap.classList.toggle("hidden", !hayContenedores || tipo === "CONTENEDOR");
+          const hayPadres = elementosDeTabCotizadorFase1_().some(function(e){
+            const tipoPadre = String(e.tipo_elemento || "").toUpperCase();
+            return (tipoPadre === "CONTENEDOR" || tipoPadre === "OPCIONES_PROPUESTA") && String(e.elemento_id || "") !== String(getCotizadorFase1State_().elementoId || "");
+          });
+          padreWrap.classList.toggle("hidden", !hayPadres || tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA" || tipo === "SECCIONES_ADICIONALES");
         }
         const funcionCampoBox = byId("designerCotizadorFuncionCampoBox");
         if(funcionCampoBox){
@@ -16988,6 +17381,7 @@ window.CotizaApp = (function(){
         actualizarOpcionesFechaCampoCotizadorFase1_();
         actualizarMensajeCatalogoHijoCotizadorFase1_();
         if(tipo === "CAMPO_CALCULADO") renderOperandosCalculadoCotizadorFase1_();
+        if(tipo === "SECCIONES_ADICIONALES") cargarSeccionesReutilizablesCotizadorFase1_();
       }
       function getCampoModeloByIdCotizadorFase1_(campoId){
         const st = getCotizadorFase1State_();
@@ -17395,6 +17789,24 @@ window.CotizaApp = (function(){
         if(byId("designerCotizadorContenedorColumnas")) byId("designerCotizadorContenedorColumnas").value = String(cfg.columnas || 2);
         if(byId("designerCotizadorContenedorEstilo")) byId("designerCotizadorContenedorEstilo").value = cfg.estilo || "card";
 
+        if(byId("designerCotizadorEscenariosCantidadInicial")) byId("designerCotizadorEscenariosCantidadInicial").value = cfg.cantidad_inicial || 1;
+        if(byId("designerCotizadorEscenariosNombresSugeridos")) byId("designerCotizadorEscenariosNombresSugeridos").value = cfg.nombres_sugeridos || "";
+        if(byId("designerCotizadorEscenariosVistaEdicion")) byId("designerCotizadorEscenariosVistaEdicion").value = cfg.vista_editar || "PESTANAS";
+        if(byId("designerCotizadorEscenariosVistaResumen")) byId("designerCotizadorEscenariosVistaResumen").value = cfg.vista_resumen || "CAJAS";
+        if(byId("designerCotizadorEscenariosVistaOferta")) byId("designerCotizadorEscenariosVistaOferta").value = cfg.vista_oferta || "TABLA_COMPARATIVA";
+        if(byId("designerCotizadorEscenariosCampoPrincipal")) byId("designerCotizadorEscenariosCampoPrincipal").value = cfg.campo_principal_id || "";
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirDuplicar", cfg.permitir_duplicar !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirEliminar", cfg.permitir_eliminar !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirRenombrar", cfg.permitir_renombrar !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirRecomendado", cfg.permitir_recomendado !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosVisibleOferta", cfg.visible_oferta !== false);
+
+        if(byId("designerCotizadorSeccionesAdicionalesPresentacion")) byId("designerCotizadorSeccionesAdicionalesPresentacion").value = cfg.presentacion || "CHECKS";
+        if(byId("designerCotizadorSeccionesAdicionalesColumnas")) byId("designerCotizadorSeccionesAdicionalesColumnas").value = String(cfg.columnas || 2);
+        setCheckedCotizadorFase1_("designerCotizadorSeccionesAdicionalesVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorSeccionesAdicionalesVisibleOferta", cfg.visible_oferta === true);
+
         if(byId("designerCotizadorCajaValorCampoFuente")) byId("designerCotizadorCajaValorCampoFuente").value = cfg.campo_fuente_id || "";
         if(byId("designerCotizadorCajaValorDefault")) byId("designerCotizadorCajaValorDefault").value = cfg.valor_por_defecto || "";
         if(byId("designerCotizadorCajaValorPrefijo")) byId("designerCotizadorCajaValorPrefijo").value = cfg.prefijo || "";
@@ -17482,6 +17894,26 @@ window.CotizaApp = (function(){
         if(tipo === "CONTENEDOR"){
           cfg.columnas = Number(byId("designerCotizadorContenedorColumnas") ? byId("designerCotizadorContenedorColumnas").value : 2) || 2;
           cfg.estilo = byId("designerCotizadorContenedorEstilo") ? byId("designerCotizadorContenedorEstilo").value : "card";
+        }
+        if(tipo === "OPCIONES_PROPUESTA"){
+          cfg.cantidad_inicial = Number(byId("designerCotizadorEscenariosCantidadInicial") ? byId("designerCotizadorEscenariosCantidadInicial").value : 1) || 1;
+          cfg.nombres_sugeridos = byId("designerCotizadorEscenariosNombresSugeridos") ? byId("designerCotizadorEscenariosNombresSugeridos").value : "";
+          cfg.vista_editar = byId("designerCotizadorEscenariosVistaEdicion") ? byId("designerCotizadorEscenariosVistaEdicion").value : "PESTANAS";
+          cfg.vista_resumen = byId("designerCotizadorEscenariosVistaResumen") ? byId("designerCotizadorEscenariosVistaResumen").value : "CAJAS";
+          cfg.vista_oferta = byId("designerCotizadorEscenariosVistaOferta") ? byId("designerCotizadorEscenariosVistaOferta").value : "TABLA_COMPARATIVA";
+          cfg.campo_principal_id = byId("designerCotizadorEscenariosCampoPrincipal") ? byId("designerCotizadorEscenariosCampoPrincipal").value : "";
+          cfg.permitir_duplicar = byId("designerCotizadorEscenariosPermitirDuplicar") ? byId("designerCotizadorEscenariosPermitirDuplicar").checked : true;
+          cfg.permitir_eliminar = byId("designerCotizadorEscenariosPermitirEliminar") ? byId("designerCotizadorEscenariosPermitirEliminar").checked : true;
+          cfg.permitir_renombrar = byId("designerCotizadorEscenariosPermitirRenombrar") ? byId("designerCotizadorEscenariosPermitirRenombrar").checked : true;
+          cfg.permitir_recomendado = byId("designerCotizadorEscenariosPermitirRecomendado") ? byId("designerCotizadorEscenariosPermitirRecomendado").checked : true;
+          cfg.visible_calculadora = byId("designerCotizadorEscenariosVisibleCalc") ? byId("designerCotizadorEscenariosVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorEscenariosVisibleOferta") ? byId("designerCotizadorEscenariosVisibleOferta").checked : true;
+        }
+        if(tipo === "SECCIONES_ADICIONALES"){
+          cfg.presentacion = byId("designerCotizadorSeccionesAdicionalesPresentacion") ? byId("designerCotizadorSeccionesAdicionalesPresentacion").value : "CHECKS";
+          cfg.columnas = Number(byId("designerCotizadorSeccionesAdicionalesColumnas") ? byId("designerCotizadorSeccionesAdicionalesColumnas").value : 2) || 2;
+          cfg.visible_calculadora = byId("designerCotizadorSeccionesAdicionalesVisibleCalc") ? byId("designerCotizadorSeccionesAdicionalesVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorSeccionesAdicionalesVisibleOferta") ? byId("designerCotizadorSeccionesAdicionalesVisibleOferta").checked : false;
         }
         if(tipo === "CAJA_VALOR"){
           cfg.campo_fuente_id = byId("designerCotizadorCajaValorCampoFuente") ? byId("designerCotizadorCajaValorCampoFuente").value : "";
@@ -17571,6 +18003,7 @@ window.CotizaApp = (function(){
       function nuevoComponenteCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         if(!st.tabId){ mostrarToast("Seleccione o guarde una sección antes de agregar componentes."); return; }
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         st.elementoId = "";
         mostrarPropsComponenteCotizadorFase1_();
         limpiarPropsComponenteCotizadorFase1_();
@@ -17589,12 +18022,13 @@ window.CotizaApp = (function(){
       function guardarComponenteCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         if(!st.tabId){ mostrarToast("Seleccione una sección."); return; }
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         const idOriginal = String(byId("designerCotizadorElementoIdOriginal") ? byId("designerCotizadorElementoIdOriginal").value : "").trim();
         const elementoId = String(byId("designerCotizadorElementoId") ? byId("designerCotizadorElementoId").value : "").trim();
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA","OPCIONES_PROPUESTA","SECCIONES_ADICIONALES"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
@@ -17604,7 +18038,7 @@ window.CotizaApp = (function(){
           const minimo = cfgObj.operacion === "PROMEDIO" ? 1 : 2;
           if(!Array.isArray(cfgObj.operandos) || cfgObj.operandos.length < minimo){ mostrarToast("La operación " + cfgObj.operacion + " necesita al menos " + minimo + " operando(s)."); return; }
         }
-        const padreId = tipo === "CONTENEDOR" ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
+        const padreId = (tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA" || tipo === "SECCIONES_ADICIONALES") ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
         const fuenteId = tipo === "CAJA_VALOR" ? String(cfgObj.campo_fuente_id || "").trim() : "";
         const funcionCampo = ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) >= 0
           ? String(byId("designerCotizadorFuncionCampo") ? byId("designerCotizadorFuncionCampo").value : "NORMAL").trim().toUpperCase()
@@ -17612,6 +18046,7 @@ window.CotizaApp = (function(){
         const registro = {
           elemento_id: elementoId,
           tab_id: st.tabId,
+          calculadora_id: st.cotizadorId,
           tipo: tipo,
           etiqueta: etiqueta,
           catalogo_id: catalogoId || null,
@@ -17624,7 +18059,7 @@ window.CotizaApp = (function(){
           configuracion: cfgObj,
           activo: byId("designerCotizadorElementoActivo") ? byId("designerCotizadorElementoActivo").checked : true
         };
-        guardarElementoCotizadorApiFase1_(registro, function(){
+        function finalizarGuardado(){
           mostrarToast("Componente guardado.");
           st.elementoId = elementoId;
           cerrarModalComponenteCotizadorFase1_();
@@ -17632,11 +18067,17 @@ window.CotizaApp = (function(){
             st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
             renderComponentesCotizadorFase1_();
           }, function(err){ mostrarToast("No se pudieron recargar los elementos: " + ((err && err.message) || err)); });
+        }
+        guardarElementoCotizadorApiFase1_(registro, function(){
+          if(tipo === "SECCIONES_ADICIONALES"){
+            sincronizarSeccionesAdicionalesCotizadorFase1_(elementoId, finalizarGuardado, function(err){ mostrarToast("El componente se guardó, pero sus secciones no: " + ((err && err.message) || err)); });
+          } else finalizarGuardado();
         }, function(err){ mostrarToast("No se pudo guardar el componente: " + ((err && err.message) || err)); });
       }
 
       function eliminarComponenteCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         const elementoId = String(st.elementoId || "").trim();
         if(!elementoId){ mostrarToast("Seleccione un componente guardado para eliminar."); return; }
         if(!window.confirm("¿Desea eliminar el componente " + elementoId + "? La fila se conservará inactiva.")) return;
@@ -17659,10 +18100,14 @@ window.CotizaApp = (function(){
         if(!sel) return;
         const actual = sel.value;
         sel.innerHTML = '<option value="">Sin componente padre</option>';
-        (els || []).filter(function(e){ return String(e.tipo_elemento||"").toUpperCase() === "CONTENEDOR"; }).forEach(function(e){
+        (els || []).filter(function(e){
+          const tipo = String(e.tipo_elemento||"").toUpperCase();
+          return tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA";
+        }).forEach(function(e){
           const opt = document.createElement("option");
           opt.value = String(e.elemento_id || "").trim();
-          opt.textContent = String(e.etiqueta || e.nombre_elemento || e.elemento_id || "Componente").trim();
+          const prefijo = String(e.tipo_elemento||"").toUpperCase() === "OPCIONES_PROPUESTA" ? "Opciones · " : "Contenedor · ";
+          opt.textContent = prefijo + String(e.etiqueta || e.nombre_elemento || e.elemento_id || "Componente").trim();
           sel.appendChild(opt);
         });
         sel.value = actual;

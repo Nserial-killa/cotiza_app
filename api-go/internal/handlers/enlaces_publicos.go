@@ -327,7 +327,8 @@ func (h *EnlacesPublicosHandler) consultarTabsYValores(ctx context.Context, coti
 		       cv.valor, catv.texto_visible
 		  FROM tabs_cotizador t
 		  JOIN elementos_tab_cotizador e ON e.tab_id = t.tab_id AND e.activo = true
-		  LEFT JOIN cotizacion_valores cv ON cv.cotizacion_id = $1 AND cv.version = $2 AND cv.elemento_id = e.elemento_id
+		  LEFT JOIN cotizacion_valores cv ON cv.cotizacion_id = $1 AND cv.version = $2
+		   AND cv.elemento_id = e.elemento_id AND cv.opcion_id IS NULL
 		  LEFT JOIN catalogo_valores catv ON catv.catalogo_id = e.catalogo_id AND catv.valor_sistema = (cv.valor #>> '{}')
 		 WHERE t.calculadora_id = $3 AND t.activo = true
 		 ORDER BY t.orden, t.tab_id, e.orden, e.elemento_id`,

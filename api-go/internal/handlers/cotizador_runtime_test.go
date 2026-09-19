@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -81,6 +82,75 @@ func postValoresRuntime(t *testing.T, fixture fixtureRuntime, body any) *httptes
 	return postCatalogos(t, func(w http.ResponseWriter, r *http.Request) { router.ServeHTTP(w, r) }, ruta, body)
 }
 
+func postOpcionesRuntime(t *testing.T, fixture fixtureRuntime, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	router := chi.NewRouter()
+	router.Post("/api/cotizador/runtime/{cotizacion_id}/opciones", fixture.Handler.AdministrarOpciones)
+	ruta := "/api/cotizador/runtime/" + fixture.CotizacionID + "/opciones"
+	return postCatalogos(t, func(w http.ResponseWriter, r *http.Request) { router.ServeHTTP(w, r) }, ruta, body)
+}
+
+func fixtureRuntimeOpciones(t *testing.T, permitirDuplicar bool) (fixtureRuntime, string, string, string) {
+	t.Helper()
+	pool := setupTestDB(t)
+	cotizacionID, calculadoraID, _ := crearCotizacionPrueba(t, pool, "Borrador", "", "")
+	sufijo := sufijoUnico()
+	tabID := "TEST-RUNTIME-TAB-OPC-" + sufijo
+	padreID := "TEST-RUNTIME-OPC-" + sufijo
+	hijoID := "TEST-RUNTIME-OPC-HIJO-" + sufijo
+	calculadoID := "TEST-RUNTIME-OPC-CALC-" + sufijo
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO tabs_cotizador (tab_id, calculadora_id, nombre, orden, activo) VALUES ($1,$2,'Opciones',1,true)`, tabID, calculadoraID); err != nil {
+		t.Fatal(err)
+	}
+	configuracionPadre := map[string]any{
+		"cantidad_inicial": 2, "nombres_sugeridos": "Starter, Premium", "vista_editar": "PESTANAS",
+		"vista_resumen": "CAJAS", "vista_oferta": "TABLA_COMPARATIVA", "permitir_duplicar": permitirDuplicar,
+		"permitir_eliminar": true, "permitir_renombrar": true, "permitir_recomendado": true,
+	}
+	configJSON, _ := json.Marshal(configuracionPadre)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO elementos_tab_cotizador (elemento_id,tab_id,tipo,etiqueta,orden,configuracion,activo)
+		VALUES ($1,$2,'OPCIONES_PROPUESTA','Planes',1,$3,true),
+		       ($4,$2,'CAMPO','Precio',2,'{"tipo_campo":"MONEDA"}'::jsonb,true),
+		       ($5,$2,'CAMPO_CALCULADO','Precio doble',3,$6,true)`, padreID, tabID, string(configJSON), hijoID, calculadoID,
+		fmt.Sprintf(`{"tipo_formula":"SIMPLE","operacion":"SUMA","operandos":[%q,%q],"decimales":2}`, hijoID, hijoID)); err != nil {
+		t.Fatal(err)
+	}
+	estructura := map[string]any{
+		"calculadora_id": calculadoraID, "version": 1,
+		"tabs": []any{map[string]any{
+			"tab_id": tabID, "nombre": "Planes", "alcance": "PROPIO", "orden": 1,
+			"elementos": []any{map[string]any{
+				"elemento_id": padreID, "tipo": "OPCIONES_PROPUESTA", "etiqueta": "Opciones de propuesta",
+				"columnas_ancho": 1, "orden": 1, "requerido": false, "configuracion": configuracionPadre,
+				"hijos": []any{map[string]any{
+					"elemento_id": hijoID, "tipo": "CAMPO", "etiqueta": "Precio", "columnas_ancho": 1,
+					"orden": 2, "requerido": true, "configuracion": map[string]any{"tipo_campo": "MONEDA"},
+				}, map[string]any{
+					"elemento_id": calculadoID, "tipo": "CAMPO_CALCULADO", "etiqueta": "Precio doble", "columnas_ancho": 1,
+					"orden": 3, "configuracion": map[string]any{"tipo_formula": "SIMPLE", "operacion": "SUMA", "operandos": []any{hijoID, hijoID}, "decimales": 2},
+				}},
+			}},
+		}},
+	}
+	raw, _ := json.Marshal(estructura)
+	var compiladoID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO cotizadores_compilados (calculadora_id,version,estado,configuracion)
+		VALUES ($1,1,'ACTIVA',$2) RETURNING compilado_id::text`, calculadoraID, string(raw)).Scan(&compiladoID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `UPDATE cotizaciones SET compilado_id_usado=NULL WHERE cotizacion_id=$1`, cotizacionID)
+		pool.Exec(context.Background(), `DELETE FROM cotizaciones WHERE cotizacion_id=$1`, cotizacionID)
+		pool.Exec(context.Background(), `DELETE FROM cotizadores_compilados WHERE compilado_id::text=$1`, compiladoID)
+		pool.Exec(context.Background(), `DELETE FROM elementos_tab_cotizador WHERE elemento_id=ANY($1)`, []string{calculadoID, hijoID, padreID})
+		pool.Exec(context.Background(), `DELETE FROM tabs_cotizador WHERE tab_id=$1`, tabID)
+	})
+	return fixtureRuntime{Handler: &CotizadorRuntimeHandler{DB: pool}, CotizacionID: cotizacionID, CompiladoID: compiladoID}, padreID, hijoID, calculadoID
+}
+
 func TestCotizadorRuntime_ResuelveCompiladoYTraeOpciones(t *testing.T) {
 	fixture := crearFixtureRuntime(t)
 	rec := getRuntime(t, fixture, "")
@@ -137,6 +207,106 @@ func TestCotizadorRuntime_RechazaValorCatalogoInvalido(t *testing.T) {
 	rec := postValoresRuntime(t, fixture, map[string]any{"version": 1, "valores": map[string]any{fixture.CatalogoElID: "NO_EXISTE"}})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("catálogo inválido: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCotizadorRuntime_OpcionesInicialesYValoresIndependientes(t *testing.T) {
+	fixture, padreID, hijoID, calculadoID := fixtureRuntimeOpciones(t, true)
+	rec := getRuntime(t, fixture, "version=1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("primera apertura: %d: %s", rec.Code, rec.Body.String())
+	}
+	var res struct {
+		Estructura map[string]any `json:"estructura"`
+		Valores    map[string]any `json:"valores"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	padre := buscarElementoEstructura(res.Estructura, padreID)
+	opciones := padre["opciones"].([]any)
+	if len(opciones) != 2 || opciones[0].(map[string]any)["nombre"] != "Starter" || opciones[1].(map[string]any)["nombre"] != "Premium" {
+		t.Fatalf("opciones iniciales inesperadas: %+v", opciones)
+	}
+	opcionA := opciones[0].(map[string]any)["opcion_id"].(string)
+	opcionB := opciones[1].(map[string]any)["opcion_id"].(string)
+	rec = postValoresRuntime(t, fixture, map[string]any{
+		"version": 1,
+		"valores_por_opcion": []map[string]any{
+			{"elemento_id": hijoID, "opcion_id": opcionA, "valor": "100"},
+			{"elemento_id": hijoID, "opcion_id": opcionB, "valor": "250"},
+		},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("guardar valores por opción: %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = getRuntime(t, fixture, "version=1")
+	assertJSON(t, rec.Body.Bytes(), &res)
+	porOpcion := res.Valores[hijoID].(map[string]any)
+	if porOpcion[opcionA] != "100" || porOpcion[opcionB] != "250" {
+		t.Fatalf("los valores por opción se pisaron o no se resolvieron: %+v", porOpcion)
+	}
+	calculado := buscarElementoEstructura(res.Estructura, calculadoID)
+	resueltos, ok := calculado["valores_resueltos_por_opcion"].(map[string]any)
+	if !ok {
+		t.Fatalf("el campo calculado no devolvió valores_resueltos_por_opcion: %+v", calculado)
+	}
+	if resueltos[opcionA] != float64(200) || resueltos[opcionB] != float64(500) {
+		t.Fatalf("el campo calculado no se resolvió por opción: %+v", resueltos)
+	}
+	var filas int
+	if err := fixture.Handler.DB.QueryRow(context.Background(), `SELECT COUNT(*) FROM cotizacion_valores WHERE cotizacion_id=$1 AND elemento_id=$2`, fixture.CotizacionID, hijoID).Scan(&filas); err != nil || filas != 2 {
+		t.Fatalf("esperaba dos filas físicas para el mismo campo: filas=%d err=%v", filas, err)
+	}
+}
+
+func TestCotizadorRuntime_OpcionesRecomendadaUnicaYNoEliminaLaUltima(t *testing.T) {
+	fixture, padreID, _, _ := fixtureRuntimeOpciones(t, true)
+	rec := getRuntime(t, fixture, "version=1")
+	var res struct {
+		Estructura map[string]any `json:"estructura"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	opciones := buscarElementoEstructura(res.Estructura, padreID)["opciones"].([]any)
+	opcionA := opciones[0].(map[string]any)["opcion_id"].(string)
+	opcionB := opciones[1].(map[string]any)["opcion_id"].(string)
+	for _, opcionID := range []string{opcionA, opcionB} {
+		rec = postOpcionesRuntime(t, fixture, map[string]any{
+			"version": 1, "elemento_padre_id": padreID, "accion": "RECOMENDAR", "opcion_id": opcionID,
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("marcar recomendada %s: %d: %s", opcionID, rec.Code, rec.Body.String())
+		}
+	}
+	var recomendadas int
+	var recomendadaID string
+	if err := fixture.Handler.DB.QueryRow(context.Background(), `
+		SELECT COUNT(*) FILTER (WHERE es_recomendada), COALESCE(MAX(opcion_id) FILTER (WHERE es_recomendada),'')
+		FROM cotizacion_opciones WHERE cotizacion_id=$1 AND numero_version=1 AND elemento_padre_id=$2`, fixture.CotizacionID, padreID).Scan(&recomendadas, &recomendadaID); err != nil {
+		t.Fatal(err)
+	}
+	if recomendadas != 1 || recomendadaID != opcionB {
+		t.Fatalf("recomendada no quedó única: cantidad=%d id=%s", recomendadas, recomendadaID)
+	}
+	rec = postOpcionesRuntime(t, fixture, map[string]any{
+		"version": 1, "elemento_padre_id": padreID, "accion": "ELIMINAR", "opcion_id": opcionA,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("eliminar con dos opciones: %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = postOpcionesRuntime(t, fixture, map[string]any{
+		"version": 1, "elemento_padre_id": padreID, "accion": "ELIMINAR", "opcion_id": opcionB,
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("eliminar la única opción: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCotizadorRuntime_RechazaAgregarSiNoPermiteDuplicar(t *testing.T) {
+	fixture, padreID, _, _ := fixtureRuntimeOpciones(t, false)
+	rec := postOpcionesRuntime(t, fixture, map[string]any{
+		"version": 1, "elemento_padre_id": padreID, "accion": "AGREGAR", "nombre": "Enterprise",
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("agregar sin permiso: esperaba 409, dio %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

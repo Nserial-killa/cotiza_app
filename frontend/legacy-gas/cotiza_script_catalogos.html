@@ -45,6 +45,8 @@
           calculadoOperandosTemp:[],
           listaPreciosItemsActual:[],
           listaPreciosItemEditId:"",
+          seccionesReutilizables:[],
+          cargandoSeccionesReutilizables:false,
           cotizadorId:"",
           tabId:"",
           elementoId:"",
@@ -142,6 +144,57 @@
           .catch(function(err){ if(onFail) onFail(err); });
       }
 
+      function cargarSeccionesReutilizablesCotizadorFase1_(onOk){
+        const st = getCotizadorFase1State_();
+        const cont = byId("designerCotizadorSeccionesAdicionalesLista");
+        if(!st.cotizadorId){ st.seccionesReutilizables=[]; renderSeccionesReutilizablesCotizadorFase1_(); if(onOk) onOk(); return; }
+        if(st.cargandoSeccionesReutilizables) return;
+        st.cargandoSeccionesReutilizables = true;
+        if(cont) cont.innerHTML = '<div class="cotizador-mini-empty">Cargando secciones reutilizables...</div>';
+        fetchAutenticado("/api/cotizador/secciones-reutilizables?calculadora_id=" + encodeURIComponent(st.cotizadorId), {headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudieron cargar las secciones reutilizables."); return data; }); })
+          .then(function(data){ st.seccionesReutilizables = Array.isArray(data.secciones) ? data.secciones : rowsFromRespuestaFase1_(data); renderSeccionesReutilizablesCotizadorFase1_(); if(onOk) onOk(); })
+          .catch(function(err){ st.seccionesReutilizables=[]; if(cont) cont.innerHTML='<div class="cotizador-mini-empty">'+escapeHtml((err&&err.message)||"No se pudieron cargar las secciones.")+'</div>'; })
+          .finally(function(){ st.cargandoSeccionesReutilizables=false; });
+      }
+
+      function renderSeccionesReutilizablesCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("designerCotizadorSeccionesAdicionalesLista");
+        if(!cont) return;
+        const secciones = Array.isArray(st.seccionesReutilizables) ? st.seccionesReutilizables : [];
+        if(!secciones.length){ cont.innerHTML='<div class="cotizador-mini-empty">No hay secciones reutilizables de otros cotizadores.</div>'; return; }
+        cont.innerHTML = secciones.map(function(s){
+          const id=String(s.tab_id||"").trim();
+          return '<label class="cotizador-seccion-reutilizable"><input type="checkbox" data-seccion-reutilizable="'+escapeHtml(id)+'" '+(s.asociada?'checked':'')+'>'
+            +'<span><strong>'+escapeHtml(s.nombre||id)+'</strong><small>'+escapeHtml(s.calculadora_origen||s.calculadora_origen_id||"Cotizador de origen")+'</small></span></label>';
+        }).join("");
+      }
+
+      function sincronizarSeccionesAdicionalesCotizadorFase1_(elementoId, onOk, onFail){
+        const st = getCotizadorFase1State_();
+        const seleccionadas = Array.from(document.querySelectorAll('[data-seccion-reutilizable]:checked')).map(function(chk){ return String(chk.getAttribute("data-seccion-reutilizable")||"").trim().toUpperCase(); });
+        const seleccion = {};
+        seleccionadas.forEach(function(id){ seleccion[id]=true; });
+        const operaciones = [];
+        (st.seccionesReutilizables||[]).forEach(function(s){
+          const tabId=String(s.tab_id||"").trim().toUpperCase();
+          if(s.asociada && !seleccion[tabId]) operaciones.push({metodo:"DELETE", elemento:String(s.elemento_asociacion_id||elementoId), tabId:tabId});
+        });
+        const nuevas = seleccionadas.filter(function(id){ return !(st.seccionesReutilizables||[]).some(function(s){ return String(s.tab_id||"").trim().toUpperCase()===id && s.asociada; }); });
+        if(nuevas.length) operaciones.push({metodo:"POST", elemento:elementoId, tabIds:nuevas});
+        let indice=0;
+        function siguiente(){
+          if(indice>=operaciones.length){ if(onOk) onOk(); return; }
+          const op=operaciones[indice++];
+          const url="/api/cotizador/elementos/"+encodeURIComponent(op.elemento)+"/secciones"+(op.metodo==="DELETE"?"/"+encodeURIComponent(op.tabId):"");
+          const opciones={method:op.metodo,headers:{"Accept":"application/json"}};
+          if(op.metodo==="POST"){ opciones.headers["Content-Type"]="application/json"; opciones.body=JSON.stringify({tab_ids:op.tabIds}); }
+          fetchAutenticado(url,opciones).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok||!data.ok) throw new Error(data.error||"No se pudo actualizar la asociación."); }); }).then(siguiente).catch(function(err){ if(onFail) onFail(err); });
+        }
+        siguiente();
+      }
+
       function normalizarAlcanceSeccionCotizadorFase1_(value){
         return String(value || "PROPIO").trim().toUpperCase() === "REUTILIZABLE" ? "REUTILIZABLE" : "PROPIO";
       }
@@ -159,6 +212,7 @@
           st.cargado = false;
           st.tabs = [];
           st.elementos = [];
+          st.seccionesReutilizables = [];
           st.relaciones = [];
           renderCotizadorFase1_();
           cargarDatosCotizadorFase1_(true);
@@ -445,9 +499,7 @@
       function tabAplicaACotizadorFase1_(tab){
         const st = getCotizadorFase1State_();
         const cot = String((tab && (tab.cotizador_id || tab.calculadora_id)) || "").trim().toUpperCase();
-        const alcance = alcanceTabCotizadorFase1_(tab);
-        if(alcance === "REUTILIZABLE") return true;
-        return !cot || cot === st.cotizadorId;
+        return tab && (tab.es_propia === false || tab.solo_lectura === true || !cot || cot === st.cotizadorId);
       }
 
       function tabsActivosCotizadorFase1_(){
@@ -481,15 +533,21 @@
           const nombre = String(t.nombre_tab || id).trim();
           const desc = String(t.descripcion || "").trim();
           const alcance = alcanceTabCotizadorFase1_(t);
+          const asociada = t.es_propia === false || t.solo_lectura === true;
           const active = id === st.tabId ? " active selected" : "";
-          const alcanceTxt = alcance === "REUTILIZABLE" ? "Reutilizable" : "Propio";
-          return '<button class="cotizador-tree-item'+active+'" type="button" data-tab-id="'+escapeHtml(id)+'">'
+          const alcanceTxt = asociada ? "Asociada" : (alcance === "REUTILIZABLE" ? "Reutilizable" : "Propio");
+          const origen = asociada ? String(t.calculadora_origen_id || t.calculadora_id || "").trim() : "";
+          const quitar = asociada && t.elemento_asociacion_id ? '<span class="cotizador-associated-remove" role="button" tabindex="0" data-desasociar-tab="'+escapeHtml(id)+'" data-desasociar-elemento="'+escapeHtml(t.elemento_asociacion_id)+'">Quitar</span>' : '';
+          return '<button class="cotizador-tree-item'+active+(asociada?' is-associated':'')+'" type="button" data-tab-id="'+escapeHtml(id)+'">'
             + '<span class="cotizador-tree-dot">'+escapeHtml(String(numeroOrdenCotizadorFase1_(t.orden) === 9999 ? idx+1 : t.orden))+'</span>'
-            + '<div class="cotizador-tree-main"><strong>'+escapeHtml(nombre)+'</strong><small>'+escapeHtml(desc || id)+'</small></div>'
-            + '<span class="cotizador-tree-actions">'+escapeHtml(alcanceTxt)+'</span></button>';
+            + '<div class="cotizador-tree-main"><strong>'+escapeHtml(nombre)+'</strong><small>'+escapeHtml(asociada ? ("Desde "+origen+(desc?" · "+desc:"")) : (desc || id))+'</small></div>'
+            + '<span class="cotizador-tree-actions">'+escapeHtml(alcanceTxt)+quitar+'</span></button>';
         }).join("");
         cont.querySelectorAll("[data-tab-id]").forEach(function(btn){
           btn.addEventListener("click",function(){ seleccionarTabCotizadorFase1_(btn.getAttribute("data-tab-id")); });
+        });
+        cont.querySelectorAll("[data-desasociar-tab]").forEach(function(btn){
+          btn.addEventListener("click",function(e){ e.preventDefault(); e.stopPropagation(); desasociarTabCotizadorFase1_(btn.getAttribute("data-desasociar-elemento"),btn.getAttribute("data-desasociar-tab")); });
         });
         cargarPropsSeccionCotizadorFase1_();
       }
@@ -499,11 +557,27 @@
         return (st.tabs || []).find(function(t){ return String(t.tab_id || "").trim().toUpperCase() === st.tabId; }) || null;
       }
 
+      function tabSoloLecturaCotizadorFase1_(tab){
+        tab = tab || getTabActualCotizadorFase1_();
+        return !!(tab && (tab.es_propia === false || tab.solo_lectura === true));
+      }
+
+      function desasociarTabCotizadorFase1_(elementoId, tabId){
+        if(!elementoId || !tabId) return;
+        if(!window.confirm("¿Quitar esta sección asociada? La sección original y su contenido no se eliminarán.")) return;
+        fetchAutenticado("/api/cotizador/elementos/"+encodeURIComponent(elementoId)+"/secciones/"+encodeURIComponent(tabId), {method:"DELETE",headers:{"Accept":"application/json"}})
+          .then(function(resp){ return resp.json().then(function(data){ if(!resp.ok||!data.ok) throw new Error(data.error||"No se pudo quitar la sección."); return data; }); })
+          .then(function(){ const st=getCotizadorFase1State_(); st.tabId=""; st.elementoId=""; mostrarToast("Sección desasociada. La original permanece intacta."); cargarDatosCotizadorFase1_(true); })
+          .catch(function(err){ mostrarToast((err&&err.message)||"No se pudo quitar la sección."); });
+      }
+
       function seleccionarTabCotizadorFase1_(tabId){
         const st = getCotizadorFase1State_();
         st.tabId = String(tabId || "").trim().toUpperCase();
         st.elementoId = "";
         st.elementos = [];
+        const tabSeleccionada = getTabActualCotizadorFase1_();
+        if(tabSeleccionada && (tabSeleccionada.es_propia === false || tabSeleccionada.solo_lectura === true)) st.modoVista = "preview";
         renderTabsCotizadorFase1_();
         renderComponentesCotizadorFase1_();
         listarElementosCotizadorApiFase1_(st.tabId, function(res){
@@ -533,6 +607,10 @@
 
       function setModoVistaCotizadorFase1_(modo){
         const st = getCotizadorFase1State_();
+        if(modo !== "preview" && tabSoloLecturaCotizadorFase1_()){
+          mostrarToast("La sección asociada es de solo lectura. Edítela desde su cotizador de origen.");
+          modo = "preview";
+        }
         st.modoVista = modo === "preview" ? "preview" : "diseno";
         actualizarBotonesModoVistaCotizadorFase1_();
         renderComponentesCotizadorFase1_();
@@ -540,12 +618,15 @@
 
       function actualizarBotonesModoVistaCotizadorFase1_(){
         const st = getCotizadorFase1State_();
-        const esPreview = st.modoVista === "preview";
+        const soloLectura = tabSoloLecturaCotizadorFase1_();
+        const esPreview = st.modoVista === "preview" || soloLectura;
+        if(soloLectura) st.modoVista = "preview";
         if(byId("btnDesignerModoDisenoCotizador")) byId("btnDesignerModoDisenoCotizador").classList.toggle("active", !esPreview);
+        if(byId("btnDesignerModoDisenoCotizador")) byId("btnDesignerModoDisenoCotizador").disabled = soloLectura;
         if(byId("btnDesignerModoPreviewCotizador")) byId("btnDesignerModoPreviewCotizador").classList.toggle("active", esPreview);
         if(byId("btnDesignerNuevoComponenteCotizador")){
           byId("btnDesignerNuevoComponenteCotizador").classList.toggle("hidden", esPreview);
-          byId("btnDesignerNuevoComponenteCotizador").disabled = esPreview || !getTabActualCotizadorFase1_();
+          byId("btnDesignerNuevoComponenteCotizador").disabled = esPreview || soloLectura || !getTabActualCotizadorFase1_();
         }
       }
 
@@ -574,6 +655,7 @@
         cont.innerHTML = renderComponentesDisenoAgrupadosCotizadorFase1_(els);
         cont.querySelectorAll("[data-elemento-id]").forEach(function(btn){
           btn.addEventListener("click",function(e){
+            if(tabSoloLecturaCotizadorFase1_()) return;
             e.stopPropagation();
             seleccionarComponenteCotizadorFase1_(btn.getAttribute("data-elemento-id"));
           });
@@ -610,11 +692,11 @@
         const etiqueta = String(e.etiqueta || e.label_visible || e.nombre_elemento || id).trim();
         const desc = String(e.descripcion || "").trim();
         const hijos = hijosPorPadre[id] || [];
-        if(tipo === "CONTENEDOR"){
+        if(tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA"){
           const hijosHtml = hijos.length
             ? hijos.map(function(h){ return renderComponenteDisenoCotizadorFase1_(h, hijosPorPadre, nivel + 1); }).join("")
-            : '<div class="cotizador-container-empty">Contenedor sin campos asignados.</div>';
-          return '<div class="cotizador-design-container" data-container-id="'+escapeHtml(id)+'">'
+            : '<div class="cotizador-container-empty">'+(tipo === "OPCIONES_PROPUESTA" ? "Opciones de Propuesta sin campos asignados." : "Contenedor sin campos asignados.")+'</div>';
+          return '<div class="cotizador-design-container'+(tipo === "OPCIONES_PROPUESTA" ? " cotizador-design-scenario" : "")+'" data-container-id="'+escapeHtml(id)+'">'
             + renderTarjetaComponenteDisenoCotizadorFase1_(e, nivel, true)
             + '<div class="cotizador-design-container-children">'+hijosHtml+'</div>'
             + '</div>';
@@ -669,6 +751,8 @@
         if(tipo === "TITULO") return renderTituloPreviewCotizadorFase1_(etiqueta, cfg);
         if(tipo === "LEYENDA") return renderLeyendaPreviewCotizadorFase1_(etiqueta, desc, cfg);
         if(tipo === "CONTENEDOR") return renderContenedorPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc);
+        if(tipo === "OPCIONES_PROPUESTA") return renderOpcionesPropuestaPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc);
+        if(tipo === "SECCIONES_ADICIONALES") return renderSeccionesAdicionalesPreviewCotizadorFase1_(cfg, etiqueta, desc);
         if(tipo === "TABLA") return renderTablaPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAMPO_CATALOGO") return renderCampoCatalogoPreviewCotizadorFase1_(e, cfg, etiqueta, desc);
         if(tipo === "CAJA_VALOR") return renderCajaValorPreviewCotizadorFase1_(e, cfg, etiqueta);
@@ -710,6 +794,32 @@
         const cls = cols === 3 ? " cols-3" : cols === 2 ? " cols-2" : "";
         const cuerpo = hijos.length ? hijos.map(function(h){ return renderComponentePreviewCotizadorFase1_(h, hijosPorPadre); }).join("") : '<div class="cotizador-preview-empty">Contenedor sin campos asignados.</div>';
         return '<div class="cotizador-preview-container"><div class="cotizador-preview-container-head"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc ? '<span>'+escapeHtml(desc)+'</span>' : '')+'</div><div class="cotizador-preview-grid'+cls+'">'+cuerpo+'</div></div>';
+      }
+
+      function renderOpcionesPropuestaPreviewCotizadorFase1_(e, hijosPorPadre, cfg, etiqueta, desc){
+        const id = String(e.elemento_id || "").trim();
+        const hijos = hijosPorPadre[id] || [];
+        const cantidad = Math.max(1, Number(cfg.cantidad_inicial || 1) || 1);
+        const sugeridos = String(cfg.nombres_sugeridos || "").split(",").map(function(n){ return n.trim(); }).filter(Boolean);
+        const nombres = [];
+        for(let i=0;i<cantidad;i++) nombres.push(sugeridos[i] || ("Opción " + (i+1)));
+        const tabs = nombres.map(function(nombre,idx){
+          return '<button type="button" class="cotizador-preview-scenario-tab'+(idx===0?' active':'')+'" disabled>'+escapeHtml(nombre)+'</button>';
+        }).join("");
+        const cuerpo = hijos.map(function(h){ return renderComponentePreviewCotizadorFase1_(h,hijosPorPadre); }).join("");
+        return '<div class="cotizador-preview-scenarios">'
+          + '<div class="cotizador-preview-scenarios-head"><div class="cotizador-preview-scenarios-title"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc?'<span>'+escapeHtml(desc)+'</span>':'')+'</div></div>'
+          + '<div class="cotizador-preview-scenario-tabs">'+tabs+'</div>'
+          + '<div class="cotizador-preview-scenario-body">'+(cuerpo||'<div class="cotizador-preview-empty">Agregue componentes hijos para completar cada opción.</div>')+'</div>'
+          + '</div>';
+      }
+
+      function renderSeccionesAdicionalesPreviewCotizadorFase1_(cfg, etiqueta, desc){
+        const st = getCotizadorFase1State_();
+        const seleccionadas = (st.seccionesReutilizables||[]).filter(function(s){ return s.asociada; });
+        const items = seleccionadas.map(function(s){ return '<span class="cotizador-preview-scenario-tab active">'+escapeHtml(s.nombre||s.tab_id)+'</span>'; }).join("");
+        return '<div class="cotizador-preview-container"><div class="cotizador-preview-container-head"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc?'<span>'+escapeHtml(desc)+'</span>':'')+'</div>'
+          +'<div class="cotizador-preview-scenario-tabs">'+(items||'<span class="cotizador-preview-empty">Sin secciones reutilizables seleccionadas.</span>')+'</div></div>';
       }
 
       function renderCampoPreviewCotizadorFase1_(e, cfg, etiqueta, desc){
@@ -787,6 +897,8 @@
         if(tipo === "TITULO") return "H";
         if(tipo === "LEYENDA") return "i";
         if(tipo === "CONTENEDOR") return "▣";
+        if(tipo === "OPCIONES_PROPUESTA") return "⇶";
+        if(tipo === "SECCIONES_ADICIONALES") return "↗";
         if(tipo === "TABLA") return "▦";
         if(tipo === "CAJA_VALOR") return "$";
         if(tipo === "CAMPO_CALCULADO") return "ƒ";
@@ -830,6 +942,10 @@
         ["designerCotizadorTabIdOriginal","designerCotizadorTabId","designerCotizadorTabNombre","designerCotizadorTabDescripcion","designerCotizadorTabOrden"].forEach(function(id){ if(byId(id)) byId(id).value=""; });
         if(byId("designerCotizadorTabAlcance")) byId("designerCotizadorTabAlcance").value = "PROPIO";
         if(byId("designerCotizadorTabActivo")) byId("designerCotizadorTabActivo").checked = true;
+        ["designerCotizadorTabId","designerCotizadorTabNombre","designerCotizadorTabDescripcion","designerCotizadorTabOrden","designerCotizadorTabAlcance","designerCotizadorTabActivo"].forEach(function(id){ if(byId(id)) byId(id).disabled=false; });
+        if(byId("designerCotizadorTabSoloLectura")) byId("designerCotizadorTabSoloLectura").classList.add("hidden");
+        if(byId("btnDesignerGuardarSeccionCotizador")) byId("btnDesignerGuardarSeccionCotizador").classList.remove("hidden");
+        if(byId("btnDesignerAplicabilidadSeccion")) byId("btnDesignerAplicabilidadSeccion").classList.remove("hidden");
         if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.add("hidden");
         if(byId("designerCotizadorPropsTipoChip")) byId("designerCotizadorPropsTipoChip").textContent = "Sin selección";
         if(byId("designerCotizadorPropsVacio")) byId("designerCotizadorPropsVacio").classList.remove("hidden");
@@ -848,7 +964,12 @@
         if(byId("designerCotizadorTabOrden")) byId("designerCotizadorTabOrden").value = tab.orden || "";
         if(byId("designerCotizadorTabAlcance")) byId("designerCotizadorTabAlcance").value = alcanceTabCotizadorFase1_(tab);
         if(byId("designerCotizadorTabActivo")) byId("designerCotizadorTabActivo").checked = normalizarActivoCotizadorFase1_(tab.activo);
-        if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.remove("hidden");
+        const soloLectura = tabSoloLecturaCotizadorFase1_(tab);
+        ["designerCotizadorTabId","designerCotizadorTabNombre","designerCotizadorTabDescripcion","designerCotizadorTabOrden","designerCotizadorTabAlcance","designerCotizadorTabActivo"].forEach(function(id){ if(byId(id)) byId(id).disabled=soloLectura; });
+        if(byId("designerCotizadorTabSoloLectura")) byId("designerCotizadorTabSoloLectura").classList.toggle("hidden",!soloLectura);
+        if(byId("btnDesignerEliminarSeccionCotizador")) byId("btnDesignerEliminarSeccionCotizador").classList.toggle("hidden",soloLectura);
+        if(byId("btnDesignerGuardarSeccionCotizador")) byId("btnDesignerGuardarSeccionCotizador").classList.toggle("hidden",soloLectura);
+        if(byId("btnDesignerAplicabilidadSeccion")) byId("btnDesignerAplicabilidadSeccion").classList.toggle("hidden",soloLectura);
         cargarResumenAplicabilidadSeccionCotizadorFase1_();
       }
 
@@ -870,6 +991,7 @@
 
       function guardarTabCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         const idOriginal = String(byId("designerCotizadorTabIdOriginal") ? byId("designerCotizadorTabIdOriginal").value : "").trim().toUpperCase();
         const tabId = String(byId("designerCotizadorTabId") ? byId("designerCotizadorTabId").value : "").trim().toUpperCase();
         const nombre = String(byId("designerCotizadorTabNombre") ? byId("designerCotizadorTabNombre").value : "").trim();
@@ -894,6 +1016,7 @@
 
       function eliminarTabCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("Use Quitar para desasociar esta sección sin borrar la original."); return; }
         const tabId = String(st.tabId || "").trim().toUpperCase();
         if(!tabId){ mostrarToast("Seleccione una sección guardada para eliminar."); return; }
         if(!window.confirm("¿Desea eliminar la sección " + tabId + "? Sus elementos también quedarán inactivos.")) return;
@@ -1080,6 +1203,7 @@
         const reglaSel = byId("designerCotizadorCampoRegla");
         const reglaCatalogoSel = byId("designerCotizadorCampoCatalogoRegla");
         const catalogoSel = byId("designerCotizadorCampoCatalogoId");
+        const campoPrincipalSel = byId("designerCotizadorEscenariosCampoPrincipal");
 
         if(tablaSel){
           const actual = tablaSel.value;
@@ -1131,6 +1255,23 @@
             catalogoSel.appendChild(opt);
           });
           catalogoSel.value = actual;
+        }
+
+        if(campoPrincipalSel){
+          const actual = campoPrincipalSel.value;
+          const elementoActual = String(st.elementoId || "").trim();
+          campoPrincipalSel.innerHTML = '<option value="">Sin campo principal</option>';
+          (st.elementos || []).filter(function(el){
+            return String(el.tab_id || "").trim() === st.tabId
+              && String(el.elemento_id || "").trim() !== elementoActual
+              && normalizarActivoCotizadorFase1_(el.activo);
+          }).sort(function(a,b){ return numeroOrdenCotizadorFase1_(a.orden)-numeroOrdenCotizadorFase1_(b.orden); }).forEach(function(el){
+            const opt = document.createElement("option");
+            opt.value = String(el.elemento_id || "").trim();
+            opt.textContent = labelElementoCampoCotizadorFase1_(el);
+            campoPrincipalSel.appendChild(opt);
+          });
+          campoPrincipalSel.value = actual;
         }
 
         [reglaSel, reglaCatalogoSel].forEach(function(sel){
@@ -1186,15 +1327,18 @@
         const etiquetaLabel = byId("designerCotizadorEtiquetaLabel");
         const descripcionLabel = byId("designerCotizadorDescripcionLabel");
         if(etiquetaLabel){
-          etiquetaLabel.textContent = tipo === "TITULO" ? "Texto del título" : tipo === "LEYENDA" ? "Texto de la leyenda" : tipo === "TABLA" ? "Título de la tabla" : tipo === "CONTENEDOR" ? "Título del contenedor" : "Etiqueta visible";
+          etiquetaLabel.textContent = tipo === "TITULO" ? "Texto del título" : tipo === "LEYENDA" ? "Texto de la leyenda" : tipo === "TABLA" ? "Título de la tabla" : tipo === "CONTENEDOR" ? "Título del contenedor" : tipo === "OPCIONES_PROPUESTA" ? "Título de las opciones" : tipo === "SECCIONES_ADICIONALES" ? "Título del selector de secciones" : "Etiqueta visible";
         }
         if(descripcionLabel){
           descripcionLabel.textContent = tipo === "LEYENDA" ? "Texto complementario / ayuda" : "Descripción / ayuda";
         }
         const padreWrap = byId("designerCotizadorElementoPadreWrap");
         if(padreWrap){
-          const hayContenedores = elementosDeTabCotizadorFase1_().some(function(e){ return String(e.tipo_elemento || "").toUpperCase() === "CONTENEDOR" && String(e.elemento_id || "") !== String(getCotizadorFase1State_().elementoId || ""); });
-          padreWrap.classList.toggle("hidden", !hayContenedores || tipo === "CONTENEDOR");
+          const hayPadres = elementosDeTabCotizadorFase1_().some(function(e){
+            const tipoPadre = String(e.tipo_elemento || "").toUpperCase();
+            return (tipoPadre === "CONTENEDOR" || tipoPadre === "OPCIONES_PROPUESTA") && String(e.elemento_id || "") !== String(getCotizadorFase1State_().elementoId || "");
+          });
+          padreWrap.classList.toggle("hidden", !hayPadres || tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA" || tipo === "SECCIONES_ADICIONALES");
         }
         const funcionCampoBox = byId("designerCotizadorFuncionCampoBox");
         if(funcionCampoBox){
@@ -1204,6 +1348,7 @@
         actualizarOpcionesFechaCampoCotizadorFase1_();
         actualizarMensajeCatalogoHijoCotizadorFase1_();
         if(tipo === "CAMPO_CALCULADO") renderOperandosCalculadoCotizadorFase1_();
+        if(tipo === "SECCIONES_ADICIONALES") cargarSeccionesReutilizablesCotizadorFase1_();
       }
       function getCampoModeloByIdCotizadorFase1_(campoId){
         const st = getCotizadorFase1State_();
@@ -1611,6 +1756,24 @@
         if(byId("designerCotizadorContenedorColumnas")) byId("designerCotizadorContenedorColumnas").value = String(cfg.columnas || 2);
         if(byId("designerCotizadorContenedorEstilo")) byId("designerCotizadorContenedorEstilo").value = cfg.estilo || "card";
 
+        if(byId("designerCotizadorEscenariosCantidadInicial")) byId("designerCotizadorEscenariosCantidadInicial").value = cfg.cantidad_inicial || 1;
+        if(byId("designerCotizadorEscenariosNombresSugeridos")) byId("designerCotizadorEscenariosNombresSugeridos").value = cfg.nombres_sugeridos || "";
+        if(byId("designerCotizadorEscenariosVistaEdicion")) byId("designerCotizadorEscenariosVistaEdicion").value = cfg.vista_editar || "PESTANAS";
+        if(byId("designerCotizadorEscenariosVistaResumen")) byId("designerCotizadorEscenariosVistaResumen").value = cfg.vista_resumen || "CAJAS";
+        if(byId("designerCotizadorEscenariosVistaOferta")) byId("designerCotizadorEscenariosVistaOferta").value = cfg.vista_oferta || "TABLA_COMPARATIVA";
+        if(byId("designerCotizadorEscenariosCampoPrincipal")) byId("designerCotizadorEscenariosCampoPrincipal").value = cfg.campo_principal_id || "";
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirDuplicar", cfg.permitir_duplicar !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirEliminar", cfg.permitir_eliminar !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirRenombrar", cfg.permitir_renombrar !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosPermitirRecomendado", cfg.permitir_recomendado !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorEscenariosVisibleOferta", cfg.visible_oferta !== false);
+
+        if(byId("designerCotizadorSeccionesAdicionalesPresentacion")) byId("designerCotizadorSeccionesAdicionalesPresentacion").value = cfg.presentacion || "CHECKS";
+        if(byId("designerCotizadorSeccionesAdicionalesColumnas")) byId("designerCotizadorSeccionesAdicionalesColumnas").value = String(cfg.columnas || 2);
+        setCheckedCotizadorFase1_("designerCotizadorSeccionesAdicionalesVisibleCalc", cfg.visible_calculadora !== false);
+        setCheckedCotizadorFase1_("designerCotizadorSeccionesAdicionalesVisibleOferta", cfg.visible_oferta === true);
+
         if(byId("designerCotizadorCajaValorCampoFuente")) byId("designerCotizadorCajaValorCampoFuente").value = cfg.campo_fuente_id || "";
         if(byId("designerCotizadorCajaValorDefault")) byId("designerCotizadorCajaValorDefault").value = cfg.valor_por_defecto || "";
         if(byId("designerCotizadorCajaValorPrefijo")) byId("designerCotizadorCajaValorPrefijo").value = cfg.prefijo || "";
@@ -1698,6 +1861,26 @@
         if(tipo === "CONTENEDOR"){
           cfg.columnas = Number(byId("designerCotizadorContenedorColumnas") ? byId("designerCotizadorContenedorColumnas").value : 2) || 2;
           cfg.estilo = byId("designerCotizadorContenedorEstilo") ? byId("designerCotizadorContenedorEstilo").value : "card";
+        }
+        if(tipo === "OPCIONES_PROPUESTA"){
+          cfg.cantidad_inicial = Number(byId("designerCotizadorEscenariosCantidadInicial") ? byId("designerCotizadorEscenariosCantidadInicial").value : 1) || 1;
+          cfg.nombres_sugeridos = byId("designerCotizadorEscenariosNombresSugeridos") ? byId("designerCotizadorEscenariosNombresSugeridos").value : "";
+          cfg.vista_editar = byId("designerCotizadorEscenariosVistaEdicion") ? byId("designerCotizadorEscenariosVistaEdicion").value : "PESTANAS";
+          cfg.vista_resumen = byId("designerCotizadorEscenariosVistaResumen") ? byId("designerCotizadorEscenariosVistaResumen").value : "CAJAS";
+          cfg.vista_oferta = byId("designerCotizadorEscenariosVistaOferta") ? byId("designerCotizadorEscenariosVistaOferta").value : "TABLA_COMPARATIVA";
+          cfg.campo_principal_id = byId("designerCotizadorEscenariosCampoPrincipal") ? byId("designerCotizadorEscenariosCampoPrincipal").value : "";
+          cfg.permitir_duplicar = byId("designerCotizadorEscenariosPermitirDuplicar") ? byId("designerCotizadorEscenariosPermitirDuplicar").checked : true;
+          cfg.permitir_eliminar = byId("designerCotizadorEscenariosPermitirEliminar") ? byId("designerCotizadorEscenariosPermitirEliminar").checked : true;
+          cfg.permitir_renombrar = byId("designerCotizadorEscenariosPermitirRenombrar") ? byId("designerCotizadorEscenariosPermitirRenombrar").checked : true;
+          cfg.permitir_recomendado = byId("designerCotizadorEscenariosPermitirRecomendado") ? byId("designerCotizadorEscenariosPermitirRecomendado").checked : true;
+          cfg.visible_calculadora = byId("designerCotizadorEscenariosVisibleCalc") ? byId("designerCotizadorEscenariosVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorEscenariosVisibleOferta") ? byId("designerCotizadorEscenariosVisibleOferta").checked : true;
+        }
+        if(tipo === "SECCIONES_ADICIONALES"){
+          cfg.presentacion = byId("designerCotizadorSeccionesAdicionalesPresentacion") ? byId("designerCotizadorSeccionesAdicionalesPresentacion").value : "CHECKS";
+          cfg.columnas = Number(byId("designerCotizadorSeccionesAdicionalesColumnas") ? byId("designerCotizadorSeccionesAdicionalesColumnas").value : 2) || 2;
+          cfg.visible_calculadora = byId("designerCotizadorSeccionesAdicionalesVisibleCalc") ? byId("designerCotizadorSeccionesAdicionalesVisibleCalc").checked : true;
+          cfg.visible_oferta = byId("designerCotizadorSeccionesAdicionalesVisibleOferta") ? byId("designerCotizadorSeccionesAdicionalesVisibleOferta").checked : false;
         }
         if(tipo === "CAJA_VALOR"){
           cfg.campo_fuente_id = byId("designerCotizadorCajaValorCampoFuente") ? byId("designerCotizadorCajaValorCampoFuente").value : "";
@@ -1787,6 +1970,7 @@
       function nuevoComponenteCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         if(!st.tabId){ mostrarToast("Seleccione o guarde una sección antes de agregar componentes."); return; }
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         st.elementoId = "";
         mostrarPropsComponenteCotizadorFase1_();
         limpiarPropsComponenteCotizadorFase1_();
@@ -1805,12 +1989,13 @@
       function guardarComponenteCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         if(!st.tabId){ mostrarToast("Seleccione una sección."); return; }
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         const idOriginal = String(byId("designerCotizadorElementoIdOriginal") ? byId("designerCotizadorElementoIdOriginal").value : "").trim();
         const elementoId = String(byId("designerCotizadorElementoId") ? byId("designerCotizadorElementoId").value : "").trim();
         const tipo = String(byId("designerCotizadorElementoTipo") ? byId("designerCotizadorElementoTipo").value : "CAMPO").trim().toUpperCase();
         const etiqueta = String(byId("designerCotizadorElementoEtiqueta") ? byId("designerCotizadorElementoEtiqueta").value : "").trim();
         if(!elementoId || !tipo || !etiqueta){ mostrarToast("Complete código, tipo y texto visible del componente."); return; }
-        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
+        if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA","OPCIONES_PROPUESTA","SECCIONES_ADICIONALES"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
@@ -1820,7 +2005,7 @@
           const minimo = cfgObj.operacion === "PROMEDIO" ? 1 : 2;
           if(!Array.isArray(cfgObj.operandos) || cfgObj.operandos.length < minimo){ mostrarToast("La operación " + cfgObj.operacion + " necesita al menos " + minimo + " operando(s)."); return; }
         }
-        const padreId = tipo === "CONTENEDOR" ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
+        const padreId = (tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA" || tipo === "SECCIONES_ADICIONALES") ? "" : String(byId("designerCotizadorElementoPadre") ? byId("designerCotizadorElementoPadre").value : "").trim();
         const fuenteId = tipo === "CAJA_VALOR" ? String(cfgObj.campo_fuente_id || "").trim() : "";
         const funcionCampo = ["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO","LISTA_PRECIOS"].indexOf(tipo) >= 0
           ? String(byId("designerCotizadorFuncionCampo") ? byId("designerCotizadorFuncionCampo").value : "NORMAL").trim().toUpperCase()
@@ -1828,6 +2013,7 @@
         const registro = {
           elemento_id: elementoId,
           tab_id: st.tabId,
+          calculadora_id: st.cotizadorId,
           tipo: tipo,
           etiqueta: etiqueta,
           catalogo_id: catalogoId || null,
@@ -1840,7 +2026,7 @@
           configuracion: cfgObj,
           activo: byId("designerCotizadorElementoActivo") ? byId("designerCotizadorElementoActivo").checked : true
         };
-        guardarElementoCotizadorApiFase1_(registro, function(){
+        function finalizarGuardado(){
           mostrarToast("Componente guardado.");
           st.elementoId = elementoId;
           cerrarModalComponenteCotizadorFase1_();
@@ -1848,11 +2034,17 @@
             st.elementos = rowsFromRespuestaFase1_(res).map(normalizarElementoCotizadorFase1_);
             renderComponentesCotizadorFase1_();
           }, function(err){ mostrarToast("No se pudieron recargar los elementos: " + ((err && err.message) || err)); });
+        }
+        guardarElementoCotizadorApiFase1_(registro, function(){
+          if(tipo === "SECCIONES_ADICIONALES"){
+            sincronizarSeccionesAdicionalesCotizadorFase1_(elementoId, finalizarGuardado, function(err){ mostrarToast("El componente se guardó, pero sus secciones no: " + ((err && err.message) || err)); });
+          } else finalizarGuardado();
         }, function(err){ mostrarToast("No se pudo guardar el componente: " + ((err && err.message) || err)); });
       }
 
       function eliminarComponenteCotizadorFase1_(){
         const st = getCotizadorFase1State_();
+        if(tabSoloLecturaCotizadorFase1_()){ mostrarToast("La sección asociada es de solo lectura."); return; }
         const elementoId = String(st.elementoId || "").trim();
         if(!elementoId){ mostrarToast("Seleccione un componente guardado para eliminar."); return; }
         if(!window.confirm("¿Desea eliminar el componente " + elementoId + "? La fila se conservará inactiva.")) return;
@@ -1875,10 +2067,14 @@
         if(!sel) return;
         const actual = sel.value;
         sel.innerHTML = '<option value="">Sin componente padre</option>';
-        (els || []).filter(function(e){ return String(e.tipo_elemento||"").toUpperCase() === "CONTENEDOR"; }).forEach(function(e){
+        (els || []).filter(function(e){
+          const tipo = String(e.tipo_elemento||"").toUpperCase();
+          return tipo === "CONTENEDOR" || tipo === "OPCIONES_PROPUESTA";
+        }).forEach(function(e){
           const opt = document.createElement("option");
           opt.value = String(e.elemento_id || "").trim();
-          opt.textContent = String(e.etiqueta || e.nombre_elemento || e.elemento_id || "Componente").trim();
+          const prefijo = String(e.tipo_elemento||"").toUpperCase() === "OPCIONES_PROPUESTA" ? "Opciones · " : "Contenedor · ";
+          opt.textContent = prefijo + String(e.etiqueta || e.nombre_elemento || e.elemento_id || "Componente").trim();
           sel.appendChild(opt);
         });
         sel.value = actual;
