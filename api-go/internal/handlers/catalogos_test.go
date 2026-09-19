@@ -463,6 +463,164 @@ func TestCatalogosEliminar_ValorConRelacionActivaSeRechaza(t *testing.T) {
 // guardar con el checkbox "Activo" destildado (POST
 // /api/catalogos/valores con activo:false) debía poder saltarse la
 // validación de EliminarValor antes de este fix.
+// TestCatalogosGuardar_TipoCalculoDefaultSinValor cubre el default de
+// GuardarCatalogo cuando el request no manda tipo_calculo (catálogos
+// existentes, o formularios viejos que no lo conocen todavía) — no debe
+// romper, y debe quedar como SIN_VALOR.
+func TestCatalogosGuardar_TipoCalculoDefaultSinValor(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CatalogosHandler{DB: pool}
+	id := "TEST-CAT-CALC-DEFAULT-" + sufijoUnico()
+	t.Cleanup(func() { pool.Exec(context.Background(), `DELETE FROM catalogos WHERE catalogo_id = $1`, id) })
+
+	rec := postCatalogos(t, handler.GuardarCatalogo, "/api/catalogos", map[string]any{
+		"catalogo_id": id, "nombre_catalogo": "Catálogo sin tipo_calculo", "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	var tipoCalculo string
+	if err := pool.QueryRow(context.Background(), `SELECT tipo_calculo FROM catalogos WHERE catalogo_id=$1`, id).Scan(&tipoCalculo); err != nil {
+		t.Fatalf("no se pudo leer tipo_calculo: %v", err)
+	}
+	if tipoCalculo != "SIN_VALOR" {
+		t.Errorf("tipo_calculo por defecto = %q, esperaba SIN_VALOR", tipoCalculo)
+	}
+}
+
+func TestCatalogosGuardar_TipoCalculoInvalidoSeRechaza(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CatalogosHandler{DB: pool}
+	id := "TEST-CAT-CALC-INVALIDO-" + sufijoUnico()
+	t.Cleanup(func() { pool.Exec(context.Background(), `DELETE FROM catalogos WHERE catalogo_id = $1`, id) })
+
+	rec := postCatalogos(t, handler.GuardarCatalogo, "/api/catalogos", map[string]any{
+		"catalogo_id": id, "nombre_catalogo": "Catálogo tipo inválido", "activo": true, "tipo_calculo": "PESOS",
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("tipo_calculo inválido: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCatalogosGuardar_TipoCalculoAdvierteValoresIncompletos cubre la regla
+// "no bloquear el cambio, pero avisar": un catálogo con un valor activo sin
+// valor_calculo que pasa a NUMERO debe guardar igual (200) y traer la
+// advertencia nombrando el valor incompleto.
+func TestCatalogosGuardar_TipoCalculoAdvierteValoresIncompletos(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CatalogosHandler{DB: pool}
+	catalogoID := crearCatalogoPrueba(t, pool, "Catálogo a completar", "")
+	valorIncompletoID := crearValorCatalogoPrueba(t, pool, catalogoID, "Valor sin calculo", "")
+
+	rec := postCatalogos(t, handler.GuardarCatalogo, "/api/catalogos", map[string]any{
+		"catalogo_id": catalogoID, "nombre_catalogo": "Catálogo a completar",
+		"activo": true, "tipo_calculo": "NUMERO",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200 (no bloquea el cambio), dio %d: %s", rec.Code, rec.Body.String())
+	}
+	var res struct {
+		OK           bool     `json:"ok"`
+		Advertencias []string `json:"advertencias"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	if !res.OK {
+		t.Fatal("esperaba ok:true")
+	}
+	if len(res.Advertencias) != 1 {
+		t.Fatalf("esperaba 1 advertencia listando el valor incompleto, dio %d: %v", len(res.Advertencias), res.Advertencias)
+	}
+	if !bytes.Contains([]byte(res.Advertencias[0]), []byte(valorIncompletoID)) {
+		t.Errorf("la advertencia %q no nombra el valor incompleto %q", res.Advertencias[0], valorIncompletoID)
+	}
+}
+
+// TestCatalogosGuardarValor_ExigeValorCalculoSiTipoCalculoNoEsSinValor
+// cubre el principio "o el catálogo calcula, o no calcula, sin términos
+// medios": un catálogo NUMERO/PORCENTAJE rechaza un valor sin
+// valor_calculo.
+func TestCatalogosGuardarValor_ExigeValorCalculoSiTipoCalculoNoEsSinValor(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CatalogosHandler{DB: pool}
+	catalogoID := crearCatalogoPrueba(t, pool, "Catálogo porcentaje", "")
+	if _, err := pool.Exec(context.Background(), `UPDATE catalogos SET tipo_calculo='PORCENTAJE' WHERE catalogo_id=$1`, catalogoID); err != nil {
+		t.Fatalf("no se pudo fijar tipo_calculo: %v", err)
+	}
+
+	rec := postCatalogos(t, handler.GuardarValor, "/api/catalogos/valores", map[string]any{
+		"valor_id": "TEST-VAL-SIN-CALC-" + sufijoUnico(), "catalogo_id": catalogoID, "clave": "M20",
+		"texto_visible": "20%", "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("valor sin valor_calculo en catálogo PORCENTAJE: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(catalogoID)) {
+		t.Errorf("el mensaje de error %q no nombra el catálogo %q", rec.Body.String(), catalogoID)
+	}
+}
+
+// TestCatalogosGuardarValor_RechazaValorCalculoSiCatalogoSinValor cubre el
+// otro lado de la misma regla: un catálogo SIN_VALOR no admite
+// valor_calculo, para no dejar datos ambiguos.
+func TestCatalogosGuardarValor_RechazaValorCalculoSiCatalogoSinValor(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CatalogosHandler{DB: pool}
+	catalogoID := crearCatalogoPrueba(t, pool, "Catálogo descriptivo", "")
+
+	rec := postCatalogos(t, handler.GuardarValor, "/api/catalogos/valores", map[string]any{
+		"valor_id": "TEST-VAL-CON-CALC-" + sufijoUnico(), "catalogo_id": catalogoID, "clave": "AGENTE",
+		"texto_visible": "Agente comercial", "activo": true, "valor_calculo": 10,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("valor_calculo en catálogo SIN_VALOR: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCatalogosGuardarValor_PersisteValorCalculo cubre el camino feliz:
+// catálogo PORCENTAJE, valor 0.30, tal como lo pide el documento (guardado
+// como decimal, no como 30).
+func TestCatalogosGuardarValor_PersisteValorCalculo(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CatalogosHandler{DB: pool}
+	catalogoID := crearCatalogoPrueba(t, pool, "Catálogo margen", "")
+	if _, err := pool.Exec(context.Background(), `UPDATE catalogos SET tipo_calculo='PORCENTAJE' WHERE catalogo_id=$1`, catalogoID); err != nil {
+		t.Fatalf("no se pudo fijar tipo_calculo: %v", err)
+	}
+	valorID := "TEST-VAL-M30-" + sufijoUnico()
+
+	rec := postCatalogos(t, handler.GuardarValor, "/api/catalogos/valores", map[string]any{
+		"valor_id": valorID, "catalogo_id": catalogoID, "clave": "M30",
+		"texto_visible": "30%", "activo": true, "valor_calculo": 0.30,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	var valorCalculo float64
+	if err := pool.QueryRow(context.Background(), `SELECT valor_calculo FROM catalogo_valores WHERE valor_id=$1`, valorID).Scan(&valorCalculo); err != nil {
+		t.Fatalf("no se pudo leer valor_calculo: %v", err)
+	}
+	if valorCalculo != 0.30 {
+		t.Errorf("valor_calculo = %v, esperaba 0.30", valorCalculo)
+	}
+
+	// Cambiar solo la etiqueta (texto_visible) no debe alterar
+	// valor_calculo — es justo el principio que motiva la migración
+	// 0023: la referencia estable para cálculos nunca es la etiqueta.
+	rec = postCatalogos(t, handler.GuardarValor, "/api/catalogos/valores", map[string]any{
+		"valor_id": valorID, "catalogo_id": catalogoID, "clave": "M30",
+		"texto_visible": "Margen del 30 por ciento", "activo": true, "valor_calculo": 0.30,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("editar etiqueta: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT valor_calculo FROM catalogo_valores WHERE valor_id=$1`, valorID).Scan(&valorCalculo); err != nil {
+		t.Fatalf("no se pudo releer valor_calculo: %v", err)
+	}
+	if valorCalculo != 0.30 {
+		t.Errorf("valor_calculo tras cambiar solo la etiqueta = %v, esperaba que siguiera en 0.30", valorCalculo)
+	}
+}
+
 func TestCatalogosGuardar_RechazaDesactivarValorConRelacionActiva(t *testing.T) {
 	pool := setupTestDB(t)
 	padreID := crearCatalogoPrueba(t, pool, "Padre valor guardar", "")

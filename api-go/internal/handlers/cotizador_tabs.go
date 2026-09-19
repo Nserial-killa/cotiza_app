@@ -114,13 +114,14 @@ var tiposConFuncionCampo = map[string]bool{
 }
 
 // tiposOperandoCalculadoValidos son los tipos que un Campo Calculado puede
-// usar como operando (Ronda 2 + Ronda 3 + Ronda 4): un Campo numérico se
-// valida aparte por tipo_campo, así que acá solo van los tipos que no
-// necesitan ese chequeo extra. CAMPO_CATALOGO queda fuera todavía — sus
-// valores no tienen un precio asociado (ver migración 0019, tarea 3). TABLA
-// se suma en la Ronda 4 (tarea 4, "si el tiempo alcanza") — su total se
-// resuelve igual que el de una Lista de Precios, ver resolverCamposCalculados
-// en cotizador_runtime.go.
+// usar como operando (Ronda 2 + Ronda 3 + Ronda 4 + catálogos con
+// valor_calculo, migración 0023): un Campo numérico se valida aparte por
+// tipo_campo, y un CAMPO_CATALOGO se valida aparte por el tipo_calculo de
+// su catálogo (SIN_VALOR queda afuera — ver el bloque de validación de
+// operandos más abajo), así que acá solo van los tipos que no necesitan
+// ningún chequeo extra: son, en los hechos, otra fuente numérica cuyo
+// total/valor ya viene resuelto. Ver resolverCamposCalculados en
+// cotizador_runtime.go.
 var tiposOperandoCalculadoValidos = map[string]bool{
 	"CAMPO_CALCULADO": true, "LISTA_PRECIOS": true, "TABLA": true,
 }
@@ -655,7 +656,8 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			var tipoOp, tabOp string
 			var activoOp bool
 			var configOp map[string]any
-			err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo, configuracion FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &tabOp, &activoOp, &configOp)
+			var catalogoOpID *string
+			err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo, configuracion, catalogo_id FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &tabOp, &activoOp, &configOp, &catalogoOpID)
 			if errors.Is(err, pgx.ErrNoRows) {
 				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no existe.", opID)})
 				return
@@ -679,8 +681,32 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico (Número, Moneda o Porcentaje).", opID)})
 					return
 				}
+			} else if tipoOp == "CAMPO_CATALOGO" {
+				catalogoID := ""
+				if catalogoOpID != nil {
+					catalogoID = strings.TrimSpace(*catalogoOpID)
+				}
+				if catalogoID == "" {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no tiene catálogo asignado.", opID)})
+					return
+				}
+				var tipoCalculoCatalogo, nombreCatalogo string
+				err := h.DB.QueryRow(ctx, `SELECT tipo_calculo, nombre_catalogo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&tipoCalculoCatalogo, &nombreCatalogo)
+				if errors.Is(err, pgx.ErrNoRows) {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s apunta a un catálogo (%s) que no existe.", opID, catalogoID)})
+					return
+				}
+				if err != nil {
+					log.Printf("cotizador elementos: error validando catálogo del operando %s: %v", opID, err)
+					escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
+					return
+				}
+				if tipoCalculoCatalogo == "SIN_VALOR" {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s usa el catálogo %s, que es solo descriptivo (SIN_VALOR) y no tiene valores de cálculo.", opID, nombreCatalogo)})
+					return
+				}
 			} else if !tiposOperandoCalculadoValidos[tipoOp] {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico, una Lista de Precios o un Campo Calculado.", opID)})
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico, un Campo Catálogo con valores de cálculo, una Lista de Precios, una Tabla o un Campo Calculado.", opID)})
 				return
 			}
 		}

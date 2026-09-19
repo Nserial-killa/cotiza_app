@@ -71,6 +71,84 @@ func TestCompilador_CampoCatalogoInactivoDaError(t *testing.T) {
 	}
 }
 
+// TestCompilador_IncluyeTipoCalculoYValoresDeCatalogo cubre la tarea 4 de
+// la migración 0023: el JSON compilado de un CAMPO_CATALOGO debe traer el
+// tipo_calculo de su catálogo y el valor_calculo de cada valor activo, para
+// que el Motor de Ejecución no necesite otra consulta aparte.
+func TestCompilador_IncluyeTipoCalculoYValoresDeCatalogo(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-COMP-CATCALC-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Margen", "activo": true,
+	})
+	catalogoID := crearCatalogoPrueba(t, tabsHandler.DB, "Catálogo margen compilado", "")
+	if _, err := tabsHandler.DB.Exec(context.Background(), `UPDATE catalogos SET tipo_calculo='PORCENTAJE' WHERE catalogo_id=$1`, catalogoID); err != nil {
+		t.Fatal(err)
+	}
+	valorID := crearValorCatalogoPrueba(t, tabsHandler.DB, catalogoID, "30%", "")
+	var valorSistema string
+	if err := tabsHandler.DB.QueryRow(context.Background(), `
+		UPDATE catalogo_valores SET valor_calculo=0.30 WHERE valor_id=$1
+		RETURNING valor_sistema`, valorID).Scan(&valorSistema); err != nil {
+		t.Fatal(err)
+	}
+	elementoID := "TEST-COMP-CATCALC-EL-" + sufijoUnico()
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "CAMPO_CATALOGO",
+		"etiqueta": "Margen", "catalogo_id": catalogoID, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear elemento: %s", rec.Body.String())
+	}
+
+	handler := &CompiladorHandler{DB: tabsHandler.DB}
+	resultado, err := handler.validarConfiguracion(context.Background(), calculadoraID)
+	if err != nil || !resultado.Valido {
+		t.Fatalf("compilar: resultado=%+v err=%v", resultado, err)
+	}
+	cfg := resultado.Tabs[0].Elementos[0].Configuracion
+	if cfg["catalogo_tipo_calculo"] != "PORCENTAJE" {
+		t.Fatalf("catalogo_tipo_calculo = %v, esperaba PORCENTAJE", cfg["catalogo_tipo_calculo"])
+	}
+	valores, ok := cfg["catalogo_valores_calculo"].([]map[string]any)
+	if !ok || len(valores) != 1 {
+		t.Fatalf("catalogo_valores_calculo inesperado: %+v", cfg["catalogo_valores_calculo"])
+	}
+	if valores[0]["valor_sistema"] != valorSistema || valores[0]["valor_calculo"] != 0.30 {
+		t.Fatalf("valor de catálogo compilado inesperado: %+v", valores[0])
+	}
+}
+
+// TestCompilador_CatalogoSinValorNoTraeValorCalculo cubre que un catálogo
+// SIN_VALOR (el default) quede marcado como tal en el compilado, sin que
+// eso rompa la compilación de un elemento que lo usa solo como descriptivo.
+func TestCompilador_CatalogoSinValorNoTraeValorCalculo(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-COMP-CATSV-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Descriptivo", "activo": true,
+	})
+	catalogoID := crearCatalogoPrueba(t, tabsHandler.DB, "Catálogo tipo de agente", "")
+	elementoID := "TEST-COMP-CATSV-EL-" + sufijoUnico()
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "CAMPO_CATALOGO",
+		"etiqueta": "Tipo de agente", "catalogo_id": catalogoID, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear elemento: %s", rec.Body.String())
+	}
+
+	handler := &CompiladorHandler{DB: tabsHandler.DB}
+	resultado, err := handler.validarConfiguracion(context.Background(), calculadoraID)
+	if err != nil || !resultado.Valido {
+		t.Fatalf("compilar: resultado=%+v err=%v", resultado, err)
+	}
+	cfg := resultado.Tabs[0].Elementos[0].Configuracion
+	if cfg["catalogo_tipo_calculo"] != "SIN_VALOR" {
+		t.Fatalf("catalogo_tipo_calculo = %v, esperaba SIN_VALOR", cfg["catalogo_tipo_calculo"])
+	}
+}
+
 func TestCompilador_TabSinElementosEsAdvertencia(t *testing.T) {
 	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	rec := postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{

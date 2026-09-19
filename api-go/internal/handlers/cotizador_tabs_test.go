@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -754,6 +755,66 @@ func TestCotizadorElementos_CampoCalculadoAceptaTablaComoOperando(t *testing.T) 
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("Campo Calculado con Tabla como operando: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCotizadorElementos_CampoCalculadoAceptaCampoCatalogoSegunTipoCalculo
+// cubre la tarea 2 de la migración 0023: un Campo Catálogo solo es operando
+// válido si su catálogo tiene tipo_calculo != SIN_VALOR.
+func TestCotizadorElementos_CampoCalculadoAceptaCampoCatalogoSegunTipoCalculo(t *testing.T) {
+	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-TAB-CATCALC-OPERANDO-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Catálogo calculable", "activo": true,
+	})
+
+	catalogoPorcentajeID := crearCatalogoPrueba(t, handler.DB, "Catálogo margen operando", "")
+	if _, err := handler.DB.Exec(context.Background(), `UPDATE catalogos SET tipo_calculo='PORCENTAJE' WHERE catalogo_id=$1`, catalogoPorcentajeID); err != nil {
+		t.Fatalf("no se pudo fijar tipo_calculo: %v", err)
+	}
+	catalogoSinValorID := crearCatalogoPrueba(t, handler.DB, "Catálogo descriptivo operando", "")
+
+	campoNumericoID := "TEST-EL-CATCALC-NUM-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoNumericoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Base",
+		"configuracion": map[string]any{"tipo_campo": "MONEDA"}, "activo": true,
+	})
+	campoCatalogoPorcentajeID := "TEST-EL-CATCALC-PCT-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoCatalogoPorcentajeID, "tab_id": tabID, "tipo": "CAMPO_CATALOGO",
+		"etiqueta": "Margen", "catalogo_id": catalogoPorcentajeID, "activo": true,
+	})
+	campoCatalogoSinValorID := "TEST-EL-CATCALC-SV-" + sufijoUnico()
+	postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoCatalogoSinValorID, "tab_id": tabID, "tipo": "CAMPO_CATALOGO",
+		"etiqueta": "Tipo de agente", "catalogo_id": catalogoSinValorID, "activo": true,
+	})
+
+	// Con tipo_calculo != SIN_VALOR, el Campo Catálogo es un operando válido.
+	rec := postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CATCALC-CALC-OK-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO_CALCULADO",
+		"etiqueta": "Total con margen", "configuracion": map[string]any{
+			"operacion": "MULTIPLICACION", "tipo_resultado": "MONEDA", "decimales": 2,
+			"operandos": []string{campoNumericoID, campoCatalogoPorcentajeID},
+		}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Campo Calculado con Campo Catálogo PORCENTAJE como operando: esperaba 200, dio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Con tipo_calculo == SIN_VALOR, se rechaza con un mensaje que lo explique.
+	rec = postCatalogos(t, handler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": "TEST-EL-CATCALC-CALC-MAL-" + sufijoUnico(), "tab_id": tabID, "tipo": "CAMPO_CALCULADO",
+		"etiqueta": "Total inválido", "configuracion": map[string]any{
+			"operacion": "MULTIPLICACION", "tipo_resultado": "MONEDA", "decimales": 2,
+			"operandos": []string{campoNumericoID, campoCatalogoSinValorID},
+		}, "activo": true,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("Campo Calculado con Campo Catálogo SIN_VALOR como operando: esperaba 400, dio %d: %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("solo descriptivo")) {
+		t.Errorf("el mensaje de error %q no explica que el catálogo es solo descriptivo", rec.Body.String())
 	}
 }
 

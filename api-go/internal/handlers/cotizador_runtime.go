@@ -701,6 +701,15 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 			return resultado, ok
 		}
 
+		if tipo == "CAMPO_CATALOGO" {
+			cfg, _ := elemento["configuracion"].(map[string]any)
+			resultado, ok := valorCalculoCatalogo(cfg, valores[id])
+			if ok {
+				resueltos[id] = resultado
+			}
+			return resultado, ok
+		}
+
 		if tipo != "CAMPO_CALCULADO" {
 			return numeroDesdeValor(valores[id])
 		}
@@ -810,6 +819,14 @@ func resolverCamposCalculadosPorOpcion(elementosPorID map[string]map[string]any,
 					cfg, _ := elemento["configuracion"].(map[string]any)
 					valorTabla, _ := valorGuardado.(map[string]any)
 					resultado, ok := valorTotalTabla(cfg, valorTabla)
+					if ok {
+						resueltos[id] = resultado
+					}
+					return resultado, ok
+				}
+				if tipo == "CAMPO_CATALOGO" {
+					cfg, _ := elemento["configuracion"].(map[string]any)
+					resultado, ok := valorCalculoCatalogo(cfg, valorGuardado)
 					if ok {
 						resueltos[id] = resultado
 					}

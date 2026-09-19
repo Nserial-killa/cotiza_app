@@ -6371,6 +6371,7 @@ window.CotizaApp = (function(){
         const campo = byId("designerCatalogoCampoRelacionado");
         const desc = byId("designerCatalogoDescripcion");
         const activo = byId("designerCatalogoActivo");
+        const tipoCalculo = byId("designerCatalogoTipoCalculo");
 
         if(!cat){
           if(byId("designerPropsTitulo")) byId("designerPropsTitulo").textContent = "Nuevo catálogo";
@@ -6386,6 +6387,7 @@ window.CotizaApp = (function(){
           if(campo) campo.value = "";
           if(desc) desc.value = "";
           if(activo) activo.checked = true;
+          if(tipoCalculo) tipoCalculo.value = "SIN_VALOR";
           toggleHidden("btnDesignerEliminarCatalogo", true);
           return;
         }
@@ -6404,6 +6406,7 @@ window.CotizaApp = (function(){
         if(campo) campo.value = cat.campo_relacionado || cat.campo_id || "";
         if(desc) desc.value = cat.descripcion || "";
         if(activo) activo.checked = isActivoParam_(cat.activo);
+        if(tipoCalculo) tipoCalculo.value = String(cat.tipo_calculo || "SIN_VALOR").toUpperCase();
         toggleHidden("btnDesignerEliminarCatalogo", false);
       }
 
@@ -6463,7 +6466,8 @@ window.CotizaApp = (function(){
           alcance:alcance,
           descripcion:descripcion,
           activo:activo,
-          orden: obtenerDesignerCatalogoOrden(idOriginal)
+          orden: obtenerDesignerCatalogoOrden(idOriginal),
+          tipo_calculo: byId("designerCatalogoTipoCalculo") ? byId("designerCatalogoTipoCalculo").value : "SIN_VALOR"
         };
 
         registro.catalogo_padre_id = byId("designerCatalogoPadre") ? byId("designerCatalogoPadre").value || "" : "";
@@ -6473,6 +6477,9 @@ window.CotizaApp = (function(){
           .then(function(res){
             setLoading("section-parametros", false);
             mostrarToast(res.mensaje || "Catálogo guardado.");
+            if(Array.isArray(res.advertencias) && res.advertencias.length){
+              res.advertencias.forEach(function(adv){ mostrarToast(adv); });
+            }
             const d = state.disenadorCotiza || {};
             d.catalogoSeleccionado = id;
             d.catalogos = [];
@@ -6569,6 +6576,21 @@ window.CotizaApp = (function(){
         if(byId("designerValorPanelDescripcion")) byId("designerValorPanelDescripcion").value = v ? v.descripcion || "" : "";
         if(byId("designerValorPanelOrden")) byId("designerValorPanelOrden").value = v ? v.orden || "" : obtenerValoresCatalogoSeleccionadoDesigner().length + 1;
         if(byId("designerValorPanelActivo")) byId("designerValorPanelActivo").checked = v ? isActivoParam_(v.activo) : true;
+
+        // Valor de cálculo (migración 0023): visible/obligatorio solo si
+        // el catálogo dueño tiene tipo_calculo != SIN_VALOR — cambiar
+        // solo la etiqueta de un valor nunca debe afectar esto.
+        const tipoCalculoCatalogo = String((catActualValor && catActualValor.tipo_calculo) || "SIN_VALOR").toUpperCase();
+        const calculoWrap = byId("designerValorPanelCalculoWrap");
+        const calculoInput = byId("designerValorPanelCalculo");
+        const calculoAyuda = byId("designerValorPanelCalculoAyuda");
+        if(calculoWrap) calculoWrap.classList.toggle("hidden", tipoCalculoCatalogo === "SIN_VALOR");
+        if(calculoInput) calculoInput.value = (v && v.valor_calculo !== undefined && v.valor_calculo !== null) ? v.valor_calculo : "";
+        if(calculoAyuda){
+          calculoAyuda.textContent = tipoCalculoCatalogo === "PORCENTAJE"
+            ? "Obligatorio: este catálogo se usa en fórmulas. Se guarda como decimal (0.30 para 30%), no como 30."
+            : "Obligatorio: este catálogo se usa en fórmulas.";
+        }
       }
 
       function abrirModalDesignerValorCatalogo(valorId){
@@ -6598,6 +6620,14 @@ window.CotizaApp = (function(){
         if(!opcion){ mostrarToast("Debe indicar el texto que se va a mostrar."); return; }
         if(!valorId){ valorId = "CATV-" + catId + "-" + normalizarIdCatalogoTextoDesigner(clave || opcion); }
 
+        const catDesigner = obtenerDesignerCatalogoSeleccionado();
+        const tipoCalculoCatalogo = String((catDesigner && catDesigner.tipo_calculo) || "SIN_VALOR").toUpperCase();
+        const calculoTexto = byId("designerValorPanelCalculo") ? byId("designerValorPanelCalculo").value.trim() : "";
+        if(tipoCalculoCatalogo !== "SIN_VALOR" && calculoTexto === ""){
+          mostrarToast("Debe indicar el valor de cálculo: este catálogo (" + catId + ") es de tipo " + tipoCalculoCatalogo + ".");
+          return;
+        }
+
         const registro = {
           valor_id:valorId,
           catalogo_id:catId,
@@ -6608,6 +6638,7 @@ window.CotizaApp = (function(){
           orden:byId("designerValorPanelOrden") ? byId("designerValorPanelOrden").value || "9999" : "9999",
           activo:byId("designerValorPanelActivo") ? byId("designerValorPanelActivo").checked : true
         };
+        if(tipoCalculoCatalogo !== "SIN_VALOR") registro.valor_calculo = Number(calculoTexto);
 
         // Las relaciones con valores padre se administran desde el botón Relacionar de cada línea.
         registro.valor_padre_id = "";

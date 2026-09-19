@@ -1150,11 +1150,13 @@
       }
 
       // Operandos válidos de un Campo Calculado (Ronda 2 + Ronda 3 + Ronda
-      // 4): CAMPO numérico (Número/Moneda/Porcentaje), o un CAMPO_CALCULADO,
+      // 4 + catálogos con valor_calculo, migración 0023): CAMPO numérico
+      // (Número/Moneda/Porcentaje), un CAMPO_CATALOGO cuyo catálogo tenga
+      // tipo_calculo != SIN_VALOR (se resuelve por valor_calculo del valor
+      // seleccionado, nunca por su etiqueta), o un CAMPO_CALCULADO,
       // LISTA_PRECIOS o TABLA (todos son, en los hechos, otra fuente
       // numérica: su total ya viene resuelto), de la misma sección, activos,
-      // sin contarse a sí mismo ni los ya agregados — Campo Catálogo queda
-      // fuera todavía (no tiene precio asociado).
+      // sin contarse a sí mismo ni los ya agregados.
       function operandosDisponiblesCalculadoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const actual = String(st.elementoId || "").trim();
@@ -1166,6 +1168,11 @@
           if(tab !== st.tabId || !id || id === actual || yaAgregados[id] || !normalizarActivoCotizadorFase1_(el.activo)) return false;
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
           if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS" || tipo === "TABLA") return true;
+          if(tipo === "CAMPO_CATALOGO"){
+            const cat = getCatalogoDefByIdCotizadorFase1_(el.catalogo_id);
+            const tipoCalculo = String((cat && cat.tipo_calculo) || "SIN_VALOR").trim().toUpperCase();
+            return tipoCalculo === "NUMERO" || tipoCalculo === "PORCENTAJE";
+          }
           if(tipo !== "CAMPO") return false;
           const cfg = parseConfigElementoCotizadorFase1_(el.config_json || el.configuracion);
           const tipoCampo = String(cfg.tipo_campo || "").trim().toUpperCase();

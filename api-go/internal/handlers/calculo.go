@@ -132,6 +132,43 @@ func valorListaPrecios(tipoLista string, valorGuardado map[string]any, precioPor
 	return redondear(precio*cantidad, 2), true
 }
 
+// valorCalculoCatalogo resuelve el valor_calculo del valor SELECCIONADO de
+// un CAMPO_CATALOGO, usando los datos embebidos en su configuracion por
+// incluirValorCalculoCatalogo (compilador.go): "catalogo_tipo_calculo" y
+// "catalogo_valores_calculo" ([{valor_sistema, valor_calculo}]), ya
+// congelados en el momento de compilar (mismo criterio que el precio de un
+// ítem de Lista de Precios). Principio del documento de definición
+// funcional (caso ISA Custom): "la referencia estable es el código; para
+// cálculos se consume valor_calculo" — nunca la etiqueta. Un catálogo
+// SIN_VALOR, o un campo sin selección todavía (placeholder "Seleccione...",
+// valorGuardado vacío), no resuelven ningún número: ok=false en vez de
+// tomar el primer valor del catálogo por defecto.
+func valorCalculoCatalogo(cfg map[string]any, valorGuardado any) (float64, bool) {
+	if cfg == nil {
+		return 0, false
+	}
+	tipoCalculo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["catalogo_tipo_calculo"])))
+	if tipoCalculo == "" || tipoCalculo == "SIN_VALOR" {
+		return 0, false
+	}
+	valorSistema, ok := valorGuardado.(string)
+	if !ok {
+		return 0, false
+	}
+	valorSistema = strings.TrimSpace(valorSistema)
+	if valorSistema == "" {
+		return 0, false
+	}
+	valores, _ := cfg["catalogo_valores_calculo"].([]any)
+	for _, vRaw := range valores {
+		v, _ := vRaw.(map[string]any)
+		if strings.TrimSpace(fmt.Sprint(v["valor_sistema"])) == valorSistema {
+			return numeroDesdeValor(v["valor_calculo"])
+		}
+	}
+	return 0, false
+}
+
 // primeraColumnaNumericaTabla busca, en el orden en que vienen, la primera
 // columna con tipo_dato NUMERO o MONEDA — la misma que se totaliza al pie
 // de la tabla y la que alimenta un Campo Calculado que la use como

@@ -31,18 +31,20 @@ type catalogoDesigner struct {
 	CatalogoPadreID *string `json:"catalogo_padre_id,omitempty"`
 	Orden           int     `json:"orden"`
 	Activo          bool    `json:"activo"`
+	TipoCalculo     string  `json:"tipo_calculo"`
 }
 
 type valorCatalogoDesigner struct {
-	ValorID      string  `json:"valor_id"`
-	CatalogoID   string  `json:"catalogo_id"`
-	Clave        *string `json:"clave,omitempty"`
-	TextoVisible string  `json:"texto_visible"`
-	ValorSistema string  `json:"valor_sistema"`
-	Descripcion  *string `json:"descripcion,omitempty"`
-	ValorPadreID *string `json:"valor_padre_id,omitempty"`
-	Orden        int     `json:"orden"`
-	Activo       bool    `json:"activo"`
+	ValorID      string   `json:"valor_id"`
+	CatalogoID   string   `json:"catalogo_id"`
+	Clave        *string  `json:"clave,omitempty"`
+	TextoVisible string   `json:"texto_visible"`
+	ValorSistema string   `json:"valor_sistema"`
+	Descripcion  *string  `json:"descripcion,omitempty"`
+	ValorPadreID *string  `json:"valor_padre_id,omitempty"`
+	Orden        int      `json:"orden"`
+	Activo       bool     `json:"activo"`
+	ValorCalculo *float64 `json:"valor_calculo,omitempty"`
 }
 
 type relacionCatalogoDesigner struct {
@@ -86,18 +88,76 @@ type guardarCatalogoRequest struct {
 	Activo          bool           `json:"activo"`
 	CatalogoPadreID string         `json:"catalogo_padre_id"`
 	Orden           enteroFlexible `json:"orden"`
+	TipoCalculo     string         `json:"tipo_calculo"`
 }
 
 type guardarValorRequest struct {
-	ValorID      string         `json:"valor_id"`
-	CatalogoID   string         `json:"catalogo_id"`
-	Clave        string         `json:"clave"`
-	TextoVisible string         `json:"texto_visible"`
-	ValorSistema string         `json:"valor_sistema"`
-	Descripcion  string         `json:"descripcion"`
-	ValorPadreID string         `json:"valor_padre_id,omitempty"`
-	Orden        enteroFlexible `json:"orden"`
-	Activo       bool           `json:"activo"`
+	ValorID      string                `json:"valor_id"`
+	CatalogoID   string                `json:"catalogo_id"`
+	Clave        string                `json:"clave"`
+	TextoVisible string                `json:"texto_visible"`
+	ValorSistema string                `json:"valor_sistema"`
+	Descripcion  string                `json:"descripcion"`
+	ValorPadreID string                `json:"valor_padre_id,omitempty"`
+	Orden        enteroFlexible        `json:"orden"`
+	Activo       bool                  `json:"activo"`
+	ValorCalculo numeroCalculoFlexible `json:"valor_calculo"`
+}
+
+// tiposCalculoValidos son los 3 valores que acepta catalogos.tipo_calculo
+// (migración 0023): SIN_VALOR es el default para no romper catálogos ya
+// existentes — un catálogo puramente descriptivo (ej. CAT_TIPO_AGENTE)
+// nunca entra en una fórmula. NUMERO/PORCENTAJE obligan a que cada valor
+// activo del catálogo traiga valor_calculo (ver validarValorCalculo).
+var tiposCalculoValidos = map[string]bool{"SIN_VALOR": true, "NUMERO": true, "PORCENTAJE": true}
+
+// numeroCalculoFlexible distingue "no vino valor_calculo en el request" de
+// "vino un 0" — a diferencia de enteroFlexible (que siempre tiene un
+// entero, nunca opcional), acá la ausencia es un estado válido y distinto
+// de cero: un catálogo SIN_VALOR debe llegar sin valor_calculo, uno
+// NUMERO/PORCENTAJE no puede quedarse sin él (ver validarValorCalculo).
+type numeroCalculoFlexible struct {
+	Valor    float64
+	Definido bool
+}
+
+func (n *numeroCalculoFlexible) UnmarshalJSON(data []byte) error {
+	texto := strings.TrimSpace(string(data))
+	if texto == "" || texto == "null" || texto == `""` {
+		n.Definido = false
+		n.Valor = 0
+		return nil
+	}
+	if strings.HasPrefix(texto, `"`) {
+		var valor string
+		if err := json.Unmarshal(data, &valor); err != nil {
+			return err
+		}
+		texto = strings.TrimSpace(valor)
+		if texto == "" {
+			n.Definido = false
+			n.Valor = 0
+			return nil
+		}
+	}
+	valor, err := strconv.ParseFloat(texto, 64)
+	if err != nil {
+		return fmt.Errorf("valor_calculo debe ser un número")
+	}
+	n.Valor = valor
+	n.Definido = true
+	return nil
+}
+
+// Puntero devuelve nil cuando el request no trajo valor_calculo, o un
+// *float64 con el valor recibido en caso contrario — la forma que espera
+// upsertValor para escribir NULL o el número en catalogo_valores.
+func (n numeroCalculoFlexible) Puntero() *float64 {
+	if !n.Definido {
+		return nil
+	}
+	valor := n.Valor
+	return &valor
 }
 
 type guardarRelacionesRequest struct {
@@ -156,6 +216,10 @@ func (h *CatalogosHandler) GuardarCatalogo(w http.ResponseWriter, r *http.Reques
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un catálogo no puede ser su propio catálogo padre."})
 		return
 	}
+	if !tiposCalculoValidos[req.TipoCalculo] {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_calculo debe ser SIN_VALOR, NUMERO o PORCENTAJE."})
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -181,23 +245,60 @@ func (h *CatalogosHandler) GuardarCatalogo(w http.ResponseWriter, r *http.Reques
 
 	_, err := h.DB.Exec(ctx, `
 		INSERT INTO catalogos
-			(catalogo_id, nombre_catalogo, alcance, descripcion, activo, catalogo_padre_id, orden)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, ''), $7)
+			(catalogo_id, nombre_catalogo, alcance, descripcion, activo, catalogo_padre_id, orden, tipo_calculo)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, ''), $7, $8)
 		ON CONFLICT (catalogo_id) DO UPDATE SET
 			nombre_catalogo = EXCLUDED.nombre_catalogo,
 			alcance = EXCLUDED.alcance,
 			descripcion = EXCLUDED.descripcion,
 			activo = EXCLUDED.activo,
 			catalogo_padre_id = EXCLUDED.catalogo_padre_id,
-			orden = EXCLUDED.orden`,
+			orden = EXCLUDED.orden,
+			tipo_calculo = EXCLUDED.tipo_calculo`,
 		req.CatalogoID, req.NombreCatalogo, req.Alcance, req.Descripcion,
-		req.Activo, req.CatalogoPadreID, int(req.Orden))
+		req.Activo, req.CatalogoPadreID, int(req.Orden), req.TipoCalculo)
 	if err != nil {
 		log.Printf("catalogos: error guardando catálogo %s: %v", req.CatalogoID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar el catálogo."})
 		return
 	}
-	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Catálogo guardado.", "catalogo_id": req.CatalogoID})
+
+	respuesta := map[string]any{"ok": true, "mensaje": "Catálogo guardado.", "catalogo_id": req.CatalogoID}
+	if req.TipoCalculo != "SIN_VALOR" {
+		incompletos, err := valoresActivosSinValorCalculo(ctx, h.DB, req.CatalogoID)
+		if err != nil {
+			log.Printf("catalogos: error comprobando valor_calculo faltante en %s: %v", req.CatalogoID, err)
+		} else if len(incompletos) > 0 {
+			respuesta["advertencias"] = []string{fmt.Sprintf(
+				"El catálogo %s quedó en tipo_calculo=%s pero tiene %d valor(es) activo(s) sin valor_calculo: %s.",
+				req.CatalogoID, req.TipoCalculo, len(incompletos), strings.Join(incompletos, ", "))}
+		}
+	}
+	escribirJSON(w, http.StatusOK, respuesta)
+}
+
+// valoresActivosSinValorCalculo lista los valor_id de los valores activos
+// de un catálogo que todavía no tienen valor_calculo — usado por
+// GuardarCatalogo para avisar (sin bloquear) cuando un catálogo pasa a
+// tipo_calculo NUMERO/PORCENTAJE con datos ya cargados de antes.
+func valoresActivosSinValorCalculo(ctx context.Context, db *pgxpool.Pool, catalogoID string) ([]string, error) {
+	rows, err := db.Query(ctx, `
+		SELECT valor_id FROM catalogo_valores
+		WHERE catalogo_id=$1 AND activo=true AND valor_calculo IS NULL
+		ORDER BY COALESCE(orden, 0), valor_id`, catalogoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	incompletos := make([]string, 0)
+	for rows.Next() {
+		var valorID string
+		if err := rows.Scan(&valorID); err != nil {
+			return nil, err
+		}
+		incompletos = append(incompletos, valorID)
+	}
+	return incompletos, rows.Err()
 }
 
 // GuardarValor crea o actualiza un valor sin modificar sus relaciones explícitas.
@@ -215,6 +316,11 @@ func (h *CatalogosHandler) GuardarValor(w http.ResponseWriter, r *http.Request) 
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+
+	if err := validarValorCalculo(ctx, h.DB, req.CatalogoID, req.ValorCalculo); err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
 
 	// Mismo motivo que en GuardarCatalogo: el checkbox "Activo" de
 	// este formulario también puede desactivar el valor sin pasar por
@@ -262,6 +368,12 @@ func (h *CatalogosHandler) GuardarRelaciones(w http.ResponseWriter, r *http.Requ
 
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
+
+	if err := validarValorCalculo(ctx, h.DB, req.CatalogoID, req.ValorCalculo); err != nil {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
 	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible iniciar la transacción."})
@@ -425,20 +537,25 @@ type ejecutorSQL interface {
 }
 
 func upsertValor(ctx context.Context, db ejecutorSQL, req guardarValorRequest) error {
+	var valorCalculo any
+	if ptr := req.ValorCalculo.Puntero(); ptr != nil {
+		valorCalculo = *ptr
+	}
 	_, err := db.Exec(ctx, `
 		INSERT INTO catalogo_valores
-			(valor_id, catalogo_id, clave, texto_visible, valor_sistema, descripcion, orden, activo)
-		VALUES ($1, $2, NULLIF($3, ''), $4, $5, NULLIF($6, ''), $7, $8)
+			(valor_id, catalogo_id, clave, texto_visible, valor_sistema, descripcion, valor_calculo, orden, activo)
+		VALUES ($1, $2, NULLIF($3, ''), $4, $5, NULLIF($6, ''), $7, $8, $9)
 		ON CONFLICT (valor_id) DO UPDATE SET
 			catalogo_id = EXCLUDED.catalogo_id,
 			clave = EXCLUDED.clave,
 			texto_visible = EXCLUDED.texto_visible,
 			valor_sistema = EXCLUDED.valor_sistema,
 			descripcion = EXCLUDED.descripcion,
+			valor_calculo = EXCLUDED.valor_calculo,
 			orden = EXCLUDED.orden,
 			activo = EXCLUDED.activo`,
 		req.ValorID, req.CatalogoID, req.Clave, req.TextoVisible,
-		req.ValorSistema, req.Descripcion, int(req.Orden), req.Activo)
+		req.ValorSistema, req.Descripcion, valorCalculo, int(req.Orden), req.Activo)
 	return err
 }
 
@@ -460,6 +577,10 @@ func normalizarCatalogoRequest(req *guardarCatalogoRequest) {
 	}
 	req.Descripcion = strings.TrimSpace(req.Descripcion)
 	req.CatalogoPadreID = strings.TrimSpace(req.CatalogoPadreID)
+	req.TipoCalculo = strings.ToUpper(strings.TrimSpace(req.TipoCalculo))
+	if req.TipoCalculo == "" {
+		req.TipoCalculo = "SIN_VALOR"
+	}
 }
 
 func normalizarValorRequest(req *guardarValorRequest) {
@@ -481,6 +602,29 @@ func validarValorRequest(req guardarValorRequest) error {
 	return nil
 }
 
+// validarValorCalculo aplica la regla "o el catálogo calcula, o no calcula,
+// sin términos medios" (documento de definición funcional, caso ISA
+// Custom): un catálogo NUMERO/PORCENTAJE exige valor_calculo en cada uno
+// de sus valores; uno SIN_VALOR lo rechaza, para no dejar datos ambiguos
+// que después alguien confunda con un cálculo real.
+func validarValorCalculo(ctx context.Context, db *pgxpool.Pool, catalogoID string, valorCalculo numeroCalculoFlexible) error {
+	var tipoCalculo, nombreCatalogo string
+	err := db.QueryRow(ctx, `SELECT tipo_calculo, nombre_catalogo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&tipoCalculo, &nombreCatalogo)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("el catálogo %s no existe", catalogoID)
+	}
+	if err != nil {
+		return err
+	}
+	if tipoCalculo != "SIN_VALOR" && !valorCalculo.Definido {
+		return fmt.Errorf("el catálogo %s (%s) es de tipo_calculo=%s: debe indicar valor_calculo para este valor", catalogoID, nombreCatalogo, tipoCalculo)
+	}
+	if tipoCalculo == "SIN_VALOR" && valorCalculo.Definido {
+		return fmt.Errorf("el catálogo %s (%s) es SIN_VALOR: no debe indicar valor_calculo para este valor", catalogoID, nombreCatalogo)
+	}
+	return nil
+}
+
 func normalizarIDs(ids []string) []string {
 	vistos := make(map[string]bool, len(ids))
 	resultado := make([]string, 0, len(ids))
@@ -497,7 +641,7 @@ func normalizarIDs(ids []string) []string {
 func (h *CatalogosHandler) listarCatalogos(ctx context.Context) (map[string]any, error) {
 	rows, err := h.DB.Query(ctx, `
 		SELECT catalogo_id, nombre_catalogo, descripcion, alcance,
-		       catalogo_padre_id, COALESCE(orden, 0), activo
+		       catalogo_padre_id, COALESCE(orden, 0), activo, tipo_calculo
 		FROM catalogos
 		WHERE activo = true
 		ORDER BY COALESCE(orden, 0), nombre_catalogo`)
@@ -509,7 +653,7 @@ func (h *CatalogosHandler) listarCatalogos(ctx context.Context) (map[string]any,
 	items := make([]catalogoDesigner, 0)
 	for rows.Next() {
 		var item catalogoDesigner
-		if err := rows.Scan(&item.CatalogoID, &item.NombreCatalogo, &item.Descripcion, &item.Alcance, &item.CatalogoPadreID, &item.Orden, &item.Activo); err != nil {
+		if err := rows.Scan(&item.CatalogoID, &item.NombreCatalogo, &item.Descripcion, &item.Alcance, &item.CatalogoPadreID, &item.Orden, &item.Activo, &item.TipoCalculo); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -528,7 +672,7 @@ func (h *CatalogosHandler) listarValores(ctx context.Context, catalogoID string)
 func (h *CatalogosHandler) consultarValores(ctx context.Context, catalogoID string) ([]valorCatalogoDesigner, error) {
 	rows, err := h.DB.Query(ctx, `
 		SELECT valor_id, catalogo_id, clave, texto_visible, valor_sistema,
-		       descripcion, valor_padre_id, COALESCE(orden, 0), activo
+		       descripcion, valor_padre_id, COALESCE(orden, 0), activo, valor_calculo
 		FROM catalogo_valores
 		WHERE catalogo_id = $1 AND activo = true
 		ORDER BY COALESCE(orden, 0), texto_visible`, catalogoID)
@@ -539,7 +683,7 @@ func (h *CatalogosHandler) consultarValores(ctx context.Context, catalogoID stri
 	items := make([]valorCatalogoDesigner, 0)
 	for rows.Next() {
 		var item valorCatalogoDesigner
-		if err := rows.Scan(&item.ValorID, &item.CatalogoID, &item.Clave, &item.TextoVisible, &item.ValorSistema, &item.Descripcion, &item.ValorPadreID, &item.Orden, &item.Activo); err != nil {
+		if err := rows.Scan(&item.ValorID, &item.CatalogoID, &item.Clave, &item.TextoVisible, &item.ValorSistema, &item.Descripcion, &item.ValorPadreID, &item.Orden, &item.Activo, &item.ValorCalculo); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

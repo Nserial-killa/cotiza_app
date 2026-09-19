@@ -136,6 +136,15 @@
                         <label for="designerCatalogoDescripcion">Descripción</label>
                         <textarea id="designerCatalogoDescripcion" class="input" placeholder="Descripción del catálogo"></textarea>
                       </div>
+                      <div class="field">
+                        <label for="designerCatalogoTipoCalculo">Tipo de cálculo</label>
+                        <select id="designerCatalogoTipoCalculo" class="select">
+                          <option value="SIN_VALOR">Sin valor (solo descriptivo)</option>
+                          <option value="NUMERO">Número</option>
+                          <option value="PORCENTAJE">Porcentaje</option>
+                        </select>
+                        <span class="param-field-help">Si el catálogo va a usarse en una fórmula (Campo Calculado), cada valor debe traer un "Valor de cálculo". Cambiar solo la etiqueta de un valor nunca afecta el cálculo.</span>
+                      </div>
                       <label class="param-switch" style="padding-top:0;min-height:34px;">
                         <input id="designerCatalogoActivo" type="checkbox" checked> Activo
                       </label>
@@ -181,6 +190,11 @@
                       <div class="field">
                         <label for="designerValorPanelValor">Valor que guarda el sistema</label>
                         <input id="designerValorPanelValor" class="input" type="text" placeholder="Valor que usará el cotizador; si queda vacío se usa la clave">
+                      </div>
+                      <div class="field hidden" id="designerValorPanelCalculoWrap">
+                        <label for="designerValorPanelCalculo">Valor de cálculo</label>
+                        <input id="designerValorPanelCalculo" class="input" type="number" step="any" placeholder="0.30 para 30%">
+                        <span class="param-field-help" id="designerValorPanelCalculoAyuda">Obligatorio: este catálogo se usa en fórmulas. Se guarda como decimal (0.30 para 30%), no como 30.</span>
                       </div>
                       <div id="designerValorRelacionInfo" class="designer-info hidden" style="margin-top:0;">
                         <span class="designer-info-icon">i</span>

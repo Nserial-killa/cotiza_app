@@ -133,6 +133,51 @@ func TestUnitValorTotalTabla(t *testing.T) {
 	}
 }
 
+func TestUnitValorCalculoCatalogo(t *testing.T) {
+	cfg := map[string]any{
+		"catalogo_tipo_calculo": "PORCENTAJE",
+		"catalogo_valores_calculo": []any{
+			map[string]any{"valor_sistema": "M20", "valor_calculo": 0.20},
+			map[string]any{"valor_sistema": "M30", "valor_calculo": 0.30},
+		},
+	}
+
+	// La referencia estable es el código (valor_sistema), no la etiqueta:
+	// el valor guardado por el Motor de Ejecución es justamente ese código.
+	valor, ok := valorCalculoCatalogo(cfg, "M30")
+	if !ok || valor != 0.30 {
+		t.Fatalf("M30 esperaba 0.30, obtuvo %v (ok=%v)", valor, ok)
+	}
+
+	// Sin selección todavía (placeholder "Seleccione..."): no debe tomar
+	// el primer valor del catálogo por defecto.
+	if _, ok := valorCalculoCatalogo(cfg, ""); ok {
+		t.Fatal("esperaba ok=false sin selección")
+	}
+	if _, ok := valorCalculoCatalogo(cfg, nil); ok {
+		t.Fatal("esperaba ok=false con valorGuardado nil")
+	}
+
+	// Código que ya no existe en el catálogo compilado (ej. valor
+	// desactivado después de compilar): no resuelve.
+	if _, ok := valorCalculoCatalogo(cfg, "NO-EXISTE"); ok {
+		t.Fatal("esperaba ok=false para un valor_sistema que no está en catalogo_valores_calculo")
+	}
+
+	// Catálogo SIN_VALOR (default): nunca resuelve, aunque venga una
+	// selección — es solo descriptivo.
+	cfgSinValor := map[string]any{"catalogo_tipo_calculo": "SIN_VALOR"}
+	if _, ok := valorCalculoCatalogo(cfgSinValor, "M30"); ok {
+		t.Fatal("esperaba ok=false para un catálogo SIN_VALOR")
+	}
+
+	// Sin configuracion: no resuelve (no debería pasar en la práctica,
+	// pero no debe reventar).
+	if _, ok := valorCalculoCatalogo(nil, "M30"); ok {
+		t.Fatal("esperaba ok=false con cfg nil")
+	}
+}
+
 func TestUnitRedondear(t *testing.T) {
 	if v := redondear(3.14159, 2); v != 3.14 {
 		t.Fatalf("esperaba 3.14, obtuvo %v", v)

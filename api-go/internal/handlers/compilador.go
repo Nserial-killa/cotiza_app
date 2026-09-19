@@ -199,7 +199,8 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		       e.elemento_id, e.tipo, e.etiqueta, e.catalogo_id,
 		       e.componente_padre_id, e.campo_fuente_id, e.funcion_campo,
 		       e.columnas_ancho, e.orden, e.requerido, e.configuracion,
-		       CASE WHEN e.catalogo_id IS NULL THEN NULL ELSE c.activo END
+		       CASE WHEN e.catalogo_id IS NULL THEN NULL ELSE c.activo END,
+		       CASE WHEN e.catalogo_id IS NULL THEN NULL ELSE c.tipo_calculo END
 		FROM tabs_disponibles td
 		JOIN tabs_cotizador t ON t.tab_id=td.tab_id
 		-- SECCIONES_ADICIONALES es un selector de diseño. En ejecución se
@@ -225,7 +226,8 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		var requerido *bool
 		var configuracion map[string]any
 		var catalogoActivo *bool
-		if err := rows.Scan(&tabID, &nombre, &descripcion, &alcance, &orden, &elementoID, &tipo, &etiqueta, &catalogoID, &componentePadreID, &campoFuenteID, &funcionCampo, &columnasAncho, &elementoOrden, &requerido, &configuracion, &catalogoActivo); err != nil {
+		var catalogoTipoCalculo *string
+		if err := rows.Scan(&tabID, &nombre, &descripcion, &alcance, &orden, &elementoID, &tipo, &etiqueta, &catalogoID, &componentePadreID, &campoFuenteID, &funcionCampo, &columnasAncho, &elementoOrden, &requerido, &configuracion, &catalogoActivo, &catalogoTipoCalculo); err != nil {
 			return resultado, err
 		}
 		indice, existe := tabsPorID[tabID]
@@ -252,6 +254,13 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 			} else {
 				delete(el.Configuracion, "campo_fuente_id")
 			}
+		}
+		if el.Tipo == "CAMPO_CATALOGO" {
+			tipoCalculo := valorString(catalogoTipoCalculo)
+			if tipoCalculo == "" {
+				tipoCalculo = "SIN_VALOR"
+			}
+			el.Configuracion["catalogo_tipo_calculo"] = tipoCalculo
 		}
 		resultado.Tabs[indice].Elementos = append(resultado.Tabs[indice].Elementos, el)
 		resultado.Resumen.ElementosTab++
@@ -282,6 +291,9 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		return resultado, err
 	}
 	if err := h.incluirColumnasTabla(ctx, &resultado); err != nil {
+		return resultado, err
+	}
+	if err := h.incluirValorCalculoCatalogo(ctx, &resultado); err != nil {
 		return resultado, err
 	}
 	for i := range resultado.Tabs {
@@ -421,6 +433,70 @@ func (h *CompiladorHandler) incluirColumnasTabla(ctx context.Context, resultado 
 				columnas = make([]map[string]any, 0)
 			}
 			el.Configuracion["columnas"] = columnas
+		}
+	}
+	return nil
+}
+
+// incluirValorCalculoCatalogo agrega, a la configuracion de cada elemento
+// CAMPO_CATALOGO, el valor_calculo de cada valor ACTIVO de su catálogo bajo
+// la clave "catalogo_valores_calculo" ([{valor_sistema, valor_calculo}]) —
+// "catalogo_tipo_calculo" ya se resolvió arriba, en el mismo SELECT que
+// valida catalogoActivo. Mismo patrón que incluirItemsListaPrecios: se
+// congela en el momento de compilar, así resolverCamposCalculados
+// (cotizador_runtime.go) no necesita otra consulta ni depende de que el
+// catálogo no cambie después de compilado — igual que el precio de un
+// ítem de Lista de Precios.
+func (h *CompiladorHandler) incluirValorCalculoCatalogo(ctx context.Context, resultado *resultadoValidacion) error {
+	ids := make([]string, 0)
+	for _, tab := range resultado.Tabs {
+		for _, el := range tab.Elementos {
+			if el.Tipo == "CAMPO_CATALOGO" && el.CatalogoID != nil && strings.TrimSpace(*el.CatalogoID) != "" {
+				ids = append(ids, strings.TrimSpace(*el.CatalogoID))
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := h.DB.Query(ctx, `
+		SELECT catalogo_id, valor_sistema, valor_calculo
+		FROM catalogo_valores
+		WHERE catalogo_id = ANY($1) AND activo = true
+		ORDER BY catalogo_id, orden, valor_sistema`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	valoresPorCatalogo := make(map[string][]map[string]any)
+	for rows.Next() {
+		var catalogoID, valorSistema string
+		var valorCalculo *float64
+		if err := rows.Scan(&catalogoID, &valorSistema, &valorCalculo); err != nil {
+			return err
+		}
+		var vc any
+		if valorCalculo != nil {
+			vc = *valorCalculo
+		}
+		valoresPorCatalogo[catalogoID] = append(valoresPorCatalogo[catalogoID], map[string]any{
+			"valor_sistema": valorSistema, "valor_calculo": vc,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range resultado.Tabs {
+		for j := range resultado.Tabs[i].Elementos {
+			el := &resultado.Tabs[i].Elementos[j]
+			if el.Tipo != "CAMPO_CATALOGO" || el.CatalogoID == nil {
+				continue
+			}
+			valores := valoresPorCatalogo[strings.TrimSpace(*el.CatalogoID)]
+			if valores == nil {
+				valores = make([]map[string]any, 0)
+			}
+			el.Configuracion["catalogo_valores_calculo"] = valores
 		}
 	}
 	return nil

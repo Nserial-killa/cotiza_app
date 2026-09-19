@@ -679,6 +679,100 @@ func TestCotizadorRuntime_ListaPreciosUnicaYCampoCalculadoQueLaUsa(t *testing.T)
 	}
 }
 
+// TestCotizadorRuntime_CampoCatalogoConValorCalculoEnCampoCalculado cubre
+// el camino feliz del documento de definición funcional (caso ISA Custom,
+// migración 0023): catálogo PORCENTAJE con M20=0.20/M30=0.30, un Campo
+// Catálogo que lo usa, y un Campo Calculado que lo toma como operando. El
+// resultado debe usar el valor_calculo real (0.30), nunca la etiqueta ni
+// el código, y un campo todavía sin seleccionar no debe resolver ningún
+// número (nada de "tomar el primer valor por defecto").
+func TestCotizadorRuntime_CampoCatalogoConValorCalculoEnCampoCalculado(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	catalogosHandler := &CatalogosHandler{DB: tabsHandler.DB}
+	compilador := &CompiladorHandler{DB: tabsHandler.DB}
+
+	catalogoID := crearCatalogoPrueba(t, tabsHandler.DB, "Catálogo margen runtime", "")
+	rec := postCatalogos(t, catalogosHandler.GuardarCatalogo, "/api/catalogos", map[string]any{
+		"catalogo_id": catalogoID, "nombre_catalogo": "Catálogo margen runtime", "activo": true, "tipo_calculo": "PORCENTAJE",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("fijar tipo_calculo: %s", rec.Body.String())
+	}
+	postCatalogos(t, catalogosHandler.GuardarValor, "/api/catalogos/valores", map[string]any{
+		"valor_id": "TEST-VAL-M20-" + sufijoUnico(), "catalogo_id": catalogoID, "clave": "M20",
+		"texto_visible": "20%", "valor_sistema": "M20", "activo": true, "valor_calculo": 0.20,
+	})
+	rec = postCatalogos(t, catalogosHandler.GuardarValor, "/api/catalogos/valores", map[string]any{
+		"valor_id": "TEST-VAL-M30-" + sufijoUnico(), "catalogo_id": catalogoID, "clave": "M30",
+		"texto_visible": "30%", "valor_sistema": "M30", "activo": true, "valor_calculo": 0.30,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear M30: %s", rec.Body.String())
+	}
+
+	tabID := "TEST-TAB-CATCALC-RT-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Margen", "activo": true,
+	})
+	campoCatalogoID := "TEST-EL-CATCALC-RT-" + sufijoUnico()
+	rec = postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoCatalogoID, "tab_id": tabID, "tipo": "CAMPO_CATALOGO",
+		"etiqueta": "Margen", "catalogo_id": catalogoID, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear campo catálogo: %s", rec.Body.String())
+	}
+	calcID := "TEST-EL-CATCALC-CALC-RT-" + sufijoUnico()
+	rec = postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": calcID, "tab_id": tabID, "tipo": "CAMPO_CALCULADO", "etiqueta": "Margen calculado",
+		"configuracion": map[string]any{
+			"operacion": "PROMEDIO", "tipo_resultado": "PORCENTAJE", "decimales": 2, "operandos": []string{campoCatalogoID},
+		}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear campo calculado: %s", rec.Body.String())
+	}
+
+	recComp := postCatalogos(t, compilador.Compilar, "/api/cotizador/compilar", map[string]any{"calculadora_id": calculadoraID})
+	var resComp respuestaCompiladorTest
+	assertJSON(t, recComp.Body.Bytes(), &resComp)
+	if !resComp.OK || !resComp.Valido || !resComp.Compilado {
+		t.Fatalf("compilar: esperaba válido y compilado, obtuvo %+v", resComp)
+	}
+
+	cotizacionID, _, _ := crearCotizacionPrueba(t, tabsHandler.DB, "Borrador", "", "")
+	if _, err := tabsHandler.DB.Exec(context.Background(), `UPDATE cotizaciones SET calculadora_id=$1 WHERE cotizacion_id=$2`, calculadoraID, cotizacionID); err != nil {
+		t.Fatal(err)
+	}
+	fixture := fixtureRuntime{Handler: &CotizadorRuntimeHandler{DB: tabsHandler.DB}, CotizacionID: cotizacionID}
+
+	// Sin selección todavía (placeholder "Seleccione..."): el Campo
+	// Calculado no debe tomar el primer valor del catálogo por defecto.
+	rec = getRuntime(t, fixture, "")
+	var res struct {
+		Estructura map[string]any `json:"estructura"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	elementoCalc := elementoPorIDEnEstructura(res.Estructura, calcID)
+	if elementoCalc["valor_resuelto"] != nil {
+		t.Fatalf("sin selección de catálogo, esperaba valor_resuelto=nil, obtuvo %v", elementoCalc["valor_resuelto"])
+	}
+
+	recPost := postValoresRuntime(t, fixture, map[string]any{
+		"version": 1, "valores": map[string]any{campoCatalogoID: "M30"},
+	})
+	if recPost.Code != http.StatusOK {
+		t.Fatalf("guardar selección de catálogo: %d: %s", recPost.Code, recPost.Body.String())
+	}
+
+	rec = getRuntime(t, fixture, "version=1")
+	assertJSON(t, rec.Body.Bytes(), &res)
+	elementoCalc = elementoPorIDEnEstructura(res.Estructura, calcID)
+	if elementoCalc["valor_resuelto"] != 0.3 {
+		t.Fatalf("esperaba valor_resuelto=0.3 (no 30), obtuvo %v", elementoCalc["valor_resuelto"])
+	}
+}
+
 func TestCotizadorRuntime_ListaPreciosRechazaItemDeOtroElemento(t *testing.T) {
 	fixture := crearFixtureListaPreciosCompilada(t)
 	// ItemMultipleAID pertenece a MultipleID, no a UnicaID.

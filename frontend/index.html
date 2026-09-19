@@ -2969,6 +2969,15 @@ table tr:last-child td { border-bottom: none; }
                         <label for="designerCatalogoDescripcion">Descripción</label>
                         <textarea id="designerCatalogoDescripcion" class="input" placeholder="Descripción del catálogo"></textarea>
                       </div>
+                      <div class="field">
+                        <label for="designerCatalogoTipoCalculo">Tipo de cálculo</label>
+                        <select id="designerCatalogoTipoCalculo" class="select">
+                          <option value="SIN_VALOR">Sin valor (solo descriptivo)</option>
+                          <option value="NUMERO">Número</option>
+                          <option value="PORCENTAJE">Porcentaje</option>
+                        </select>
+                        <span class="param-field-help">Si el catálogo va a usarse en una fórmula (Campo Calculado), cada valor debe traer un "Valor de cálculo". Cambiar solo la etiqueta de un valor nunca afecta el cálculo.</span>
+                      </div>
                       <label class="param-switch" style="padding-top:0;min-height:34px;">
                         <input id="designerCatalogoActivo" type="checkbox" checked> Activo
                       </label>
@@ -3014,6 +3023,11 @@ table tr:last-child td { border-bottom: none; }
                       <div class="field">
                         <label for="designerValorPanelValor">Valor que guarda el sistema</label>
                         <input id="designerValorPanelValor" class="input" type="text" placeholder="Valor que usará el cotizador; si queda vacío se usa la clave">
+                      </div>
+                      <div class="field hidden" id="designerValorPanelCalculoWrap">
+                        <label for="designerValorPanelCalculo">Valor de cálculo</label>
+                        <input id="designerValorPanelCalculo" class="input" type="number" step="any" placeholder="0.30 para 30%">
+                        <span class="param-field-help" id="designerValorPanelCalculoAyuda">Obligatorio: este catálogo se usa en fórmulas. Se guarda como decimal (0.30 para 30%), no como 30.</span>
                       </div>
                       <div id="designerValorRelacionInfo" class="designer-info hidden" style="margin-top:0;">
                         <span class="designer-info-icon">i</span>
@@ -14964,6 +14978,7 @@ window.CotizaApp = (function(){
         const campo = byId("designerCatalogoCampoRelacionado");
         const desc = byId("designerCatalogoDescripcion");
         const activo = byId("designerCatalogoActivo");
+        const tipoCalculo = byId("designerCatalogoTipoCalculo");
 
         if(!cat){
           if(byId("designerPropsTitulo")) byId("designerPropsTitulo").textContent = "Nuevo catálogo";
@@ -14979,6 +14994,7 @@ window.CotizaApp = (function(){
           if(campo) campo.value = "";
           if(desc) desc.value = "";
           if(activo) activo.checked = true;
+          if(tipoCalculo) tipoCalculo.value = "SIN_VALOR";
           toggleHidden("btnDesignerEliminarCatalogo", true);
           return;
         }
@@ -14997,6 +15013,7 @@ window.CotizaApp = (function(){
         if(campo) campo.value = cat.campo_relacionado || cat.campo_id || "";
         if(desc) desc.value = cat.descripcion || "";
         if(activo) activo.checked = isActivoParam_(cat.activo);
+        if(tipoCalculo) tipoCalculo.value = String(cat.tipo_calculo || "SIN_VALOR").toUpperCase();
         toggleHidden("btnDesignerEliminarCatalogo", false);
       }
 
@@ -15056,7 +15073,8 @@ window.CotizaApp = (function(){
           alcance:alcance,
           descripcion:descripcion,
           activo:activo,
-          orden: obtenerDesignerCatalogoOrden(idOriginal)
+          orden: obtenerDesignerCatalogoOrden(idOriginal),
+          tipo_calculo: byId("designerCatalogoTipoCalculo") ? byId("designerCatalogoTipoCalculo").value : "SIN_VALOR"
         };
 
         registro.catalogo_padre_id = byId("designerCatalogoPadre") ? byId("designerCatalogoPadre").value || "" : "";
@@ -15066,6 +15084,9 @@ window.CotizaApp = (function(){
           .then(function(res){
             setLoading("section-parametros", false);
             mostrarToast(res.mensaje || "Catálogo guardado.");
+            if(Array.isArray(res.advertencias) && res.advertencias.length){
+              res.advertencias.forEach(function(adv){ mostrarToast(adv); });
+            }
             const d = state.disenadorCotiza || {};
             d.catalogoSeleccionado = id;
             d.catalogos = [];
@@ -15162,6 +15183,21 @@ window.CotizaApp = (function(){
         if(byId("designerValorPanelDescripcion")) byId("designerValorPanelDescripcion").value = v ? v.descripcion || "" : "";
         if(byId("designerValorPanelOrden")) byId("designerValorPanelOrden").value = v ? v.orden || "" : obtenerValoresCatalogoSeleccionadoDesigner().length + 1;
         if(byId("designerValorPanelActivo")) byId("designerValorPanelActivo").checked = v ? isActivoParam_(v.activo) : true;
+
+        // Valor de cálculo (migración 0023): visible/obligatorio solo si
+        // el catálogo dueño tiene tipo_calculo != SIN_VALOR — cambiar
+        // solo la etiqueta de un valor nunca debe afectar esto.
+        const tipoCalculoCatalogo = String((catActualValor && catActualValor.tipo_calculo) || "SIN_VALOR").toUpperCase();
+        const calculoWrap = byId("designerValorPanelCalculoWrap");
+        const calculoInput = byId("designerValorPanelCalculo");
+        const calculoAyuda = byId("designerValorPanelCalculoAyuda");
+        if(calculoWrap) calculoWrap.classList.toggle("hidden", tipoCalculoCatalogo === "SIN_VALOR");
+        if(calculoInput) calculoInput.value = (v && v.valor_calculo !== undefined && v.valor_calculo !== null) ? v.valor_calculo : "";
+        if(calculoAyuda){
+          calculoAyuda.textContent = tipoCalculoCatalogo === "PORCENTAJE"
+            ? "Obligatorio: este catálogo se usa en fórmulas. Se guarda como decimal (0.30 para 30%), no como 30."
+            : "Obligatorio: este catálogo se usa en fórmulas.";
+        }
       }
 
       function abrirModalDesignerValorCatalogo(valorId){
@@ -15191,6 +15227,14 @@ window.CotizaApp = (function(){
         if(!opcion){ mostrarToast("Debe indicar el texto que se va a mostrar."); return; }
         if(!valorId){ valorId = "CATV-" + catId + "-" + normalizarIdCatalogoTextoDesigner(clave || opcion); }
 
+        const catDesigner = obtenerDesignerCatalogoSeleccionado();
+        const tipoCalculoCatalogo = String((catDesigner && catDesigner.tipo_calculo) || "SIN_VALOR").toUpperCase();
+        const calculoTexto = byId("designerValorPanelCalculo") ? byId("designerValorPanelCalculo").value.trim() : "";
+        if(tipoCalculoCatalogo !== "SIN_VALOR" && calculoTexto === ""){
+          mostrarToast("Debe indicar el valor de cálculo: este catálogo (" + catId + ") es de tipo " + tipoCalculoCatalogo + ".");
+          return;
+        }
+
         const registro = {
           valor_id:valorId,
           catalogo_id:catId,
@@ -15201,6 +15245,7 @@ window.CotizaApp = (function(){
           orden:byId("designerValorPanelOrden") ? byId("designerValorPanelOrden").value || "9999" : "9999",
           activo:byId("designerValorPanelActivo") ? byId("designerValorPanelActivo").checked : true
         };
+        if(tipoCalculoCatalogo !== "SIN_VALOR") registro.valor_calculo = Number(calculoTexto);
 
         // Las relaciones con valores padre se administran desde el botón Relacionar de cada línea.
         registro.valor_padre_id = "";
@@ -17183,11 +17228,13 @@ window.CotizaApp = (function(){
       }
 
       // Operandos válidos de un Campo Calculado (Ronda 2 + Ronda 3 + Ronda
-      // 4): CAMPO numérico (Número/Moneda/Porcentaje), o un CAMPO_CALCULADO,
+      // 4 + catálogos con valor_calculo, migración 0023): CAMPO numérico
+      // (Número/Moneda/Porcentaje), un CAMPO_CATALOGO cuyo catálogo tenga
+      // tipo_calculo != SIN_VALOR (se resuelve por valor_calculo del valor
+      // seleccionado, nunca por su etiqueta), o un CAMPO_CALCULADO,
       // LISTA_PRECIOS o TABLA (todos son, en los hechos, otra fuente
       // numérica: su total ya viene resuelto), de la misma sección, activos,
-      // sin contarse a sí mismo ni los ya agregados — Campo Catálogo queda
-      // fuera todavía (no tiene precio asociado).
+      // sin contarse a sí mismo ni los ya agregados.
       function operandosDisponiblesCalculadoCotizadorFase1_(){
         const st = getCotizadorFase1State_();
         const actual = String(st.elementoId || "").trim();
@@ -17199,6 +17246,11 @@ window.CotizaApp = (function(){
           if(tab !== st.tabId || !id || id === actual || yaAgregados[id] || !normalizarActivoCotizadorFase1_(el.activo)) return false;
           const tipo = String(el.tipo_elemento || "").trim().toUpperCase();
           if(tipo === "CAMPO_CALCULADO" || tipo === "LISTA_PRECIOS" || tipo === "TABLA") return true;
+          if(tipo === "CAMPO_CATALOGO"){
+            const cat = getCatalogoDefByIdCotizadorFase1_(el.catalogo_id);
+            const tipoCalculo = String((cat && cat.tipo_calculo) || "SIN_VALOR").trim().toUpperCase();
+            return tipoCalculo === "NUMERO" || tipoCalculo === "PORCENTAJE";
+          }
           if(tipo !== "CAMPO") return false;
           const cfg = parseConfigElementoCotizadorFase1_(el.config_json || el.configuracion);
           const tipoCampo = String(cfg.tipo_campo || "").trim().toUpperCase();
