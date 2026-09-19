@@ -1449,13 +1449,37 @@ window.CotizaApp = (function(){
             estructura: res.estructura || {tabs:[]},
             valores: res.valores || {},
             tabActivoId: tabs.length ? tabs[0].tab_id : "",
-            opcionActivaPorPadre: {}
+            opcionActivaPorPadre: {},
+            erroresRegla: []
           };
           inicializarOpcionesActivasRuntime_();
           renderRuntimeCotizador();
         }catch(error){
           if(contenido) contenido.innerHTML = '<div class="card"><p>' + escapeHtml(error && error.message ? error.message : "No fue posible cargar el formulario del cotizador.") + '</p></div>';
         }
+      }
+
+      // Autoguardado con debounce (migración 0024, motor de Reglas en
+      // tiempo real): cada cambio en un campo reprograma el guardado en
+      // vez de dispararlo de inmediato, para no mandar un POST por cada
+      // tecla. Reusa guardarRuntimeCotizador — el mismo endpoint que el
+      // botón "Guardar" explícito, sin crear una ruta paralela.
+      let runtimeAutoguardadoTimer = null;
+      const RUNTIME_AUTOGUARDADO_DEBOUNCE_MS = 900;
+
+      function setTextoEstadoGuardadoRuntime_(texto){
+        const el = byId("runtimeGuardadoEstado");
+        if(el) el.textContent = texto || "";
+      }
+
+      function programarAutoguardadoRuntime_(){
+        if(!state.cotizadorRuntime) return;
+        setTextoEstadoGuardadoRuntime_("Escribiendo...");
+        if(runtimeAutoguardadoTimer) clearTimeout(runtimeAutoguardadoTimer);
+        runtimeAutoguardadoTimer = setTimeout(function(){
+          runtimeAutoguardadoTimer = null;
+          guardarRuntimeCotizador({silencioso:true});
+        }, RUNTIME_AUTOGUARDADO_DEBOUNCE_MS);
       }
 
       function recorrerElementosRuntime_(elementos, callback){
@@ -1525,7 +1549,22 @@ window.CotizaApp = (function(){
 
         contenido.innerHTML =
           '<div class="runtime-tabs">' + tiraTabs + '</div>' +
+          renderMensajesReglaRuntime_(rt.erroresRegla) +
           '<div class="card runtime-grid">' + (campos || '<p>Esta sección no tiene elementos.</p>') + '</div>';
+
+        // Autoguardado con debounce: CAMPO (texto) reacciona a "input"
+        // (cada tecla reprograma el envío), CAMPO_CATALOGO (select) a
+        // "change" (ya es una selección completa, no hace falta esperar).
+        // Lista de Precios/Tabla siguen su propio flujo de re-render
+        // completo (ya disparan leerValoresFormularioActual + render);
+        // acá solo se agrega el guardado, sin pisar esos listeners.
+        contenido.querySelectorAll(".runtime-input").forEach(function(input){
+          const evento = input.tagName === "SELECT" ? "change" : "input";
+          input.addEventListener(evento, function(){
+            asignarValorRuntime_(rt.valores, input.dataset.elementoId, input.dataset.opcionId || "", input.value);
+            programarAutoguardadoRuntime_();
+          });
+        });
 
         contenido.querySelectorAll(".runtime-tab-btn").forEach(function(btn){
           btn.addEventListener("click", function(){
@@ -1621,6 +1660,17 @@ window.CotizaApp = (function(){
             renderRuntimeCotizador();
           });
         });
+      }
+
+      // renderMensajesReglaRuntime_ muestra los mensajes de las reglas de
+      // validación (BLOQUEAR_GUARDADO/CAMPO_REQUERIDO, migración 0024) que
+      // rechazaron el último intento de guardado — en un resumen arriba
+      // del formulario, ya que el backend no siempre puede anclarlos a un
+      // único campo (BLOQUEAR_GUARDADO no apunta a ninguno en particular).
+      function renderMensajesReglaRuntime_(errores){
+        if(!Array.isArray(errores) || !errores.length) return "";
+        const items = errores.map(function(e){ return "<li>" + escapeHtml(e && e.mensaje ? e.mensaje : "No se pudo guardar.") + "</li>"; }).join("");
+        return '<div class="runtime-mensajes-regla">No se guardaron los últimos cambios:<ul>' + items + '</ul></div>';
       }
 
       function atributoOpcionRuntime_(opcionID){
@@ -1724,20 +1774,36 @@ window.CotizaApp = (function(){
       // CONTENEDOR (tarjeta con sus "hijos" anidados según columnas) y
       // CAJA_VALOR (solo lectura: el backend ya resolvió valor_resuelto
       // contra cotizacion_valores o, si no hay, contra valor_por_defecto).
+      // estadoReglaCampo_ combina el requerido "de diseño" (el.requerido)
+      // con el que agrega una regla_cotizador en tiempo real
+      // (el.estado_regla, migración 0024 — ver incluirEstadoReglas en
+      // cotizador_runtime.go): un campo requerido por una regla se
+      // comporta igual que uno requerido desde el Diseñador. Un elemento
+      // que ninguna regla toca no trae estado_regla — el default es
+      // visible+habilitado, igual que si la clave no existiera.
+      function estadoReglaCampo_(el){
+        const estado = el.estado_regla || null;
+        return {
+          visible: !estado || estado.visible !== false,
+          deshabilitado: !!(estado && estado.habilitado === false),
+          requerido: !!el.requerido || !!(estado && estado.requerido),
+          minimo: (estado && typeof estado.minimo === "number") ? estado.minimo : null
+        };
+      }
+
       function renderRuntimeElemento(el, valores, opcionID){
         const ancho = Math.min(4, Math.max(1, Number(el.columnas_ancho) || 1));
-        const requerido = !!el.requerido;
+        const estadoRegla = estadoReglaCampo_(el);
+        const requerido = estadoRegla.requerido;
         const estiloSpan = 'style="grid-column:span ' + ancho + '"';
         const valorGuardadoRaw = valorRuntimeActual_(valores, el.elemento_id, opcionID);
         const valorGuardado = valorGuardadoRaw === undefined ? "" : valorGuardadoRaw;
         const cfg = el.configuracion || {};
 
-        // "Visible en calculadora" aplica a cualquier tipo, no solo a
-        // Lista de Precios (Ronda 3) — hasta ahora ningún tipo lo
-        // respetaba en el Motor de Ejecución pese a que el Diseñador ya
-        // lo pide desde el Sprint 2; se corrige acá de una vez para los
-        // 9 tipos existentes, no solo el nuevo.
-        if(cfg.visible_calculadora === false) return "";
+        // "Visible en calculadora" (Diseñador) u "oculto por una regla_
+        // cotizador en tiempo real" (migración 0024) — ambas ocultan el
+        // campo completo del formulario.
+        if(cfg.visible_calculadora === false || !estadoRegla.visible) return "";
 
         if(el.tipo === "TITULO"){
           const nivel = String(cfg.nivel || "h3").toLowerCase();
@@ -1826,14 +1892,17 @@ window.CotizaApp = (function(){
           }).join("");
           return '<div class="field runtime-field" ' + estiloSpan + '>' +
             '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
-            '<select class="select runtime-input" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + '>' + optionsHtml + '</select>' +
+            '<select class="select runtime-input" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + (estadoRegla.deshabilitado ? ' disabled' : '') + '>' + optionsHtml + '</select>' +
+            '<div class="runtime-campo-error" data-error-elemento-id="' + escapeHtml(el.elemento_id) + '" hidden></div>' +
             '</div>';
         }
         // CAMPO
         const valorTexto = (valorGuardado === null || valorGuardado === undefined) ? "" : valorGuardado;
+        const sufijoMinimo = estadoRegla.minimo !== null ? ' <span class="runtime-minimo-hint">(mínimo ' + escapeHtml(String(estadoRegla.minimo)) + ')</span>' : '';
         return '<div class="field runtime-field" ' + estiloSpan + '>' +
-          '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
-          '<input class="input runtime-input" type="text" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + ' value="' + escapeHtml(valorTexto) + '"' + (requerido ? ' required' : '') + '>' +
+          '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + sufijoMinimo + '</label>' +
+          '<input class="input runtime-input" type="text" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + ' value="' + escapeHtml(valorTexto) + '"' + (requerido ? ' required' : '') + (estadoRegla.deshabilitado ? ' disabled' : '') + '>' +
+          '<div class="runtime-campo-error" data-error-elemento-id="' + escapeHtml(el.elemento_id) + '" hidden></div>' +
           '</div>';
       }
 
@@ -2036,11 +2105,19 @@ window.CotizaApp = (function(){
 
       // Junta los valores de todas las tabs (solo CAMPO y
       // CAMPO_CATALOGO — Leyenda/Texto informativo no se guardan) y
-      // los manda con POST /api/cotizador/runtime/{id}/valores.
-      async function guardarRuntimeCotizador(){
+      // los manda con POST /api/cotizador/runtime/{id}/valores. Mismo
+      // endpoint tanto para el botón "Guardar" explícito como para el
+      // autoguardado con debounce (opciones.silencioso evita el toast de
+      // éxito en cada pausa al escribir, para no saturar al usuario) —
+      // migración 0024: así las reglas se reevalúan casi en vivo, sin
+      // depender de un guardado manual.
+      async function guardarRuntimeCotizador(opciones){
+        opciones = opciones || {};
         const rt = state.cotizadorRuntime;
         if(!rt) return;
+        if(runtimeAutoguardadoTimer){ clearTimeout(runtimeAutoguardadoTimer); runtimeAutoguardadoTimer = null; }
         leerValoresFormularioActual();
+        if(!opciones.silencioso) setTextoEstadoGuardadoRuntime_("Guardando...");
 
         const idsGuardables = {};
         ((rt.estructura && rt.estructura.tabs) || []).forEach(function(tab){
@@ -2070,12 +2147,23 @@ window.CotizaApp = (function(){
           let res = null;
           try{ res = await resp.json(); }catch(e){ res = null; }
           if(!resp.ok || !res || !res.ok){
-            mostrarToast((res && res.error) || "No se pudo guardar el formulario.");
+            rt.erroresRegla = (res && Array.isArray(res.errores_regla)) ? res.errores_regla : [{mensaje: (res && res.error) || "No se pudo guardar el formulario."}];
+            setTextoEstadoGuardadoRuntime_("Sin guardar");
+            renderRuntimeCotizador();
+            if(!opciones.silencioso) mostrarToast((res && res.error) || "No se pudo guardar el formulario.");
             return;
           }
-          mostrarToast("Cotización guardada correctamente.");
+          rt.erroresRegla = [];
+          // Reglas en tiempo real: recargar trae el estado_regla y los
+          // valores ya corregidos por el backend (ocultos/forzados a
+          // 0 o null — sección 6.1 del documento), no solo lo que se
+          // acaba de mandar.
+          await recargarRuntimeCotizador_();
+          setTextoEstadoGuardadoRuntime_("Guardado");
+          if(!opciones.silencioso) mostrarToast("Cotización guardada correctamente.");
         }catch(error){
-          mostrarToast(error && error.message ? error.message : "No se pudo guardar el formulario.");
+          setTextoEstadoGuardadoRuntime_("Sin guardar");
+          if(!opciones.silencioso) mostrarToast(error && error.message ? error.message : "No se pudo guardar el formulario.");
         }
       }
 

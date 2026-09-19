@@ -85,9 +85,28 @@ func (h *CotizadorRuntimeHandler) asegurarOpcionesPropuesta(ctx context.Context,
 		if err != nil {
 			return err
 		}
+		opciones, err = autoRecomendarUnicaOpcion(ctx, tx, opciones)
+		if err != nil {
+			return err
+		}
 		padre["opciones"] = opciones
 	}
 	return tx.Commit(ctx)
+}
+
+// autoRecomendarUnicaOpcion aplica R09 del documento: con una sola opción
+// de propuesta, se marca recomendada sola, sin que nadie tenga que
+// marcarla a mano. No hace nada si ya hay 0 opciones (no debería pasar,
+// ELIMINAR ya lo impide) o más de una.
+func autoRecomendarUnicaOpcion(ctx context.Context, tx pgx.Tx, opciones []cotizacionOpcion) ([]cotizacionOpcion, error) {
+	if len(opciones) != 1 || opciones[0].EsRecomendada {
+		return opciones, nil
+	}
+	if _, err := tx.Exec(ctx, `UPDATE cotizacion_opciones SET es_recomendada=true WHERE opcion_id=$1`, opciones[0].OpcionID); err != nil {
+		return opciones, err
+	}
+	opciones[0].EsRecomendada = true
+	return opciones, nil
 }
 
 // AdministrarOpciones atiende agregar, duplicar, renombrar, eliminar y
@@ -245,6 +264,9 @@ func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *
 	}
 	opciones, err = listarOpcionesPropuesta(ctx, tx, cotizacionID, req.Version, req.ElementoPadreID)
 	if err == nil {
+		opciones, err = autoRecomendarUnicaOpcion(ctx, tx, opciones)
+	}
+	if err == nil {
 		err = tx.Commit(ctx)
 	}
 	if err != nil {
@@ -252,7 +274,21 @@ func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible actualizar las opciones de propuesta."})
 		return
 	}
-	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "opciones": opciones, "mensaje": "Opciones de propuesta actualizadas."})
+
+	respuesta := map[string]any{"ok": true, "opciones": opciones, "mensaje": "Opciones de propuesta actualizadas."}
+	if len(opciones) > 1 {
+		recomendadaExiste := false
+		for _, opcion := range opciones {
+			if opcion.EsRecomendada {
+				recomendadaExiste = true
+				break
+			}
+		}
+		if !recomendadaExiste {
+			respuesta["advertencia"] = "Hay más de una opción de propuesta y ninguna está marcada como recomendada."
+		}
+	}
+	escribirJSON(w, http.StatusOK, respuesta)
 }
 
 func elementosOpcionesPropuesta(estructura map[string]any) []map[string]any {

@@ -149,6 +149,56 @@ func TestCompilador_CatalogoSinValorNoTraeValorCalculo(t *testing.T) {
 	}
 }
 
+// TestCompilador_IncluyeReglasCotizador cubre la tarea 5 de la migración
+// 0024: el JSON compilado debe traer las reglas_cotizador activas de la
+// calculadora, con sus campos_objetivo ya resueltos, para que el frontend
+// no tenga que pedirlas aparte.
+func TestCompilador_IncluyeReglasCotizador(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-COMP-REGLAS-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Reglas", "activo": true,
+	})
+	condicionID := "TEST-COMP-REGLA-COND-" + sufijoUnico()
+	objetivoID := "TEST-COMP-REGLA-OBJ-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": condicionID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Usa teléfono",
+		"configuracion": map[string]any{"tipo_campo": "TEXTO"}, "activo": true,
+	})
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": objetivoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Minutos",
+		"configuracion": map[string]any{"tipo_campo": "NUMERO"}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear elementos: %s", rec.Body.String())
+	}
+	reglasHandler := &ReglasCotizadorHandler{DB: tabsHandler.DB}
+	rec = postCatalogos(t, reglasHandler.Guardar, "/api/cotizador/reglas", map[string]any{
+		"regla_id": "TEST-COMP-R01-" + sufijoUnico(), "calculadora_id": calculadoraID, "nombre": "R01",
+		"campo_condicion_id": condicionID, "operador": "IGUAL_A", "valor_comparacion": "No",
+		"accion": "OCULTAR", "campos_objetivo": []string{objetivoID}, "activo": true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear regla: %s", rec.Body.String())
+	}
+
+	handler := &CompiladorHandler{DB: tabsHandler.DB}
+	resultado, err := handler.validarConfiguracion(context.Background(), calculadoraID)
+	if err != nil || !resultado.Valido {
+		t.Fatalf("compilar: resultado=%+v err=%v", resultado, err)
+	}
+	if len(resultado.Reglas) != 1 {
+		t.Fatalf("esperaba 1 regla compilada, obtuvo %+v", resultado.Reglas)
+	}
+	regla := resultado.Reglas[0]
+	if regla.CampoCondicionID != condicionID || regla.Operador != "IGUAL_A" || regla.ValorComparacion != "No" || regla.Accion != "OCULTAR" {
+		t.Fatalf("regla compilada con datos inesperados: %+v", regla)
+	}
+	if len(regla.CamposObjetivo) != 1 || regla.CamposObjetivo[0] != objetivoID {
+		t.Fatalf("campos_objetivo compilados inesperados: %+v", regla.CamposObjetivo)
+	}
+}
+
 func TestCompilador_TabSinElementosEsAdvertencia(t *testing.T) {
 	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	rec := postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{

@@ -63,9 +63,30 @@ type tabCompilado struct {
 }
 
 type configuracionCompilada struct {
-	CalculadoraID string         `json:"calculadora_id"`
-	Version       int            `json:"version"`
-	Tabs          []tabCompilado `json:"tabs"`
+	CalculadoraID string                    `json:"calculadora_id"`
+	Version       int                       `json:"version"`
+	Tabs          []tabCompilado            `json:"tabs"`
+	Reglas        []reglaCotizadorCompilada `json:"reglas,omitempty"`
+}
+
+// reglaCotizadorCompilada es la forma de solo-lectura de una regla_cotizador
+// dentro del JSON compilado (migración 0024) — así el frontend tiene todo
+// sin pedir /api/cotizador/reglas aparte (ej. el link público de
+// enlaces_publicos.go, que no tiene sesión para llamar esa ruta). El motor
+// de evaluación real (reglas_evaluacion.go, usado por cotizador_runtime.go)
+// consulta reglas_cotizador en vivo vía reglasCotizadorParaEvaluar — nunca
+// lee desde acá, a propósito: "tiempo real" significa que una regla nueva
+// se aplica de inmediato, sin esperar a recompilar.
+type reglaCotizadorCompilada struct {
+	ReglaID          string   `json:"regla_id"`
+	Nombre           string   `json:"nombre,omitempty"`
+	CampoCondicionID string   `json:"campo_condicion_id"`
+	Operador         string   `json:"operador"`
+	ValorComparacion string   `json:"valor_comparacion,omitempty"`
+	Accion           string   `json:"accion"`
+	CamposObjetivo   []string `json:"campos_objetivo,omitempty"`
+	ValorAccion      string   `json:"valor_accion,omitempty"`
+	Mensaje          string   `json:"mensaje,omitempty"`
 }
 
 type resultadoValidacion struct {
@@ -75,6 +96,7 @@ type resultadoValidacion struct {
 	Advertencias  []string
 	Resumen       resumenCompilacion
 	Tabs          []tabCompilado
+	Reglas        []reglaCotizadorCompilada
 }
 
 func (h *CompiladorHandler) Validar(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +157,7 @@ func (h *CompiladorHandler) Compilar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	version := versionAnterior + 1
-	configuracion := configuracionCompilada{CalculadoraID: calculadoraID, Version: version, Tabs: resultado.Tabs}
+	configuracion := configuracionCompilada{CalculadoraID: calculadoraID, Version: version, Tabs: resultado.Tabs, Reglas: resultado.Reglas}
 	configuracionJSON, err := json.Marshal(configuracion)
 	if err == nil {
 		_, err = tx.Exec(ctx, `UPDATE cotizadores_compilados SET estado='ANTERIOR' WHERE calculadora_id=$1 AND estado='ACTIVA'`, calculadoraID)
@@ -294,6 +316,9 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		return resultado, err
 	}
 	if err := h.incluirValorCalculoCatalogo(ctx, &resultado); err != nil {
+		return resultado, err
+	}
+	if err := h.incluirReglasCotizador(ctx, &resultado); err != nil {
 		return resultado, err
 	}
 	for i := range resultado.Tabs {
@@ -499,6 +524,42 @@ func (h *CompiladorHandler) incluirValorCalculoCatalogo(ctx context.Context, res
 			el.Configuracion["catalogo_valores_calculo"] = valores
 		}
 	}
+	return nil
+}
+
+// incluirReglasCotizador agrega al resultado (y de ahí al JSON compilado) la
+// lista de reglas_cotizador ACTIVAS de esta calculadora, con sus
+// campos_objetivo ya resueltos — solo de lectura para el frontend (ver el
+// comentario de reglaCotizadorCompilada: el motor de evaluación real nunca
+// lee de acá).
+func (h *CompiladorHandler) incluirReglasCotizador(ctx context.Context, resultado *resultadoValidacion) error {
+	rows, err := h.DB.Query(ctx, `
+		SELECT rc.regla_id, COALESCE(rc.nombre, ''), rc.campo_condicion_id, rc.operador,
+		       COALESCE(rc.valor_comparacion, ''), rc.accion, COALESCE(rc.valor_accion, ''),
+		       COALESCE(rc.mensaje, ''),
+		       COALESCE(array_agg(o.elemento_id ORDER BY o.orden) FILTER (WHERE o.elemento_id IS NOT NULL), '{}')
+		FROM reglas_cotizador rc
+		LEFT JOIN reglas_cotizador_campos_objetivo o ON o.regla_id = rc.regla_id
+		WHERE rc.calculadora_id = $1 AND rc.activo = true
+		GROUP BY rc.regla_id
+		ORDER BY rc.orden, rc.regla_id`, resultado.CalculadoraID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	reglas := make([]reglaCotizadorCompilada, 0)
+	for rows.Next() {
+		var regla reglaCotizadorCompilada
+		if err := rows.Scan(&regla.ReglaID, &regla.Nombre, &regla.CampoCondicionID, &regla.Operador,
+			&regla.ValorComparacion, &regla.Accion, &regla.ValorAccion, &regla.Mensaje, &regla.CamposObjetivo); err != nil {
+			return err
+		}
+		reglas = append(reglas, regla)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	resultado.Reglas = reglas
 	return nil
 }
 

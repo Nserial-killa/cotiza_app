@@ -300,6 +300,54 @@ func TestCotizadorRuntime_OpcionesRecomendadaUnicaYNoEliminaLaUltima(t *testing.
 	}
 }
 
+// TestCotizadorRuntime_OpcionesAdvertenciaSinRecomendadaYAutoRecomiendaUnica
+// cubre R09 del documento: con más de una opción y ninguna recomendada,
+// cualquier mutación debe avisar (no bloquear); al quedar una sola, se
+// recomienda sola sin que nadie tenga que marcarla.
+func TestCotizadorRuntime_OpcionesAdvertenciaSinRecomendadaYAutoRecomiendaUnica(t *testing.T) {
+	fixture, padreID, _, _ := fixtureRuntimeOpciones(t, true)
+	rec := getRuntime(t, fixture, "version=1")
+	var res struct {
+		Estructura map[string]any `json:"estructura"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	opciones := buscarElementoEstructura(res.Estructura, padreID)["opciones"].([]any)
+	opcionA := opciones[0].(map[string]any)["opcion_id"].(string)
+	opcionB := opciones[1].(map[string]any)["opcion_id"].(string)
+
+	rec = postOpcionesRuntime(t, fixture, map[string]any{
+		"version": 1, "elemento_padre_id": padreID, "accion": "RENOMBRAR", "opcion_id": opcionA, "nombre": "Starter Plus",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("renombrar: %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Advertencia string `json:"advertencia"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &resp)
+	if resp.Advertencia == "" {
+		t.Fatal("esperaba una advertencia: hay 2 opciones y ninguna está recomendada")
+	}
+
+	rec = postOpcionesRuntime(t, fixture, map[string]any{
+		"version": 1, "elemento_padre_id": padreID, "accion": "ELIMINAR", "opcion_id": opcionA,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("eliminar: %d: %s", rec.Code, rec.Body.String())
+	}
+	var respFinal struct {
+		Opciones    []cotizacionOpcion `json:"opciones"`
+		Advertencia string             `json:"advertencia"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &respFinal)
+	if respFinal.Advertencia != "" {
+		t.Fatalf("con una sola opción ya recomendada automáticamente no debería haber advertencia: %q", respFinal.Advertencia)
+	}
+	if len(respFinal.Opciones) != 1 || respFinal.Opciones[0].OpcionID != opcionB || !respFinal.Opciones[0].EsRecomendada {
+		t.Fatalf("la única opción restante debía quedar recomendada automáticamente: %+v", respFinal.Opciones)
+	}
+}
+
 func TestCotizadorRuntime_RechazaAgregarSiNoPermiteDuplicar(t *testing.T) {
 	fixture, padreID, _, _ := fixtureRuntimeOpciones(t, false)
 	rec := postOpcionesRuntime(t, fixture, map[string]any{

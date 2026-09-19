@@ -437,6 +437,24 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .runtime-requerido { color: #b42318; }
 .runtime-field .runtime-input.input,
 .runtime-field .runtime-input.select { min-height: 38px; padding: 8px 11px; border-color: #ced9e7; border-radius: 8px; color: #344a68; font-size: 13px; width: 100%; }
+.runtime-field .runtime-input:disabled { background: #f1f4f8; color: #97a3b5; cursor: not-allowed; }
+.runtime-minimo-hint { color: #7b899d; font-weight: 600; }
+
+/* Motor de Reglas en tiempo real (migración 0024) */
+.runtime-campo-error { color: #b42318; font-size: 11px; margin-top: 4px; }
+.runtime-field.runtime-campo-invalido .runtime-input { border-color: #b42318; }
+.runtime-mensajes-regla {
+  border: 1px solid #fda29b; background: #fef3f2; border-radius: 10px;
+  padding: 10px 14px; color: #b42318; font-size: 12px; font-weight: 700;
+}
+.runtime-mensajes-regla ul { margin: 4px 0 0; padding-left: 18px; font-weight: 600; }
+.runtime-guardado-estado { font-size: 11px; color: #7b899d; font-style: italic; }
+
+/* Panel "Reglas de este cotizador" (Diseñador, migración 0024) — el
+   resto de .cotizador-rules-* ya venía definido (V50AN) sin markup que
+   lo usara todavía. */
+.cotizador-rule-form { padding: 14px 16px 16px; border-top: 1px solid #e5edf8; }
+.cotizador-rule-form .field.full { grid-column: 1/-1; }
 
 .runtime-leyenda { grid-column: 1/-1; margin: 6px 0 -2px; padding-top: 10px; border-top: 1px solid #EEF1F6; }
 .runtime-leyenda:first-child { padding-top: 0; border-top: 0; }
@@ -2243,6 +2261,7 @@ table tr:last-child td { border-bottom: none; }
           <strong id="gestorEditorTitulo">Cotizador</strong>
           <span id="gestorEditorSubtitulo">Complete y guarde la propuesta.</span>
         </div>
+        <span id="runtimeGuardadoEstado" class="runtime-guardado-estado"></span>
         <button id="btnGuardarRuntimeCotizador" class="btn btn-primary" type="button">Guardar</button>
       </div>
     </div>
@@ -4866,6 +4885,94 @@ table tr:last-child td { border-bottom: none; }
                     <div id="designerCotizadorComponentesLista" class="cotizador-component-list">
                       <div class="designer-empty">Seleccione una sección para cargar sus componentes.</div>
                     </div>
+
+                    <!-- Motor de Reglas en tiempo real (migración 0024): condición
+                         sobre un campo -> acción sobre uno o más campos objetivo de
+                         ESTE cotizador. Reusa el bloque V50AN de arriba
+                         (cotizador-rules-section) reservado para esto. Distinto del
+                         catálogo global de "reglas" (severidad/momento, Sprint 2) y
+                         del selector "Reglas" vestigial de cada Campo (nunca tuvo
+                         guardado real detrás, ver el comentario en
+                         cargarPendientesDisenadorCotizadorFase1_ en
+                         cotiza_script_catalogos.html) — acá sí hay condición/acción
+                         real, con su propio CRUD. -->
+                    <section id="cotizadorReglasSection" class="cotizador-rules-section">
+                      <div class="cotizador-rules-head">
+                        <div class="cotizador-rules-head-title">
+                          <span class="cotizador-rules-icon" aria-hidden="true">R</span>
+                          <div>
+                            <strong>Reglas de este cotizador</strong>
+                            <small>Condición sobre un campo (de la sección actual) → acción sobre uno o más campos objetivo: ocultar, poner en cero, exigir mínimo, bloquear guardado, etc.</small>
+                          </div>
+                        </div>
+                        <button id="btnDesignerNuevaReglaCotizador" class="btn btn-light-blue btn-mini" type="button">+ Nueva regla</button>
+                      </div>
+                      <div id="cotizadorReglasLista" class="cotizador-rules-list">
+                        <div class="designer-empty">Seleccione un cotizador.</div>
+                      </div>
+                      <div id="cotizadorReglaForm" class="designer-props-form cotizador-rule-form hidden">
+                        <input id="designerReglaIdOriginal" type="hidden">
+                        <div class="field">
+                          <label for="designerReglaNombre">Nombre (opcional)</label>
+                          <input id="designerReglaNombre" class="input" type="text" placeholder="R01">
+                        </div>
+                        <div class="field">
+                          <label for="designerReglaCampoCondicion">Campo condición</label>
+                          <select id="designerReglaCampoCondicion" class="select"><option value="">Seleccione...</option></select>
+                        </div>
+                        <div class="field">
+                          <label for="designerReglaOperador">Operador</label>
+                          <select id="designerReglaOperador" class="select">
+                            <option value="IGUAL_A">Igual a</option>
+                            <option value="DISTINTO_DE">Distinto de</option>
+                            <option value="MAYOR_QUE">Mayor que</option>
+                            <option value="MENOR_QUE">Menor que</option>
+                            <option value="MAYOR_O_IGUAL_QUE">Mayor o igual que</option>
+                            <option value="MENOR_O_IGUAL_QUE">Menor o igual que</option>
+                            <option value="ESTA_VACIO">Está vacío</option>
+                            <option value="NO_ESTA_VACIO">No está vacío</option>
+                          </select>
+                        </div>
+                        <div class="field" id="designerReglaValorComparacionWrap">
+                          <label for="designerReglaValorComparacion">Valor de comparación</label>
+                          <input id="designerReglaValorComparacion" class="input" type="text" placeholder="No">
+                        </div>
+                        <div class="field">
+                          <label for="designerReglaAccion">Acción</label>
+                          <select id="designerReglaAccion" class="select">
+                            <option value="OCULTAR">Ocultar campo(s) objetivo</option>
+                            <option value="MOSTRAR">Mostrar campo(s) objetivo</option>
+                            <option value="DESHABILITAR">Deshabilitar campo(s) objetivo</option>
+                            <option value="HABILITAR">Habilitar campo(s) objetivo</option>
+                            <option value="PONER_EN_CERO">Poner en cero campo(s) objetivo</option>
+                            <option value="EXIGIR_MINIMO">Exigir un mínimo</option>
+                            <option value="CAMPO_REQUERIDO">Marcar campo(s) objetivo como requeridos</option>
+                            <option value="BLOQUEAR_GUARDADO">Bloquear el guardado completo</option>
+                          </select>
+                        </div>
+                        <div class="field" id="designerReglaValorAccionWrap">
+                          <label for="designerReglaValorAccion">Valor mínimo</label>
+                          <input id="designerReglaValorAccion" class="input" type="number" step="any" placeholder="1">
+                        </div>
+                        <div class="field full" id="designerReglaCamposObjetivoWrap">
+                          <label for="designerReglaCamposObjetivo">Campos objetivo</label>
+                          <select id="designerReglaCamposObjetivo" class="select" multiple size="4"></select>
+                          <span class="param-field-help">Ctrl/Cmd + clic para elegir varios. No aplica a "Bloquear el guardado completo".</span>
+                        </div>
+                        <div class="field full">
+                          <label for="designerReglaMensaje">Mensaje (opcional)</label>
+                          <input id="designerReglaMensaje" class="input" type="text" placeholder="Mensaje a mostrar cuando la regla bloquee el guardado o exija el campo">
+                        </div>
+                        <label class="param-switch" style="padding-top:0;min-height:34px;">
+                          <input id="designerReglaActivo" type="checkbox" checked> Activa
+                        </label>
+                        <div class="designer-props-actions">
+                          <button id="btnDesignerEliminarRegla" class="btn btn-ghost hidden" type="button">Eliminar</button>
+                          <button id="btnDesignerCancelarRegla" class="btn btn-ghost" type="button">Cancelar</button>
+                          <button id="btnDesignerGuardarRegla" class="btn btn-primary" type="button">Guardar regla</button>
+                        </div>
+                      </div>
+                    </section>
                   </div>
                 </main>
 
@@ -10056,13 +10163,37 @@ window.CotizaApp = (function(){
             estructura: res.estructura || {tabs:[]},
             valores: res.valores || {},
             tabActivoId: tabs.length ? tabs[0].tab_id : "",
-            opcionActivaPorPadre: {}
+            opcionActivaPorPadre: {},
+            erroresRegla: []
           };
           inicializarOpcionesActivasRuntime_();
           renderRuntimeCotizador();
         }catch(error){
           if(contenido) contenido.innerHTML = '<div class="card"><p>' + escapeHtml(error && error.message ? error.message : "No fue posible cargar el formulario del cotizador.") + '</p></div>';
         }
+      }
+
+      // Autoguardado con debounce (migración 0024, motor de Reglas en
+      // tiempo real): cada cambio en un campo reprograma el guardado en
+      // vez de dispararlo de inmediato, para no mandar un POST por cada
+      // tecla. Reusa guardarRuntimeCotizador — el mismo endpoint que el
+      // botón "Guardar" explícito, sin crear una ruta paralela.
+      let runtimeAutoguardadoTimer = null;
+      const RUNTIME_AUTOGUARDADO_DEBOUNCE_MS = 900;
+
+      function setTextoEstadoGuardadoRuntime_(texto){
+        const el = byId("runtimeGuardadoEstado");
+        if(el) el.textContent = texto || "";
+      }
+
+      function programarAutoguardadoRuntime_(){
+        if(!state.cotizadorRuntime) return;
+        setTextoEstadoGuardadoRuntime_("Escribiendo...");
+        if(runtimeAutoguardadoTimer) clearTimeout(runtimeAutoguardadoTimer);
+        runtimeAutoguardadoTimer = setTimeout(function(){
+          runtimeAutoguardadoTimer = null;
+          guardarRuntimeCotizador({silencioso:true});
+        }, RUNTIME_AUTOGUARDADO_DEBOUNCE_MS);
       }
 
       function recorrerElementosRuntime_(elementos, callback){
@@ -10132,7 +10263,22 @@ window.CotizaApp = (function(){
 
         contenido.innerHTML =
           '<div class="runtime-tabs">' + tiraTabs + '</div>' +
+          renderMensajesReglaRuntime_(rt.erroresRegla) +
           '<div class="card runtime-grid">' + (campos || '<p>Esta sección no tiene elementos.</p>') + '</div>';
+
+        // Autoguardado con debounce: CAMPO (texto) reacciona a "input"
+        // (cada tecla reprograma el envío), CAMPO_CATALOGO (select) a
+        // "change" (ya es una selección completa, no hace falta esperar).
+        // Lista de Precios/Tabla siguen su propio flujo de re-render
+        // completo (ya disparan leerValoresFormularioActual + render);
+        // acá solo se agrega el guardado, sin pisar esos listeners.
+        contenido.querySelectorAll(".runtime-input").forEach(function(input){
+          const evento = input.tagName === "SELECT" ? "change" : "input";
+          input.addEventListener(evento, function(){
+            asignarValorRuntime_(rt.valores, input.dataset.elementoId, input.dataset.opcionId || "", input.value);
+            programarAutoguardadoRuntime_();
+          });
+        });
 
         contenido.querySelectorAll(".runtime-tab-btn").forEach(function(btn){
           btn.addEventListener("click", function(){
@@ -10228,6 +10374,17 @@ window.CotizaApp = (function(){
             renderRuntimeCotizador();
           });
         });
+      }
+
+      // renderMensajesReglaRuntime_ muestra los mensajes de las reglas de
+      // validación (BLOQUEAR_GUARDADO/CAMPO_REQUERIDO, migración 0024) que
+      // rechazaron el último intento de guardado — en un resumen arriba
+      // del formulario, ya que el backend no siempre puede anclarlos a un
+      // único campo (BLOQUEAR_GUARDADO no apunta a ninguno en particular).
+      function renderMensajesReglaRuntime_(errores){
+        if(!Array.isArray(errores) || !errores.length) return "";
+        const items = errores.map(function(e){ return "<li>" + escapeHtml(e && e.mensaje ? e.mensaje : "No se pudo guardar.") + "</li>"; }).join("");
+        return '<div class="runtime-mensajes-regla">No se guardaron los últimos cambios:<ul>' + items + '</ul></div>';
       }
 
       function atributoOpcionRuntime_(opcionID){
@@ -10331,20 +10488,36 @@ window.CotizaApp = (function(){
       // CONTENEDOR (tarjeta con sus "hijos" anidados según columnas) y
       // CAJA_VALOR (solo lectura: el backend ya resolvió valor_resuelto
       // contra cotizacion_valores o, si no hay, contra valor_por_defecto).
+      // estadoReglaCampo_ combina el requerido "de diseño" (el.requerido)
+      // con el que agrega una regla_cotizador en tiempo real
+      // (el.estado_regla, migración 0024 — ver incluirEstadoReglas en
+      // cotizador_runtime.go): un campo requerido por una regla se
+      // comporta igual que uno requerido desde el Diseñador. Un elemento
+      // que ninguna regla toca no trae estado_regla — el default es
+      // visible+habilitado, igual que si la clave no existiera.
+      function estadoReglaCampo_(el){
+        const estado = el.estado_regla || null;
+        return {
+          visible: !estado || estado.visible !== false,
+          deshabilitado: !!(estado && estado.habilitado === false),
+          requerido: !!el.requerido || !!(estado && estado.requerido),
+          minimo: (estado && typeof estado.minimo === "number") ? estado.minimo : null
+        };
+      }
+
       function renderRuntimeElemento(el, valores, opcionID){
         const ancho = Math.min(4, Math.max(1, Number(el.columnas_ancho) || 1));
-        const requerido = !!el.requerido;
+        const estadoRegla = estadoReglaCampo_(el);
+        const requerido = estadoRegla.requerido;
         const estiloSpan = 'style="grid-column:span ' + ancho + '"';
         const valorGuardadoRaw = valorRuntimeActual_(valores, el.elemento_id, opcionID);
         const valorGuardado = valorGuardadoRaw === undefined ? "" : valorGuardadoRaw;
         const cfg = el.configuracion || {};
 
-        // "Visible en calculadora" aplica a cualquier tipo, no solo a
-        // Lista de Precios (Ronda 3) — hasta ahora ningún tipo lo
-        // respetaba en el Motor de Ejecución pese a que el Diseñador ya
-        // lo pide desde el Sprint 2; se corrige acá de una vez para los
-        // 9 tipos existentes, no solo el nuevo.
-        if(cfg.visible_calculadora === false) return "";
+        // "Visible en calculadora" (Diseñador) u "oculto por una regla_
+        // cotizador en tiempo real" (migración 0024) — ambas ocultan el
+        // campo completo del formulario.
+        if(cfg.visible_calculadora === false || !estadoRegla.visible) return "";
 
         if(el.tipo === "TITULO"){
           const nivel = String(cfg.nivel || "h3").toLowerCase();
@@ -10433,14 +10606,17 @@ window.CotizaApp = (function(){
           }).join("");
           return '<div class="field runtime-field" ' + estiloSpan + '>' +
             '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
-            '<select class="select runtime-input" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + '>' + optionsHtml + '</select>' +
+            '<select class="select runtime-input" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + (estadoRegla.deshabilitado ? ' disabled' : '') + '>' + optionsHtml + '</select>' +
+            '<div class="runtime-campo-error" data-error-elemento-id="' + escapeHtml(el.elemento_id) + '" hidden></div>' +
             '</div>';
         }
         // CAMPO
         const valorTexto = (valorGuardado === null || valorGuardado === undefined) ? "" : valorGuardado;
+        const sufijoMinimo = estadoRegla.minimo !== null ? ' <span class="runtime-minimo-hint">(mínimo ' + escapeHtml(String(estadoRegla.minimo)) + ')</span>' : '';
         return '<div class="field runtime-field" ' + estiloSpan + '>' +
-          '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + '</label>' +
-          '<input class="input runtime-input" type="text" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + ' value="' + escapeHtml(valorTexto) + '"' + (requerido ? ' required' : '') + '>' +
+          '<label>' + escapeHtml(el.etiqueta || "") + (requerido ? ' <span class="runtime-requerido">*</span>' : '') + sufijoMinimo + '</label>' +
+          '<input class="input runtime-input" type="text" data-elemento-id="' + escapeHtml(el.elemento_id) + '"' + atributoOpcionRuntime_(opcionID) + ' value="' + escapeHtml(valorTexto) + '"' + (requerido ? ' required' : '') + (estadoRegla.deshabilitado ? ' disabled' : '') + '>' +
+          '<div class="runtime-campo-error" data-error-elemento-id="' + escapeHtml(el.elemento_id) + '" hidden></div>' +
           '</div>';
       }
 
@@ -10643,11 +10819,19 @@ window.CotizaApp = (function(){
 
       // Junta los valores de todas las tabs (solo CAMPO y
       // CAMPO_CATALOGO — Leyenda/Texto informativo no se guardan) y
-      // los manda con POST /api/cotizador/runtime/{id}/valores.
-      async function guardarRuntimeCotizador(){
+      // los manda con POST /api/cotizador/runtime/{id}/valores. Mismo
+      // endpoint tanto para el botón "Guardar" explícito como para el
+      // autoguardado con debounce (opciones.silencioso evita el toast de
+      // éxito en cada pausa al escribir, para no saturar al usuario) —
+      // migración 0024: así las reglas se reevalúan casi en vivo, sin
+      // depender de un guardado manual.
+      async function guardarRuntimeCotizador(opciones){
+        opciones = opciones || {};
         const rt = state.cotizadorRuntime;
         if(!rt) return;
+        if(runtimeAutoguardadoTimer){ clearTimeout(runtimeAutoguardadoTimer); runtimeAutoguardadoTimer = null; }
         leerValoresFormularioActual();
+        if(!opciones.silencioso) setTextoEstadoGuardadoRuntime_("Guardando...");
 
         const idsGuardables = {};
         ((rt.estructura && rt.estructura.tabs) || []).forEach(function(tab){
@@ -10677,12 +10861,23 @@ window.CotizaApp = (function(){
           let res = null;
           try{ res = await resp.json(); }catch(e){ res = null; }
           if(!resp.ok || !res || !res.ok){
-            mostrarToast((res && res.error) || "No se pudo guardar el formulario.");
+            rt.erroresRegla = (res && Array.isArray(res.errores_regla)) ? res.errores_regla : [{mensaje: (res && res.error) || "No se pudo guardar el formulario."}];
+            setTextoEstadoGuardadoRuntime_("Sin guardar");
+            renderRuntimeCotizador();
+            if(!opciones.silencioso) mostrarToast((res && res.error) || "No se pudo guardar el formulario.");
             return;
           }
-          mostrarToast("Cotización guardada correctamente.");
+          rt.erroresRegla = [];
+          // Reglas en tiempo real: recargar trae el estado_regla y los
+          // valores ya corregidos por el backend (ocultos/forzados a
+          // 0 o null — sección 6.1 del documento), no solo lo que se
+          // acaba de mandar.
+          await recargarRuntimeCotizador_();
+          setTextoEstadoGuardadoRuntime_("Guardado");
+          if(!opciones.silencioso) mostrarToast("Cotización guardada correctamente.");
         }catch(error){
-          mostrarToast(error && error.message ? error.message : "No se pudo guardar el formulario.");
+          setTextoEstadoGuardadoRuntime_("Sin guardar");
+          if(!opciones.silencioso) mostrarToast(error && error.message ? error.message : "No se pudo guardar el formulario.");
         }
       }
 
@@ -16129,7 +16324,9 @@ window.CotizaApp = (function(){
           tabId:"",
           elementoId:"",
           props:"seccion",
-          modoVista:"diseno"
+          modoVista:"diseno",
+          reglasCotizador:[],
+          reglaCotizadorSeleccionadaId:""
         };
         return state.cotizadorFase1;
       }
@@ -16294,6 +16491,7 @@ window.CotizaApp = (function(){
           st.relaciones = [];
           renderCotizadorFase1_();
           cargarDatosCotizadorFase1_(true);
+          cargarReglasCotizadorFase1_();
         });
         bind("btnDesignerNuevaSeccionCotizador","click",nuevoTabCotizadorFase1_);
         bind("btnDesignerGuardarSeccionCotizador","click",guardarTabCotizadorFase1_);
@@ -16328,6 +16526,12 @@ window.CotizaApp = (function(){
         bind("designerCotizadorCalculadoOperacion","change",actualizarFormulaPreviewCalculadoCotizadorFase1_);
         bind("btnDesignerAgregarItemListaPrecios","click",guardarItemListaPreciosCotizadorFase1_);
         bind("btnDesignerCancelarEdicionItemListaPrecios","click",cancelarEdicionItemListaPreciosCotizadorFase1_);
+        bind("btnDesignerNuevaReglaCotizador","click",nuevaReglaCotizadorFase1_);
+        bind("btnDesignerGuardarRegla","click",guardarReglaCotizadorFase1_);
+        bind("btnDesignerEliminarRegla","click",eliminarReglaCotizadorFase1_);
+        bind("btnDesignerCancelarRegla","click",cancelarReglaCotizadorFase1_);
+        bind("designerReglaOperador","change",actualizarVisibilidadCamposFormularioReglaFase1_);
+        bind("designerReglaAccion","change",actualizarVisibilidadCamposFormularioReglaFase1_);
         bind("btnDesignerGuardarCotizador","click",function(){
           mostrarToast("Guarde cada sección o componente desde el panel de propiedades.");
         });
@@ -16372,7 +16576,7 @@ window.CotizaApp = (function(){
           return;
         }
         if(byId("designerCotizadorTabsLista")) byId("designerCotizadorTabsLista").innerHTML = '<div class="designer-empty">Cargando secciones...</div>';
-        cargarCotizadoresFase1_(function(){ cargarDatosCotizadorFase1_(true); });
+        cargarCotizadoresFase1_(function(){ cargarDatosCotizadorFase1_(true); cargarReglasCotizadorFase1_(); });
       }
 
           function cargarCotizadoresFase1_(done){
@@ -16500,6 +16704,235 @@ window.CotizaApp = (function(){
         st.reglasModelo = [];
         mostrarToast("Aplicabilidad de secciones y reglas por campo: pendientes de un sprint futuro.");
         done(); done(); done();
+      }
+
+      // ---------------------------------------------------------
+      // Reglas de este cotizador (reglas_cotizador, migración 0024):
+      // condición sobre un campo -> acción sobre uno o más campos
+      // objetivo, CRUD real contra /api/cotizador/reglas. Es la pieza
+      // que el comentario de arriba (cargarPendientesDisenadorCotizadorFase1_)
+      // documentaba como pendiente — sigue siendo un mecanismo DISTINTO
+      // del catálogo global de reglas.go y del selector "Reglas"
+      // vestigial de cada Campo (campoReglasTemp, sin guardado real
+      // detrás, no tocado acá). Alcance a propósito simple: el campo
+      // condición y los campos objetivo se eligen entre los elementos
+      // de la SECCIÓN (tab) actualmente abierta en el Diseñador — el
+      // backend permite cruzar secciones de la misma calculadora, pero
+      // el selector no lo expone para no complicar esta pantalla.
+      // ---------------------------------------------------------
+
+      const OPERADORES_SIN_VALOR_COMPARACION_REGLA = {ESTA_VACIO:true, NO_ESTA_VACIO:true};
+      const ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA = {BLOQUEAR_GUARDADO:true};
+      const ETIQUETAS_OPERADOR_REGLA = {
+        IGUAL_A: "es igual a", DISTINTO_DE: "es distinto de", MAYOR_QUE: "es mayor que",
+        MENOR_QUE: "es menor que", MAYOR_O_IGUAL_QUE: "es mayor o igual que",
+        MENOR_O_IGUAL_QUE: "es menor o igual que", ESTA_VACIO: "está vacío", NO_ESTA_VACIO: "no está vacío"
+      };
+      const ETIQUETAS_ACCION_REGLA = {
+        OCULTAR: "ocultar", MOSTRAR: "mostrar", DESHABILITAR: "deshabilitar", HABILITAR: "habilitar",
+        PONER_EN_CERO: "poner en cero", EXIGIR_MINIMO: "exigir mínimo", CAMPO_REQUERIDO: "marcar requerido",
+        BLOQUEAR_GUARDADO: "bloquear el guardado"
+      };
+
+      function cargarReglasCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("cotizadorReglasLista");
+        if(!st.cotizadorId){
+          st.reglasCotizador = [];
+          if(cont) cont.innerHTML = '<div class="designer-empty">Seleccione un cotizador.</div>';
+          return;
+        }
+        if(cont) cont.innerHTML = '<div class="designer-empty">Cargando reglas...</div>';
+        fetchAutenticado("/api/cotizador/reglas?calculadora_id=" + encodeURIComponent(st.cotizadorId))
+          .then(function(resp){
+            if(!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function(res){
+            st.reglasCotizador = (res && Array.isArray(res.reglas)) ? res.reglas : [];
+            renderReglasCotizadorListaFase1_();
+          })
+          .catch(function(error){
+            st.reglasCotizador = [];
+            if(cont) cont.innerHTML = '<div class="designer-empty">No fue posible cargar las reglas.</div>';
+            mostrarToast("No fue posible cargar las reglas del cotizador: " + (error && error.message ? error.message : "error desconocido"));
+          });
+      }
+
+      function labelElementoPorIdReglaCotizadorFase1_(elementoId){
+        const st = getCotizadorFase1State_();
+        const el = (st.elementos || []).find(function(e){ return String(e.elemento_id || "") === String(elementoId || ""); });
+        return el ? labelElementoCampoCotizadorFase1_(el) : String(elementoId || "");
+      }
+
+      function descripcionReglaCotizadorFase1_(r){
+        const condicion = labelElementoPorIdReglaCotizadorFase1_(r.campo_condicion_id) + " " + (ETIQUETAS_OPERADOR_REGLA[r.operador] || r.operador) +
+          (OPERADORES_SIN_VALOR_COMPARACION_REGLA[r.operador] ? "" : (' "' + (r.valor_comparacion || "") + '"'));
+        const objetivos = (r.campos_objetivo || []).map(labelElementoPorIdReglaCotizadorFase1_).join(", ");
+        const accion = ETIQUETAS_ACCION_REGLA[r.accion] || r.accion;
+        return "Si " + condicion + " → " + accion + (objetivos ? " (" + objetivos + ")" : "");
+      }
+
+      function renderReglasCotizadorListaFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("cotizadorReglasLista");
+        if(!cont) return;
+        if(!st.reglasCotizador.length){
+          cont.innerHTML = '<div class="designer-empty">Este cotizador todavía no tiene reglas.</div>';
+          return;
+        }
+        cont.innerHTML = st.reglasCotizador.map(function(r){
+          return '<div class="cotizador-rule-card' + (r.activo ? '' : ' inactive') + '" data-regla-id="' + escapeHtml(r.regla_id) + '">' +
+            '<div class="cotizador-rule-card-icon" aria-hidden="true">' + (r.accion === "BLOQUEAR_GUARDADO" ? "⛔" : "ƒ") + '</div>' +
+            '<div class="cotizador-rule-card-main"><strong>' + escapeHtml(r.nombre || r.regla_id) + '</strong><small>' + escapeHtml(descripcionReglaCotizadorFase1_(r)) + '</small></div>' +
+            '<div class="cotizador-rule-card-meta">' +
+              '<span class="cotizador-rule-pill' + (r.activo ? ' info' : '') + '">' + (r.activo ? "Activa" : "Inactiva") + '</span>' +
+              (r.accion === "BLOQUEAR_GUARDADO" || r.accion === "CAMPO_REQUERIDO" ? '<span class="cotizador-rule-pill block">Validación</span>' : '') +
+              '<button type="button" class="btn btn-ghost btn-mini" data-editar-regla-cotizador="' + escapeHtml(r.regla_id) + '">Editar</button>' +
+            '</div></div>';
+        }).join("");
+        cont.querySelectorAll("[data-editar-regla-cotizador]").forEach(function(btn){
+          btn.addEventListener("click", function(){ seleccionarReglaCotizadorFase1_(btn.getAttribute("data-editar-regla-cotizador")); });
+        });
+      }
+
+      function llenarSelectsReglaCotizadorFase1_(seleccionActual){
+        const st = getCotizadorFase1State_();
+        const elementos = (st.elementos || []).slice().sort(function(a,b){ return numeroOrdenCotizadorFase1_(a.orden)-numeroOrdenCotizadorFase1_(b.orden); });
+        const condicionSel = byId("designerReglaCampoCondicion");
+        if(condicionSel){
+          condicionSel.innerHTML = '<option value="">Seleccione...</option>' + elementos.map(function(el){
+            return '<option value="' + escapeHtml(el.elemento_id) + '">' + escapeHtml(labelElementoCampoCotizadorFase1_(el)) + '</option>';
+          }).join("");
+        }
+        const objetivoSel = byId("designerReglaCamposObjetivo");
+        if(objetivoSel){
+          const seleccionados = (seleccionActual && seleccionActual.campos_objetivo) || [];
+          objetivoSel.innerHTML = elementos.map(function(el){
+            const sel = seleccionados.indexOf(el.elemento_id) >= 0 ? " selected" : "";
+            return '<option value="' + escapeHtml(el.elemento_id) + '"' + sel + '>' + escapeHtml(labelElementoCampoCotizadorFase1_(el)) + '</option>';
+          }).join("");
+        }
+      }
+
+      function actualizarVisibilidadCamposFormularioReglaFase1_(){
+        const operador = byId("designerReglaOperador") ? byId("designerReglaOperador").value : "";
+        const accion = byId("designerReglaAccion") ? byId("designerReglaAccion").value : "";
+        toggleHidden("designerReglaValorComparacionWrap", !!OPERADORES_SIN_VALOR_COMPARACION_REGLA[operador]);
+        toggleHidden("designerReglaValorAccionWrap", accion !== "EXIGIR_MINIMO");
+        toggleHidden("designerReglaCamposObjetivoWrap", !!ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA[accion]);
+      }
+
+      function mostrarFormularioReglaCotizadorFase1_(mostrar){
+        const form = byId("cotizadorReglaForm");
+        if(form) form.classList.toggle("hidden", !mostrar);
+      }
+
+      function nuevaReglaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        if(!st.cotizadorId){ mostrarToast("Seleccione un cotizador."); return; }
+        if(!st.tabId){ mostrarToast("Seleccione primero una sección: los campos disponibles salen de ahí."); return; }
+        st.reglaCotizadorSeleccionadaId = "";
+        if(byId("designerReglaIdOriginal")) byId("designerReglaIdOriginal").value = "";
+        if(byId("designerReglaNombre")) byId("designerReglaNombre").value = "";
+        if(byId("designerReglaOperador")) byId("designerReglaOperador").value = "IGUAL_A";
+        if(byId("designerReglaValorComparacion")) byId("designerReglaValorComparacion").value = "";
+        if(byId("designerReglaAccion")) byId("designerReglaAccion").value = "OCULTAR";
+        if(byId("designerReglaValorAccion")) byId("designerReglaValorAccion").value = "";
+        if(byId("designerReglaMensaje")) byId("designerReglaMensaje").value = "";
+        if(byId("designerReglaActivo")) byId("designerReglaActivo").checked = true;
+        llenarSelectsReglaCotizadorFase1_(null);
+        actualizarVisibilidadCamposFormularioReglaFase1_();
+        toggleHidden("btnDesignerEliminarRegla", true);
+        mostrarFormularioReglaCotizadorFase1_(true);
+      }
+
+      function seleccionarReglaCotizadorFase1_(reglaId){
+        const st = getCotizadorFase1State_();
+        const r = st.reglasCotizador.find(function(x){ return String(x.regla_id) === String(reglaId); });
+        if(!r) return;
+        st.reglaCotizadorSeleccionadaId = r.regla_id;
+        if(byId("designerReglaIdOriginal")) byId("designerReglaIdOriginal").value = r.regla_id;
+        if(byId("designerReglaNombre")) byId("designerReglaNombre").value = r.nombre || "";
+        llenarSelectsReglaCotizadorFase1_(r);
+        if(byId("designerReglaCampoCondicion")) byId("designerReglaCampoCondicion").value = r.campo_condicion_id || "";
+        if(byId("designerReglaOperador")) byId("designerReglaOperador").value = r.operador || "IGUAL_A";
+        if(byId("designerReglaValorComparacion")) byId("designerReglaValorComparacion").value = r.valor_comparacion || "";
+        if(byId("designerReglaAccion")) byId("designerReglaAccion").value = r.accion || "OCULTAR";
+        if(byId("designerReglaValorAccion")) byId("designerReglaValorAccion").value = r.valor_accion || "";
+        if(byId("designerReglaMensaje")) byId("designerReglaMensaje").value = r.mensaje || "";
+        if(byId("designerReglaActivo")) byId("designerReglaActivo").checked = !!r.activo;
+        actualizarVisibilidadCamposFormularioReglaFase1_();
+        toggleHidden("btnDesignerEliminarRegla", false);
+        mostrarFormularioReglaCotizadorFase1_(true);
+        renderReglasCotizadorListaFase1_();
+      }
+
+      function cancelarReglaCotizadorFase1_(){
+        getCotizadorFase1State_().reglaCotizadorSeleccionadaId = "";
+        mostrarFormularioReglaCotizadorFase1_(false);
+      }
+
+      function valoresSeleccionadosMultiSelectFase1_(select){
+        if(!select) return [];
+        return Array.prototype.slice.call(select.selectedOptions || []).map(function(opt){ return opt.value; });
+      }
+
+      function guardarReglaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const idOriginal = byId("designerReglaIdOriginal") ? byId("designerReglaIdOriginal").value.trim() : "";
+        const campoCondicion = byId("designerReglaCampoCondicion") ? byId("designerReglaCampoCondicion").value : "";
+        const operador = byId("designerReglaOperador") ? byId("designerReglaOperador").value : "";
+        const accion = byId("designerReglaAccion") ? byId("designerReglaAccion").value : "";
+        if(!campoCondicion){ mostrarToast("Debe elegir el campo condición."); return; }
+        const valorComparacion = byId("designerReglaValorComparacion") ? byId("designerReglaValorComparacion").value.trim() : "";
+        if(!OPERADORES_SIN_VALOR_COMPARACION_REGLA[operador] && !valorComparacion){ mostrarToast("Debe indicar el valor de comparación."); return; }
+        const camposObjetivo = ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA[accion] ? [] : valoresSeleccionadosMultiSelectFase1_(byId("designerReglaCamposObjetivo"));
+        if(!ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA[accion] && !camposObjetivo.length){ mostrarToast("Debe elegir al menos un campo objetivo."); return; }
+        const valorAccion = byId("designerReglaValorAccion") ? byId("designerReglaValorAccion").value.trim() : "";
+        if(accion === "EXIGIR_MINIMO" && !valorAccion){ mostrarToast("Debe indicar el valor mínimo."); return; }
+
+        const reglaId = idOriginal || ("RC-" + st.cotizadorId + "-" + Date.now().toString(36).toUpperCase());
+        const payload = {
+          regla_id: reglaId, calculadora_id: st.cotizadorId,
+          nombre: byId("designerReglaNombre") ? byId("designerReglaNombre").value.trim() : "",
+          campo_condicion_id: campoCondicion, operador: operador, valor_comparacion: valorComparacion,
+          accion: accion, campos_objetivo: camposObjetivo, valor_accion: valorAccion,
+          mensaje: byId("designerReglaMensaje") ? byId("designerReglaMensaje").value.trim() : "",
+          activo: byId("designerReglaActivo") ? byId("designerReglaActivo").checked : true
+        };
+
+        fetchAutenticado("/api/cotizador/reglas", {
+          method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload)
+        }).then(function(resp){
+          return resp.json().catch(function(){ return null; }).then(function(res){ return {resp:resp, res:res}; });
+        }).then(function(pair){
+          if(!pair.resp.ok || !pair.res || !pair.res.ok){
+            throw new Error((pair.res && pair.res.error) || "No fue posible guardar la regla.");
+          }
+          mostrarToast(pair.res.mensaje || "Regla guardada.");
+          mostrarFormularioReglaCotizadorFase1_(false);
+          cargarReglasCotizadorFase1_();
+        }).catch(function(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible guardar la regla.");
+        });
+      }
+
+      function eliminarReglaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const reglaId = st.reglaCotizadorSeleccionadaId;
+        if(!reglaId) return;
+        if(!window.confirm('¿Eliminar la regla "' + reglaId + '"? Esta acción no se puede deshacer.')) return;
+        fetchAutenticado("/api/cotizador/reglas/" + encodeURIComponent(reglaId), {method:"DELETE"})
+          .then(function(resp){ return resp.json().catch(function(){ return null; }).then(function(res){ return {resp:resp, res:res}; }); })
+          .then(function(pair){
+            if(!pair.resp.ok || !pair.res || !pair.res.ok) throw new Error((pair.res && pair.res.error) || "No fue posible eliminar la regla.");
+            mostrarToast(pair.res.mensaje || "Regla eliminada.");
+            mostrarFormularioReglaCotizadorFase1_(false);
+            cargarReglasCotizadorFase1_();
+          }).catch(function(error){
+            mostrarToast(error && error.message ? error.message : "No fue posible eliminar la regla.");
+          });
       }
 
       function renderCotizadoresSelectFase1_(){

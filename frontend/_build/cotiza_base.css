@@ -429,6 +429,24 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .runtime-requerido { color: #b42318; }
 .runtime-field .runtime-input.input,
 .runtime-field .runtime-input.select { min-height: 38px; padding: 8px 11px; border-color: #ced9e7; border-radius: 8px; color: #344a68; font-size: 13px; width: 100%; }
+.runtime-field .runtime-input:disabled { background: #f1f4f8; color: #97a3b5; cursor: not-allowed; }
+.runtime-minimo-hint { color: #7b899d; font-weight: 600; }
+
+/* Motor de Reglas en tiempo real (migración 0024) */
+.runtime-campo-error { color: #b42318; font-size: 11px; margin-top: 4px; }
+.runtime-field.runtime-campo-invalido .runtime-input { border-color: #b42318; }
+.runtime-mensajes-regla {
+  border: 1px solid #fda29b; background: #fef3f2; border-radius: 10px;
+  padding: 10px 14px; color: #b42318; font-size: 12px; font-weight: 700;
+}
+.runtime-mensajes-regla ul { margin: 4px 0 0; padding-left: 18px; font-weight: 600; }
+.runtime-guardado-estado { font-size: 11px; color: #7b899d; font-style: italic; }
+
+/* Panel "Reglas de este cotizador" (Diseñador, migración 0024) — el
+   resto de .cotizador-rules-* ya venía definido (V50AN) sin markup que
+   lo usara todavía. */
+.cotizador-rule-form { padding: 14px 16px 16px; border-top: 1px solid #e5edf8; }
+.cotizador-rule-form .field.full { grid-column: 1/-1; }
 
 .runtime-leyenda { grid-column: 1/-1; margin: 6px 0 -2px; padding-top: 10px; border-top: 1px solid #EEF1F6; }
 .runtime-leyenda:first-child { padding-top: 0; border-top: 0; }

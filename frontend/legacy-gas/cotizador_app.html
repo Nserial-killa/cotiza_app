@@ -2033,6 +2033,94 @@
                     <div id="designerCotizadorComponentesLista" class="cotizador-component-list">
                       <div class="designer-empty">Seleccione una sección para cargar sus componentes.</div>
                     </div>
+
+                    <!-- Motor de Reglas en tiempo real (migración 0024): condición
+                         sobre un campo -> acción sobre uno o más campos objetivo de
+                         ESTE cotizador. Reusa el bloque V50AN de arriba
+                         (cotizador-rules-section) reservado para esto. Distinto del
+                         catálogo global de "reglas" (severidad/momento, Sprint 2) y
+                         del selector "Reglas" vestigial de cada Campo (nunca tuvo
+                         guardado real detrás, ver el comentario en
+                         cargarPendientesDisenadorCotizadorFase1_ en
+                         cotiza_script_catalogos.html) — acá sí hay condición/acción
+                         real, con su propio CRUD. -->
+                    <section id="cotizadorReglasSection" class="cotizador-rules-section">
+                      <div class="cotizador-rules-head">
+                        <div class="cotizador-rules-head-title">
+                          <span class="cotizador-rules-icon" aria-hidden="true">R</span>
+                          <div>
+                            <strong>Reglas de este cotizador</strong>
+                            <small>Condición sobre un campo (de la sección actual) → acción sobre uno o más campos objetivo: ocultar, poner en cero, exigir mínimo, bloquear guardado, etc.</small>
+                          </div>
+                        </div>
+                        <button id="btnDesignerNuevaReglaCotizador" class="btn btn-light-blue btn-mini" type="button">+ Nueva regla</button>
+                      </div>
+                      <div id="cotizadorReglasLista" class="cotizador-rules-list">
+                        <div class="designer-empty">Seleccione un cotizador.</div>
+                      </div>
+                      <div id="cotizadorReglaForm" class="designer-props-form cotizador-rule-form hidden">
+                        <input id="designerReglaIdOriginal" type="hidden">
+                        <div class="field">
+                          <label for="designerReglaNombre">Nombre (opcional)</label>
+                          <input id="designerReglaNombre" class="input" type="text" placeholder="R01">
+                        </div>
+                        <div class="field">
+                          <label for="designerReglaCampoCondicion">Campo condición</label>
+                          <select id="designerReglaCampoCondicion" class="select"><option value="">Seleccione...</option></select>
+                        </div>
+                        <div class="field">
+                          <label for="designerReglaOperador">Operador</label>
+                          <select id="designerReglaOperador" class="select">
+                            <option value="IGUAL_A">Igual a</option>
+                            <option value="DISTINTO_DE">Distinto de</option>
+                            <option value="MAYOR_QUE">Mayor que</option>
+                            <option value="MENOR_QUE">Menor que</option>
+                            <option value="MAYOR_O_IGUAL_QUE">Mayor o igual que</option>
+                            <option value="MENOR_O_IGUAL_QUE">Menor o igual que</option>
+                            <option value="ESTA_VACIO">Está vacío</option>
+                            <option value="NO_ESTA_VACIO">No está vacío</option>
+                          </select>
+                        </div>
+                        <div class="field" id="designerReglaValorComparacionWrap">
+                          <label for="designerReglaValorComparacion">Valor de comparación</label>
+                          <input id="designerReglaValorComparacion" class="input" type="text" placeholder="No">
+                        </div>
+                        <div class="field">
+                          <label for="designerReglaAccion">Acción</label>
+                          <select id="designerReglaAccion" class="select">
+                            <option value="OCULTAR">Ocultar campo(s) objetivo</option>
+                            <option value="MOSTRAR">Mostrar campo(s) objetivo</option>
+                            <option value="DESHABILITAR">Deshabilitar campo(s) objetivo</option>
+                            <option value="HABILITAR">Habilitar campo(s) objetivo</option>
+                            <option value="PONER_EN_CERO">Poner en cero campo(s) objetivo</option>
+                            <option value="EXIGIR_MINIMO">Exigir un mínimo</option>
+                            <option value="CAMPO_REQUERIDO">Marcar campo(s) objetivo como requeridos</option>
+                            <option value="BLOQUEAR_GUARDADO">Bloquear el guardado completo</option>
+                          </select>
+                        </div>
+                        <div class="field" id="designerReglaValorAccionWrap">
+                          <label for="designerReglaValorAccion">Valor mínimo</label>
+                          <input id="designerReglaValorAccion" class="input" type="number" step="any" placeholder="1">
+                        </div>
+                        <div class="field full" id="designerReglaCamposObjetivoWrap">
+                          <label for="designerReglaCamposObjetivo">Campos objetivo</label>
+                          <select id="designerReglaCamposObjetivo" class="select" multiple size="4"></select>
+                          <span class="param-field-help">Ctrl/Cmd + clic para elegir varios. No aplica a "Bloquear el guardado completo".</span>
+                        </div>
+                        <div class="field full">
+                          <label for="designerReglaMensaje">Mensaje (opcional)</label>
+                          <input id="designerReglaMensaje" class="input" type="text" placeholder="Mensaje a mostrar cuando la regla bloquee el guardado o exija el campo">
+                        </div>
+                        <label class="param-switch" style="padding-top:0;min-height:34px;">
+                          <input id="designerReglaActivo" type="checkbox" checked> Activa
+                        </label>
+                        <div class="designer-props-actions">
+                          <button id="btnDesignerEliminarRegla" class="btn btn-ghost hidden" type="button">Eliminar</button>
+                          <button id="btnDesignerCancelarRegla" class="btn btn-ghost" type="button">Cancelar</button>
+                          <button id="btnDesignerGuardarRegla" class="btn btn-primary" type="button">Guardar regla</button>
+                        </div>
+                      </div>
+                    </section>
                   </div>
                 </main>
 

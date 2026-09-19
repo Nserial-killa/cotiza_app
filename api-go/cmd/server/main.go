@@ -56,6 +56,7 @@ func main() {
 	compilador := &handlers.CompiladorHandler{DB: pool}
 	usuarios := &handlers.UsuariosHandler{DB: pool}
 	reglas := &handlers.ReglasHandler{DB: pool}
+	reglasCotizador := &handlers.ReglasCotizadorHandler{DB: pool}
 	cotizaciones := &handlers.CotizacionesHandler{DB: pool}
 	clientes := &handlers.ClientesHandler{DB: pool}
 	dashboard := &handlers.DashboardHandler{DB: pool}
@@ -128,6 +129,11 @@ func main() {
 				r.Get("/", reglas.Listar)
 				r.Post("/", reglas.Guardar)
 				r.Delete("/{id}", reglas.Eliminar)
+			})
+			r.Route("/cotizador/reglas", func(r chi.Router) {
+				r.Get("/", reglasCotizador.Listar)
+				r.Post("/", reglasCotizador.Guardar)
+				r.Delete("/{id}", reglasCotizador.Eliminar)
 			})
 
 			// --- Carril A (Configuración): plantillas.

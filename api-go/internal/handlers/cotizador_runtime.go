@@ -56,11 +56,12 @@ type elementoRuntime struct {
 }
 
 type contextoRuntime struct {
-	CotizacionID string
-	Version      int
-	CompiladoID  string
-	Estructura   map[string]any
-	Elementos    map[string]elementoRuntime
+	CotizacionID  string
+	CalculadoraID string
+	Version       int
+	CompiladoID   string
+	Estructura    map[string]any
+	Elementos     map[string]elementoRuntime
 }
 
 type errorRuntime struct {
@@ -105,6 +106,15 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 	resolverCamposCalculados(indexarElementosCompletoRuntime(runtime.Estructura), valores)
 	resolverCamposCalculadosPorOpcion(indexarElementosCompletoRuntime(runtime.Estructura), runtime.Elementos, valores)
 	incluirValoresCajaValor(runtime.Estructura, valores)
+
+	reglas, err := reglasCotizadorParaEvaluar(ctx, h.DB, runtime.CalculadoraID)
+	if err != nil {
+		log.Printf("cotizador runtime: error cargando reglas de %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las reglas del cotizador."})
+		return
+	}
+	incluirEstadoReglas(runtime.Estructura, evaluarEstadoCamposRegla(valores, reglas))
+
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": valores, "version": runtime.Version})
 }
 
@@ -270,6 +280,77 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		}
 	}
 
+	// --- Reglas de Cotizador (migración 0024). Primero VALIDACIÓN
+	// (BLOQUEAR_GUARDADO/CAMPO_REQUERIDO): si algo dispara, se rechaza el
+	// guardado COMPLETO acá, antes de abrir la transacción — nada se
+	// persiste. Recién si pasa, se evalúan las reglas de VISIBILIDAD/
+	// ACCIÓN y se corrigen los valores a guardar (oculto o forzar_cero ->
+	// 0/null) ANTES de persistir, sin importar qué mandó el frontend para
+	// ese campo — sección 6.1 del documento: "un valor oculto no puede
+	// seguir sumándose silenciosamente". Los campos de Opciones de
+	// Propuesta quedan fuera de esta ronda (ver reglas_evaluacion.go).
+	reglas, err := reglasCotizadorParaEvaluar(ctx, h.DB, runtime.CalculadoraID)
+	if err != nil {
+		log.Printf("cotizador runtime: error cargando reglas de %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las reglas del cotizador."})
+		return
+	}
+	if len(reglas) > 0 {
+		valoresActuales, err := h.leerValores(ctx, h.DB, cotizacionID, req.Version)
+		if err != nil {
+			log.Printf("cotizador runtime: error leyendo valores actuales de %s: %v", cotizacionID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar las reglas del cotizador."})
+			return
+		}
+		valoresPropuestos := make(map[string]any, len(valoresActuales))
+		for id, valor := range valoresActuales {
+			valoresPropuestos[id] = valor
+		}
+		indicePendientePorElemento := make(map[string]int, len(pendientes))
+		for i, pendiente := range pendientes {
+			if pendiente.OpcionID != "" {
+				continue
+			}
+			indicePendientePorElemento[pendiente.ElementoID] = i
+			var decodificado any
+			if err := json.Unmarshal(pendiente.Valor, &decodificado); err == nil {
+				valoresPropuestos[pendiente.ElementoID] = decodificado
+			}
+		}
+
+		if erroresValidacion := evaluarValidacionReglas(valoresPropuestos, reglas); len(erroresValidacion) > 0 {
+			mensajes := make([]string, 0, len(erroresValidacion))
+			for _, e := range erroresValidacion {
+				mensajes = append(mensajes, e.Mensaje)
+			}
+			escribirJSON(w, http.StatusBadRequest, map[string]any{
+				"ok": false, "error": strings.Join(mensajes, " "), "errores_regla": erroresValidacion,
+			})
+			return
+		}
+
+		estadoCampos := evaluarEstadoCamposRegla(valoresPropuestos, reglas)
+		if len(estadoCampos) > 0 {
+			elementosCompleto := indexarElementosCompletoRuntime(runtime.Estructura)
+			for campoID, estado := range estadoCampos {
+				if estado.Visible && !estado.ForzarCero {
+					continue
+				}
+				elementoObjetivo, existe := runtime.Elementos[campoID]
+				if !existe || elementoObjetivo.PadreOpcionesID != "" {
+					continue
+				}
+				valorForzado := valorForzadoPorRegla(elementosCompleto[campoID])
+				if indice, tocado := indicePendientePorElemento[campoID]; tocado {
+					pendientes[indice].Valor = valorForzado
+				} else {
+					indicePendientePorElemento[campoID] = len(pendientes)
+					pendientes = append(pendientes, valorPendienteRuntime{ElementoID: campoID, Valor: valorForzado})
+				}
+			}
+		}
+	}
+
 	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible iniciar el guardado."})
@@ -330,6 +411,7 @@ func (h *CotizadorRuntimeHandler) cargarContexto(ctx context.Context, cotizacion
 	if err != nil {
 		return resultado, err
 	}
+	resultado.CalculadoraID = calculadoraID
 	resultado.Version = versionSolicitada
 	if resultado.Version == 0 {
 		resultado.Version = versionActual
@@ -522,6 +604,56 @@ func incluirValoresCajaValorRecursivo(elementos []any, valores map[string]any) {
 			incluirValoresCajaValorRecursivo(hijos, valores)
 		}
 	}
+}
+
+// incluirEstadoReglas deja, en cada elemento alcanzado por al menos una
+// regla_cotizador activa (evaluarEstadoCamposRegla), su estado resultante
+// bajo "estado_regla" — así el Motor de Ejecución sabe qué mostrar sin
+// tener que reevaluar nada del lado del cliente. Un elemento que ninguna
+// regla toca se queda sin esta clave: el frontend debe tratar su ausencia
+// como el default (visible, habilitado, sin mínimo, no requerido).
+func incluirEstadoReglas(estructura map[string]any, estados map[string]estadoCampoRegla) {
+	tabs, _ := estructura["tabs"].([]any)
+	for _, tabRaw := range tabs {
+		tab, _ := tabRaw.(map[string]any)
+		elementos, _ := tab["elementos"].([]any)
+		incluirEstadoReglasRecursivo(elementos, estados)
+	}
+}
+
+func incluirEstadoReglasRecursivo(elementos []any, estados map[string]estadoCampoRegla) {
+	for _, elementoRaw := range elementos {
+		elemento, _ := elementoRaw.(map[string]any)
+		id := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
+		if estado, ok := estados[id]; ok {
+			elemento["estado_regla"] = estado
+		}
+		if hijos, ok := elemento["hijos"].([]any); ok {
+			incluirEstadoReglasRecursivo(hijos, estados)
+		}
+	}
+}
+
+// valorForzadoPorRegla decide el valor "seguro" a persistir cuando una
+// regla_cotizador deja un campo oculto o forzado a cero (sección 6.1 del
+// documento: "un valor oculto no puede seguir sumándose silenciosamente").
+// Un Campo numérico (Número/Moneda/Porcentaje) va a "0" — así un Campo
+// Calculado que lo sume ya lo ve en cero, no un operando sin resolver
+// (numeroDesdeValor("0") = (0, true)). Cualquier otro tipo (texto, Campo
+// Catálogo, Lista de Precios, Tabla, o un Campo Calculado objetivo cuyo
+// valor de todas formas se recalcula solo) va a null: no hay una
+// "selección en cero" equivalente para esos tipos, y null es justamente lo
+// que ya tratan como "sin resolver" valorCalculoCatalogo/valorListaPrecios/
+// valorTotalTabla.
+func valorForzadoPorRegla(elemento map[string]any) json.RawMessage {
+	if elemento != nil && strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "CAMPO" {
+		cfg, _ := elemento["configuracion"].(map[string]any)
+		tipoCampo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["tipo_campo"])))
+		if tipoCampo == "NUMERO" || tipoCampo == "MONEDA" || tipoCampo == "PORCENTAJE" {
+			return json.RawMessage(`"0"`)
+		}
+	}
+	return json.RawMessage(`null`)
 }
 
 // itemIDsDesdeValorListaPrecios extrae los item_id que trae el valor

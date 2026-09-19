@@ -51,7 +51,9 @@
           tabId:"",
           elementoId:"",
           props:"seccion",
-          modoVista:"diseno"
+          modoVista:"diseno",
+          reglasCotizador:[],
+          reglaCotizadorSeleccionadaId:""
         };
         return state.cotizadorFase1;
       }
@@ -216,6 +218,7 @@
           st.relaciones = [];
           renderCotizadorFase1_();
           cargarDatosCotizadorFase1_(true);
+          cargarReglasCotizadorFase1_();
         });
         bind("btnDesignerNuevaSeccionCotizador","click",nuevoTabCotizadorFase1_);
         bind("btnDesignerGuardarSeccionCotizador","click",guardarTabCotizadorFase1_);
@@ -250,6 +253,12 @@
         bind("designerCotizadorCalculadoOperacion","change",actualizarFormulaPreviewCalculadoCotizadorFase1_);
         bind("btnDesignerAgregarItemListaPrecios","click",guardarItemListaPreciosCotizadorFase1_);
         bind("btnDesignerCancelarEdicionItemListaPrecios","click",cancelarEdicionItemListaPreciosCotizadorFase1_);
+        bind("btnDesignerNuevaReglaCotizador","click",nuevaReglaCotizadorFase1_);
+        bind("btnDesignerGuardarRegla","click",guardarReglaCotizadorFase1_);
+        bind("btnDesignerEliminarRegla","click",eliminarReglaCotizadorFase1_);
+        bind("btnDesignerCancelarRegla","click",cancelarReglaCotizadorFase1_);
+        bind("designerReglaOperador","change",actualizarVisibilidadCamposFormularioReglaFase1_);
+        bind("designerReglaAccion","change",actualizarVisibilidadCamposFormularioReglaFase1_);
         bind("btnDesignerGuardarCotizador","click",function(){
           mostrarToast("Guarde cada sección o componente desde el panel de propiedades.");
         });
@@ -294,7 +303,7 @@
           return;
         }
         if(byId("designerCotizadorTabsLista")) byId("designerCotizadorTabsLista").innerHTML = '<div class="designer-empty">Cargando secciones...</div>';
-        cargarCotizadoresFase1_(function(){ cargarDatosCotizadorFase1_(true); });
+        cargarCotizadoresFase1_(function(){ cargarDatosCotizadorFase1_(true); cargarReglasCotizadorFase1_(); });
       }
 
           function cargarCotizadoresFase1_(done){
@@ -422,6 +431,235 @@
         st.reglasModelo = [];
         mostrarToast("Aplicabilidad de secciones y reglas por campo: pendientes de un sprint futuro.");
         done(); done(); done();
+      }
+
+      // ---------------------------------------------------------
+      // Reglas de este cotizador (reglas_cotizador, migración 0024):
+      // condición sobre un campo -> acción sobre uno o más campos
+      // objetivo, CRUD real contra /api/cotizador/reglas. Es la pieza
+      // que el comentario de arriba (cargarPendientesDisenadorCotizadorFase1_)
+      // documentaba como pendiente — sigue siendo un mecanismo DISTINTO
+      // del catálogo global de reglas.go y del selector "Reglas"
+      // vestigial de cada Campo (campoReglasTemp, sin guardado real
+      // detrás, no tocado acá). Alcance a propósito simple: el campo
+      // condición y los campos objetivo se eligen entre los elementos
+      // de la SECCIÓN (tab) actualmente abierta en el Diseñador — el
+      // backend permite cruzar secciones de la misma calculadora, pero
+      // el selector no lo expone para no complicar esta pantalla.
+      // ---------------------------------------------------------
+
+      const OPERADORES_SIN_VALOR_COMPARACION_REGLA = {ESTA_VACIO:true, NO_ESTA_VACIO:true};
+      const ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA = {BLOQUEAR_GUARDADO:true};
+      const ETIQUETAS_OPERADOR_REGLA = {
+        IGUAL_A: "es igual a", DISTINTO_DE: "es distinto de", MAYOR_QUE: "es mayor que",
+        MENOR_QUE: "es menor que", MAYOR_O_IGUAL_QUE: "es mayor o igual que",
+        MENOR_O_IGUAL_QUE: "es menor o igual que", ESTA_VACIO: "está vacío", NO_ESTA_VACIO: "no está vacío"
+      };
+      const ETIQUETAS_ACCION_REGLA = {
+        OCULTAR: "ocultar", MOSTRAR: "mostrar", DESHABILITAR: "deshabilitar", HABILITAR: "habilitar",
+        PONER_EN_CERO: "poner en cero", EXIGIR_MINIMO: "exigir mínimo", CAMPO_REQUERIDO: "marcar requerido",
+        BLOQUEAR_GUARDADO: "bloquear el guardado"
+      };
+
+      function cargarReglasCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("cotizadorReglasLista");
+        if(!st.cotizadorId){
+          st.reglasCotizador = [];
+          if(cont) cont.innerHTML = '<div class="designer-empty">Seleccione un cotizador.</div>';
+          return;
+        }
+        if(cont) cont.innerHTML = '<div class="designer-empty">Cargando reglas...</div>';
+        fetchAutenticado("/api/cotizador/reglas?calculadora_id=" + encodeURIComponent(st.cotizadorId))
+          .then(function(resp){
+            if(!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function(res){
+            st.reglasCotizador = (res && Array.isArray(res.reglas)) ? res.reglas : [];
+            renderReglasCotizadorListaFase1_();
+          })
+          .catch(function(error){
+            st.reglasCotizador = [];
+            if(cont) cont.innerHTML = '<div class="designer-empty">No fue posible cargar las reglas.</div>';
+            mostrarToast("No fue posible cargar las reglas del cotizador: " + (error && error.message ? error.message : "error desconocido"));
+          });
+      }
+
+      function labelElementoPorIdReglaCotizadorFase1_(elementoId){
+        const st = getCotizadorFase1State_();
+        const el = (st.elementos || []).find(function(e){ return String(e.elemento_id || "") === String(elementoId || ""); });
+        return el ? labelElementoCampoCotizadorFase1_(el) : String(elementoId || "");
+      }
+
+      function descripcionReglaCotizadorFase1_(r){
+        const condicion = labelElementoPorIdReglaCotizadorFase1_(r.campo_condicion_id) + " " + (ETIQUETAS_OPERADOR_REGLA[r.operador] || r.operador) +
+          (OPERADORES_SIN_VALOR_COMPARACION_REGLA[r.operador] ? "" : (' "' + (r.valor_comparacion || "") + '"'));
+        const objetivos = (r.campos_objetivo || []).map(labelElementoPorIdReglaCotizadorFase1_).join(", ");
+        const accion = ETIQUETAS_ACCION_REGLA[r.accion] || r.accion;
+        return "Si " + condicion + " → " + accion + (objetivos ? " (" + objetivos + ")" : "");
+      }
+
+      function renderReglasCotizadorListaFase1_(){
+        const st = getCotizadorFase1State_();
+        const cont = byId("cotizadorReglasLista");
+        if(!cont) return;
+        if(!st.reglasCotizador.length){
+          cont.innerHTML = '<div class="designer-empty">Este cotizador todavía no tiene reglas.</div>';
+          return;
+        }
+        cont.innerHTML = st.reglasCotizador.map(function(r){
+          return '<div class="cotizador-rule-card' + (r.activo ? '' : ' inactive') + '" data-regla-id="' + escapeHtml(r.regla_id) + '">' +
+            '<div class="cotizador-rule-card-icon" aria-hidden="true">' + (r.accion === "BLOQUEAR_GUARDADO" ? "⛔" : "ƒ") + '</div>' +
+            '<div class="cotizador-rule-card-main"><strong>' + escapeHtml(r.nombre || r.regla_id) + '</strong><small>' + escapeHtml(descripcionReglaCotizadorFase1_(r)) + '</small></div>' +
+            '<div class="cotizador-rule-card-meta">' +
+              '<span class="cotizador-rule-pill' + (r.activo ? ' info' : '') + '">' + (r.activo ? "Activa" : "Inactiva") + '</span>' +
+              (r.accion === "BLOQUEAR_GUARDADO" || r.accion === "CAMPO_REQUERIDO" ? '<span class="cotizador-rule-pill block">Validación</span>' : '') +
+              '<button type="button" class="btn btn-ghost btn-mini" data-editar-regla-cotizador="' + escapeHtml(r.regla_id) + '">Editar</button>' +
+            '</div></div>';
+        }).join("");
+        cont.querySelectorAll("[data-editar-regla-cotizador]").forEach(function(btn){
+          btn.addEventListener("click", function(){ seleccionarReglaCotizadorFase1_(btn.getAttribute("data-editar-regla-cotizador")); });
+        });
+      }
+
+      function llenarSelectsReglaCotizadorFase1_(seleccionActual){
+        const st = getCotizadorFase1State_();
+        const elementos = (st.elementos || []).slice().sort(function(a,b){ return numeroOrdenCotizadorFase1_(a.orden)-numeroOrdenCotizadorFase1_(b.orden); });
+        const condicionSel = byId("designerReglaCampoCondicion");
+        if(condicionSel){
+          condicionSel.innerHTML = '<option value="">Seleccione...</option>' + elementos.map(function(el){
+            return '<option value="' + escapeHtml(el.elemento_id) + '">' + escapeHtml(labelElementoCampoCotizadorFase1_(el)) + '</option>';
+          }).join("");
+        }
+        const objetivoSel = byId("designerReglaCamposObjetivo");
+        if(objetivoSel){
+          const seleccionados = (seleccionActual && seleccionActual.campos_objetivo) || [];
+          objetivoSel.innerHTML = elementos.map(function(el){
+            const sel = seleccionados.indexOf(el.elemento_id) >= 0 ? " selected" : "";
+            return '<option value="' + escapeHtml(el.elemento_id) + '"' + sel + '>' + escapeHtml(labelElementoCampoCotizadorFase1_(el)) + '</option>';
+          }).join("");
+        }
+      }
+
+      function actualizarVisibilidadCamposFormularioReglaFase1_(){
+        const operador = byId("designerReglaOperador") ? byId("designerReglaOperador").value : "";
+        const accion = byId("designerReglaAccion") ? byId("designerReglaAccion").value : "";
+        toggleHidden("designerReglaValorComparacionWrap", !!OPERADORES_SIN_VALOR_COMPARACION_REGLA[operador]);
+        toggleHidden("designerReglaValorAccionWrap", accion !== "EXIGIR_MINIMO");
+        toggleHidden("designerReglaCamposObjetivoWrap", !!ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA[accion]);
+      }
+
+      function mostrarFormularioReglaCotizadorFase1_(mostrar){
+        const form = byId("cotizadorReglaForm");
+        if(form) form.classList.toggle("hidden", !mostrar);
+      }
+
+      function nuevaReglaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        if(!st.cotizadorId){ mostrarToast("Seleccione un cotizador."); return; }
+        if(!st.tabId){ mostrarToast("Seleccione primero una sección: los campos disponibles salen de ahí."); return; }
+        st.reglaCotizadorSeleccionadaId = "";
+        if(byId("designerReglaIdOriginal")) byId("designerReglaIdOriginal").value = "";
+        if(byId("designerReglaNombre")) byId("designerReglaNombre").value = "";
+        if(byId("designerReglaOperador")) byId("designerReglaOperador").value = "IGUAL_A";
+        if(byId("designerReglaValorComparacion")) byId("designerReglaValorComparacion").value = "";
+        if(byId("designerReglaAccion")) byId("designerReglaAccion").value = "OCULTAR";
+        if(byId("designerReglaValorAccion")) byId("designerReglaValorAccion").value = "";
+        if(byId("designerReglaMensaje")) byId("designerReglaMensaje").value = "";
+        if(byId("designerReglaActivo")) byId("designerReglaActivo").checked = true;
+        llenarSelectsReglaCotizadorFase1_(null);
+        actualizarVisibilidadCamposFormularioReglaFase1_();
+        toggleHidden("btnDesignerEliminarRegla", true);
+        mostrarFormularioReglaCotizadorFase1_(true);
+      }
+
+      function seleccionarReglaCotizadorFase1_(reglaId){
+        const st = getCotizadorFase1State_();
+        const r = st.reglasCotizador.find(function(x){ return String(x.regla_id) === String(reglaId); });
+        if(!r) return;
+        st.reglaCotizadorSeleccionadaId = r.regla_id;
+        if(byId("designerReglaIdOriginal")) byId("designerReglaIdOriginal").value = r.regla_id;
+        if(byId("designerReglaNombre")) byId("designerReglaNombre").value = r.nombre || "";
+        llenarSelectsReglaCotizadorFase1_(r);
+        if(byId("designerReglaCampoCondicion")) byId("designerReglaCampoCondicion").value = r.campo_condicion_id || "";
+        if(byId("designerReglaOperador")) byId("designerReglaOperador").value = r.operador || "IGUAL_A";
+        if(byId("designerReglaValorComparacion")) byId("designerReglaValorComparacion").value = r.valor_comparacion || "";
+        if(byId("designerReglaAccion")) byId("designerReglaAccion").value = r.accion || "OCULTAR";
+        if(byId("designerReglaValorAccion")) byId("designerReglaValorAccion").value = r.valor_accion || "";
+        if(byId("designerReglaMensaje")) byId("designerReglaMensaje").value = r.mensaje || "";
+        if(byId("designerReglaActivo")) byId("designerReglaActivo").checked = !!r.activo;
+        actualizarVisibilidadCamposFormularioReglaFase1_();
+        toggleHidden("btnDesignerEliminarRegla", false);
+        mostrarFormularioReglaCotizadorFase1_(true);
+        renderReglasCotizadorListaFase1_();
+      }
+
+      function cancelarReglaCotizadorFase1_(){
+        getCotizadorFase1State_().reglaCotizadorSeleccionadaId = "";
+        mostrarFormularioReglaCotizadorFase1_(false);
+      }
+
+      function valoresSeleccionadosMultiSelectFase1_(select){
+        if(!select) return [];
+        return Array.prototype.slice.call(select.selectedOptions || []).map(function(opt){ return opt.value; });
+      }
+
+      function guardarReglaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const idOriginal = byId("designerReglaIdOriginal") ? byId("designerReglaIdOriginal").value.trim() : "";
+        const campoCondicion = byId("designerReglaCampoCondicion") ? byId("designerReglaCampoCondicion").value : "";
+        const operador = byId("designerReglaOperador") ? byId("designerReglaOperador").value : "";
+        const accion = byId("designerReglaAccion") ? byId("designerReglaAccion").value : "";
+        if(!campoCondicion){ mostrarToast("Debe elegir el campo condición."); return; }
+        const valorComparacion = byId("designerReglaValorComparacion") ? byId("designerReglaValorComparacion").value.trim() : "";
+        if(!OPERADORES_SIN_VALOR_COMPARACION_REGLA[operador] && !valorComparacion){ mostrarToast("Debe indicar el valor de comparación."); return; }
+        const camposObjetivo = ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA[accion] ? [] : valoresSeleccionadosMultiSelectFase1_(byId("designerReglaCamposObjetivo"));
+        if(!ACCIONES_SIN_CAMPOS_OBJETIVO_REGLA[accion] && !camposObjetivo.length){ mostrarToast("Debe elegir al menos un campo objetivo."); return; }
+        const valorAccion = byId("designerReglaValorAccion") ? byId("designerReglaValorAccion").value.trim() : "";
+        if(accion === "EXIGIR_MINIMO" && !valorAccion){ mostrarToast("Debe indicar el valor mínimo."); return; }
+
+        const reglaId = idOriginal || ("RC-" + st.cotizadorId + "-" + Date.now().toString(36).toUpperCase());
+        const payload = {
+          regla_id: reglaId, calculadora_id: st.cotizadorId,
+          nombre: byId("designerReglaNombre") ? byId("designerReglaNombre").value.trim() : "",
+          campo_condicion_id: campoCondicion, operador: operador, valor_comparacion: valorComparacion,
+          accion: accion, campos_objetivo: camposObjetivo, valor_accion: valorAccion,
+          mensaje: byId("designerReglaMensaje") ? byId("designerReglaMensaje").value.trim() : "",
+          activo: byId("designerReglaActivo") ? byId("designerReglaActivo").checked : true
+        };
+
+        fetchAutenticado("/api/cotizador/reglas", {
+          method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload)
+        }).then(function(resp){
+          return resp.json().catch(function(){ return null; }).then(function(res){ return {resp:resp, res:res}; });
+        }).then(function(pair){
+          if(!pair.resp.ok || !pair.res || !pair.res.ok){
+            throw new Error((pair.res && pair.res.error) || "No fue posible guardar la regla.");
+          }
+          mostrarToast(pair.res.mensaje || "Regla guardada.");
+          mostrarFormularioReglaCotizadorFase1_(false);
+          cargarReglasCotizadorFase1_();
+        }).catch(function(error){
+          mostrarToast(error && error.message ? error.message : "No fue posible guardar la regla.");
+        });
+      }
+
+      function eliminarReglaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const reglaId = st.reglaCotizadorSeleccionadaId;
+        if(!reglaId) return;
+        if(!window.confirm('¿Eliminar la regla "' + reglaId + '"? Esta acción no se puede deshacer.')) return;
+        fetchAutenticado("/api/cotizador/reglas/" + encodeURIComponent(reglaId), {method:"DELETE"})
+          .then(function(resp){ return resp.json().catch(function(){ return null; }).then(function(res){ return {resp:resp, res:res}; }); })
+          .then(function(pair){
+            if(!pair.resp.ok || !pair.res || !pair.res.ok) throw new Error((pair.res && pair.res.error) || "No fue posible eliminar la regla.");
+            mostrarToast(pair.res.mensaje || "Regla eliminada.");
+            mostrarFormularioReglaCotizadorFase1_(false);
+            cargarReglasCotizadorFase1_();
+          }).catch(function(error){
+            mostrarToast(error && error.message ? error.message : "No fue posible eliminar la regla.");
+          });
       }
 
       function renderCotizadoresSelectFase1_(){
