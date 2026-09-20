@@ -71,10 +71,53 @@
         document.getElementById("estadoTitulo").textContent="Este enlace no es válido o ya venció.";
         document.getElementById("estadoTexto").textContent="Solicite un enlace nuevo a la persona que le compartió la propuesta.";
       }
-      function render(data){
-        poner("codigoOferta",data.codigo_oferta||"Propuesta");poner("cliente",data.cliente);poner("empresa",data.empresa||data.cliente);
-        poner("cotizador",data.cotizador_nombre);poner("tipoPropuesta",data.tipo_propuesta);document.getElementById("precioTotal").textContent=dinero(data.total_precio,data.moneda);
-        var contenedor=document.getElementById("secciones"),tabs=Array.isArray(data.tabs)?data.tabs:[];contenedor.textContent="";
+      function renderBloque(bloque){
+        var tipo=bloque.tipo_bloque;
+        if(tipo==="CAMPO_VINCULADO"){
+          var lista=document.createElement("dl");lista.className="fields";
+          var fila=document.createElement("div");fila.className="field-row";
+          var dt=document.createElement("dt"),dd=document.createElement("dd");
+          dt.textContent=texto(bloque.titulo||"Dato");dd.textContent=texto(bloque.valor);
+          fila.append(dt,dd);lista.appendChild(fila);
+          return lista;
+        }
+        if(tipo==="TABLA_INVERSION"){
+          var columnas=Array.isArray(bloque.columnas)?bloque.columnas:[];
+          var filas=Array.isArray(bloque.filas)?bloque.filas:[];
+          var envoltorio=document.createElement("div");
+          if(!filas.length){var vacio=document.createElement("p");vacio.className="empty";vacio.textContent="Sin datos para mostrar en esta tabla.";envoltorio.appendChild(vacio);return envoltorio;}
+          var tabla=document.createElement("table");tabla.style.width="100%";tabla.style.borderCollapse="collapse";
+          var thead=document.createElement("thead");var trh=document.createElement("tr");
+          columnas.forEach(function(c){var th=document.createElement("th");th.style.textAlign="left";th.style.padding="10px 12px";th.style.borderBottom="2px solid var(--line)";th.textContent=texto(c);trh.appendChild(th);});
+          thead.appendChild(trh);tabla.appendChild(thead);
+          var tbody=document.createElement("tbody");
+          filas.forEach(function(filaValores){
+            var tr=document.createElement("tr");
+            (Array.isArray(filaValores)?filaValores:[]).forEach(function(valor){var td=document.createElement("td");td.style.padding="10px 12px";td.style.borderBottom="1px solid #edf1f6";td.textContent=texto(valor);tr.appendChild(td);});
+            tbody.appendChild(tr);
+          });
+          tabla.appendChild(tbody);envoltorio.appendChild(tabla);
+          return envoltorio;
+        }
+        var parrafo=document.createElement("p");parrafo.style.margin="0";parrafo.style.padding="15px 22px";parrafo.style.whiteSpace="pre-wrap";
+        parrafo.textContent=texto(bloque.contenido);
+        return parrafo;
+      }
+      function renderPlantilla(plantilla,contenedor){
+        var secciones=Array.isArray(plantilla.secciones)?plantilla.secciones:[];
+        secciones.forEach(function(seccion){
+          var bloques=Array.isArray(seccion.bloques)?seccion.bloques:[];
+          if(!bloques.length)return; // Sección vacía (todos sus bloques quedaron ocultos por condición) no se muestra.
+          var section=document.createElement("section");section.className="section";
+          var titulo=document.createElement("h2");titulo.textContent=texto(seccion.titulo||"Sección");section.appendChild(titulo);
+          bloques.forEach(function(bloque){section.appendChild(renderBloque(bloque));});
+          contenedor.appendChild(section);
+        });
+        if(!secciones.some(function(s){return Array.isArray(s.bloques)&&s.bloques.length;})){
+          var vacia=document.createElement("section");vacia.className="section empty";vacia.textContent="Esta propuesta todavía no contiene secciones para mostrar.";contenedor.appendChild(vacia);
+        }
+      }
+      function renderTabsCrudas(tabs,contenedor){
         tabs.forEach(function(tab){
           var section=document.createElement("section");section.className="section";var titulo=document.createElement("h2");titulo.textContent=texto(tab.nombre||"Sección");section.appendChild(titulo);
           var elementos=Array.isArray(tab.elementos)?tab.elementos:[];
@@ -83,6 +126,13 @@
           contenedor.appendChild(section);
         });
         if(!tabs.length){var vacia=document.createElement("section");vacia.className="section empty";vacia.textContent="Esta propuesta todavía no contiene secciones para mostrar.";contenedor.appendChild(vacia);}
+      }
+      function render(data){
+        poner("codigoOferta",data.codigo_oferta||"Propuesta");poner("cliente",data.cliente);poner("empresa",data.empresa||data.cliente);
+        poner("cotizador",data.cotizador_nombre);poner("tipoPropuesta",data.tipo_propuesta);document.getElementById("precioTotal").textContent=dinero(data.total_precio,data.moneda);
+        var contenedor=document.getElementById("secciones");contenedor.textContent="";
+        if(data.plantilla&&typeof data.plantilla==="object"){renderPlantilla(data.plantilla,contenedor);}
+        else{renderTabsCrudas(Array.isArray(data.tabs)?data.tabs:[],contenedor);}
         estado.hidden=true;propuesta.hidden=false;document.title=texto(data.codigo_oferta||"Propuesta")+" | Exceltec";
       }
       var token=new URLSearchParams(window.location.search).get("token");

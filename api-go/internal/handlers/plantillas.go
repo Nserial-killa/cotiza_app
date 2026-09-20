@@ -81,17 +81,45 @@ type plantillaSeccion struct {
 }
 
 type plantillaBloque struct {
-	BloqueID      string                 `json:"bloque_id"`
-	SeccionID     string                 `json:"seccion_id"`
-	TipoBloque    string                 `json:"tipo_bloque"`
-	NombreInterno string                 `json:"nombre_interno"`
-	Titulo        *string                `json:"titulo"`
-	Contenido     *string                `json:"contenido"`
-	Columna       int                    `json:"columna"`
-	MostrarWeb    bool                   `json:"mostrar_web"`
-	MostrarPDF    bool                   `json:"mostrar_pdf"`
-	Orden         int                    `json:"orden"`
-	Vinculaciones []plantillaVinculacion `json:"vinculaciones"`
+	BloqueID      string                  `json:"bloque_id"`
+	SeccionID     string                  `json:"seccion_id"`
+	TipoBloque    string                  `json:"tipo_bloque"`
+	NombreInterno string                  `json:"nombre_interno"`
+	Titulo        *string                 `json:"titulo"`
+	Contenido     *string                 `json:"contenido"`
+	Columna       int                     `json:"columna"`
+	MostrarWeb    bool                    `json:"mostrar_web"`
+	MostrarPDF    bool                    `json:"mostrar_pdf"`
+	Orden         int                     `json:"orden"`
+	OrigenFilas   string                  `json:"origen_filas"`
+	Vinculaciones []plantillaVinculacion  `json:"vinculaciones"`
+	Condiciones   []plantillaCondicion    `json:"condiciones"`
+	Columnas      []plantillaTablaColumna `json:"columnas"`
+}
+
+// plantillaCondicion es "mostrar este bloque solo si..." (migración 0025,
+// cuarto hueco del documento del jefe) — una por (bloque, calculadora).
+type plantillaCondicion struct {
+	CondicionID      string  `json:"condicion_id"`
+	BloqueID         string  `json:"bloque_id"`
+	CalculadoraID    string  `json:"calculadora_id"`
+	FuenteTipo       string  `json:"fuente_tipo"`
+	FuenteID         string  `json:"fuente_id"`
+	Operador         string  `json:"operador"`
+	ValorComparacion *string `json:"valor_comparacion"`
+}
+
+// plantillaTablaColumna es una columna de un bloque TABLA_INVERSION
+// (migración 0025) — varias por (bloque, calculadora), a diferencia de
+// plantillaVinculacion y plantillaCondicion que son una sola.
+type plantillaTablaColumna struct {
+	ColumnaID     string  `json:"columna_id"`
+	BloqueID      string  `json:"bloque_id"`
+	CalculadoraID string  `json:"calculadora_id"`
+	Titulo        string  `json:"titulo"`
+	FuenteTipo    string  `json:"fuente_tipo"`
+	FuenteID      *string `json:"fuente_id"`
+	Orden         int     `json:"orden"`
 }
 
 type plantillaVinculacion struct {
@@ -415,7 +443,7 @@ func (h *PlantillasHandler) consultarDetalle(ctx context.Context, id string) (*p
 func (h *PlantillasHandler) consultarBloques(ctx context.Context, seccionID string) ([]plantillaBloque, error) {
 	rows, err := h.DB.Query(ctx, `
 		SELECT bloque_id::text, seccion_id::text, tipo_bloque, nombre_interno,
-		       titulo, contenido, columna, mostrar_web, mostrar_pdf, orden
+		       titulo, contenido, columna, mostrar_web, mostrar_pdf, orden, origen_filas
 		  FROM plantilla_bloques WHERE seccion_id::text=$1
 		 ORDER BY orden, bloque_id`, seccionID)
 	if err != nil {
@@ -426,11 +454,13 @@ func (h *PlantillasHandler) consultarBloques(ctx context.Context, seccionID stri
 		var bloque plantillaBloque
 		if err := rows.Scan(&bloque.BloqueID, &bloque.SeccionID, &bloque.TipoBloque,
 			&bloque.NombreInterno, &bloque.Titulo, &bloque.Contenido, &bloque.Columna,
-			&bloque.MostrarWeb, &bloque.MostrarPDF, &bloque.Orden); err != nil {
+			&bloque.MostrarWeb, &bloque.MostrarPDF, &bloque.Orden, &bloque.OrigenFilas); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		bloque.Vinculaciones = make([]plantillaVinculacion, 0)
+		bloque.Condiciones = make([]plantillaCondicion, 0)
+		bloque.Columnas = make([]plantillaTablaColumna, 0)
 		bloques = append(bloques, bloque)
 	}
 	if err := rows.Err(); err != nil {
@@ -459,6 +489,46 @@ func (h *PlantillasHandler) consultarBloques(ctx context.Context, seccionID stri
 			return nil, err
 		}
 		vinculaciones.Close()
+
+		condiciones, err := h.DB.Query(ctx, `
+			SELECT condicion_id::text, bloque_id::text, calculadora_id, fuente_tipo, fuente_id, operador, valor_comparacion
+			  FROM plantilla_bloque_condiciones WHERE bloque_id::text=$1 ORDER BY calculadora_id`, bloques[i].BloqueID)
+		if err != nil {
+			return nil, err
+		}
+		for condiciones.Next() {
+			var c plantillaCondicion
+			if err := condiciones.Scan(&c.CondicionID, &c.BloqueID, &c.CalculadoraID, &c.FuenteTipo, &c.FuenteID, &c.Operador, &c.ValorComparacion); err != nil {
+				condiciones.Close()
+				return nil, err
+			}
+			bloques[i].Condiciones = append(bloques[i].Condiciones, c)
+		}
+		if err := condiciones.Err(); err != nil {
+			condiciones.Close()
+			return nil, err
+		}
+		condiciones.Close()
+
+		columnas, err := h.DB.Query(ctx, `
+			SELECT columna_id::text, bloque_id::text, calculadora_id, titulo, fuente_tipo, fuente_id, orden
+			  FROM plantilla_tabla_columnas WHERE bloque_id::text=$1 ORDER BY calculadora_id, orden`, bloques[i].BloqueID)
+		if err != nil {
+			return nil, err
+		}
+		for columnas.Next() {
+			var c plantillaTablaColumna
+			if err := columnas.Scan(&c.ColumnaID, &c.BloqueID, &c.CalculadoraID, &c.Titulo, &c.FuenteTipo, &c.FuenteID, &c.Orden); err != nil {
+				columnas.Close()
+				return nil, err
+			}
+			bloques[i].Columnas = append(bloques[i].Columnas, c)
+		}
+		if err := columnas.Err(); err != nil {
+			columnas.Close()
+			return nil, err
+		}
+		columnas.Close()
 	}
 	return bloques, nil
 }

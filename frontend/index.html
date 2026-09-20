@@ -914,6 +914,15 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepThree .tpl-mapping-current .btn { min-height:32px; padding:6px 12px; font-size:9px; width:auto; margin:0; }
 #tplStepThree .tpl-mapping-current-empty { display:block; padding:18px; text-align:center; }
 #tplStepThree .tpl-mapping-current-empty p { color:#8491a2; font-size:9px; line-height:1.5; }
+#tplStepThree .tpl-mapping-panel-extra { margin-top:18px; padding-top:18px; border-top:1px solid #e5ebf3; }
+#tplStepThree .tpl-mapping-condition h3 { margin:0 0 10px; color:#0a294f; font-size:11px; font-weight:800; }
+#tplStepThree .tpl-mapping-condition .field.hidden { display:none; }
+#tplStepThree .tpl-inline-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+#tplStepThree .tpl-inline-actions .btn { width:auto; margin:0; }
+#tplStepThree .tpl-inline-action { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+#tplStepThree .tpl-inline-action .input,#tplStepThree .tpl-inline-action .select { flex:1; min-width:150px; margin:0; }
+#tplStepThree .tpl-inline-action .btn { width:auto; margin:0; white-space:nowrap; }
+#tplStepThree #tplColumnasLista .tpl-mapping-current { margin-bottom:8px; padding:10px 12px; }
 #tplStepThree .tpl-source-search { padding:10px 12px; border-bottom:1px solid #e5ebf3; }
 #tplStepThree .tpl-source-search .input { height:33px; padding:6px 10px; border-radius:7px; font-size:9px; }
 #tplStepThree .tpl-available-sources { display:flex; flex-direction:column; gap:12px; min-height:80px; max-height:520px; padding:10px 8px; overflow:auto; }
@@ -7326,18 +7335,28 @@ table tr:last-child td { border-bottom: none; }
   // libre que ya se escribe directamente en el bloque (paso 2, campo
   // "contenido") y no tienen un destino 1 a 1 en el modelo de vinculación
   // del backend (una vinculación es exactamente una fuente por bloque).
+  //
+  // La condición "Mostrar solo si…" es distinta: aplica a CUALQUIER tipo de
+  // bloque (el ejemplo real del documento del jefe es justo un bloque de
+  // TEXTO con un token [CANTIDAD_INTEGRACIONES] que solo debe aparecer si
+  // INTEGRACION_API=Sí), así que bloquesVinculables() lista TODOS los
+  // bloques de la plantilla — el panel de vinculación a una fuente puntual
+  // sigue mostrándose solo para tiposBloqueVinculable, ver renderAvailableSources.
   const tiposBloqueVinculable=["CAMPO_VINCULADO","TABLA_INVERSION"];
 
   function bloquesVinculables(){
     const resultado=[];
     ((estado.wizard.detalle&&estado.wizard.detalle.secciones)||[]).forEach(function(seccion){
       (seccion.bloques||[]).forEach(function(bloque){
-        if(tiposBloqueVinculable.indexOf(bloque.tipo_bloque)>=0){
-          resultado.push({bloque:bloque,seccionNombre:seccion.titulo||seccion.nombre||"Sección"});
-        }
+        resultado.push({bloque:bloque,seccionNombre:seccion.titulo||seccion.nombre||"Sección"});
       });
     });
     return resultado;
+  }
+  function buscarBloqueMapeoActual(){
+    const items=bloquesVinculables();
+    const seleccionado=items.find(function(item){return item.bloque.bloque_id===estado.wizard.mapeo.bloqueId;});
+    return seleccionado?seleccionado.bloque:null;
   }
   function vinculacionParaCotizador(bloque,calculadoraID){
     if(!calculadoraID)return null;
@@ -7401,14 +7420,15 @@ table tr:last-child td { border-bottom: none; }
     const lista=byId("tplMappingBlockList");if(!lista)return;
     const items=bloquesVinculables();
     const calculadoraID=estado.wizard.mapeo.calculadoraID;
-    const vinculados=items.filter(function(item){return !!vinculacionParaCotizador(item.bloque,calculadoraID);}).length;
-    setTexto("tplMappingSummary",vinculados+" de "+items.length+" vinculados");
+    const vinculables=items.filter(function(item){return tiposBloqueVinculable.indexOf(item.bloque.tipo_bloque)>=0;});
+    const vinculados=vinculables.filter(function(item){return !!vinculacionParaCotizador(item.bloque,calculadoraID);}).length;
+    setTexto("tplMappingSummary",vinculados+" de "+vinculables.length+" vinculados");
     if(!items.length){
-      lista.innerHTML='<div class="tpl-mapping-empty">Esta plantilla todavía no tiene bloques de tipo Campo vinculado o Tabla de inversión. Agréguelos en el paso 2.</div>';
+      lista.innerHTML='<div class="tpl-mapping-empty">Esta plantilla todavía no tiene bloques. Agréguelos en el paso 2.</div>';
       return;
     }
     lista.innerHTML=items.map(function(item){
-      const vinculado=!!vinculacionParaCotizador(item.bloque,calculadoraID);
+      const vinculado=!!vinculacionParaCotizador(item.bloque,calculadoraID)||!!condicionParaCotizador(item.bloque,calculadoraID);
       const activo=estado.wizard.mapeo.bloqueId===item.bloque.bloque_id;
       return '<button class="tpl-mapping-block-item '+(activo?'selected':'')+' '+(vinculado?'linked':'unlinked')+'" type="button" data-bloque-id="'+escapar(item.bloque.bloque_id)+'">'+
         '<span class="tpl-mapping-block-status">'+(vinculado?'✓':'○')+'</span>'+
@@ -7437,13 +7457,228 @@ table tr:last-child td { border-bottom: none; }
     setTexto("tplMappingBlockTitle",seleccionado.bloque.titulo||seleccionado.bloque.nombre_interno||"Bloque");
     setTexto("tplMappingBlockType",etiquetaTipoBloque(seleccionado.bloque.tipo_bloque)+" · "+seleccionado.seccionNombre);
     if(!campo)return;
-    const vinculacion=vinculacionParaCotizador(seleccionado.bloque,estado.wizard.mapeo.calculadoraID);
-    if(vinculacion){
-      const nombre=nombreFuente(vinculacion.fuente_tipo,vinculacion.fuente_id);
-      campo.innerHTML='<div class="tpl-mapping-current"><div><span>Vinculado a</span><strong>'+escapar(nombre)+'</strong><small>'+(vinculacion.fuente_tipo==="CAMPO"?"Campo del cotizador":"Dato de la cotización")+'</small></div><button id="tplBtnQuitarVinculacion" class="btn tpl-btn-danger" type="button">Quitar vinculación</button></div>';
-      const boton=byId("tplBtnQuitarVinculacion");if(boton)boton.addEventListener("click",quitarVinculacionActual);
-    }else{
-      campo.innerHTML='<div class="tpl-mapping-current tpl-mapping-current-empty"><p>Este bloque todavía no está vinculado. Elija una fuente en el panel derecho.</p></div>';
+    let html="";
+    if(tiposBloqueVinculable.indexOf(seleccionado.bloque.tipo_bloque)>=0){
+      const vinculacion=vinculacionParaCotizador(seleccionado.bloque,estado.wizard.mapeo.calculadoraID);
+      html+=vinculacion
+        ? '<div class="tpl-mapping-current"><div><span>Vinculado a</span><strong>'+escapar(nombreFuente(vinculacion.fuente_tipo,vinculacion.fuente_id))+'</strong><small>'+(vinculacion.fuente_tipo==="CAMPO"?"Campo del cotizador":"Dato de la cotización")+'</small></div><button id="tplBtnQuitarVinculacion" class="btn tpl-btn-danger" type="button">Quitar vinculación</button></div>'
+        : '<div class="tpl-mapping-current tpl-mapping-current-empty"><p>Este bloque todavía no está vinculado. Elija una fuente en el panel derecho.</p></div>';
+    }
+    html+=renderPanelCondicionBloque(seleccionado.bloque);
+    if(seleccionado.bloque.tipo_bloque==="TABLA_INVERSION"){
+      html+=renderPanelOrigenFilas(seleccionado.bloque);
+      if((seleccionado.bloque.origen_filas||"FIJO")==="OPCIONES_PROPUESTA")html+=renderPanelColumnasTabla(seleccionado.bloque);
+    }
+    campo.innerHTML=html;
+    const botonQuitarVinculacion=byId("tplBtnQuitarVinculacion");if(botonQuitarVinculacion)botonQuitarVinculacion.addEventListener("click",quitarVinculacionActual);
+    bindPanelCondicionBloque();
+    if(seleccionado.bloque.tipo_bloque==="TABLA_INVERSION"){
+      bindPanelOrigenFilas(seleccionado.bloque);
+      if((seleccionado.bloque.origen_filas||"FIJO")==="OPCIONES_PROPUESTA")bindPanelColumnasTabla(seleccionado.bloque);
+    }
+  }
+  // ---------- "Mostrar solo si…" (condición de bloque, cuarto hueco) ----------
+  const operadoresCondicionPlantilla=[
+    {valor:"IGUAL_A",texto:"Es igual a"},{valor:"DISTINTO_DE",texto:"Es distinto de"},
+    {valor:"MAYOR_QUE",texto:"Es mayor que"},{valor:"MENOR_QUE",texto:"Es menor que"},
+    {valor:"MAYOR_O_IGUAL_QUE",texto:"Es mayor o igual que"},{valor:"MENOR_O_IGUAL_QUE",texto:"Es menor o igual que"},
+    {valor:"ESTA_VACIO",texto:"Está vacío"},{valor:"NO_ESTA_VACIO",texto:"No está vacío"}
+  ];
+  const operadoresCondicionSinValor=["ESTA_VACIO","NO_ESTA_VACIO"];
+  function condicionParaCotizador(bloque,calculadoraID){
+    if(!calculadoraID)return null;
+    return (bloque.condiciones||[]).find(function(c){return c.calculadora_id===calculadoraID;})||null;
+  }
+  function renderPanelCondicionBloque(bloque){
+    const actual=condicionParaCotizador(bloque,estado.wizard.mapeo.calculadoraID);
+    const fuenteTipo=actual?actual.fuente_tipo:"";
+    return '<div class="tpl-mapping-condition tpl-mapping-panel-extra">'+
+      '<h3>Mostrar este bloque solo si…</h3>'+
+      '<div class="field"><label for="tplCondFuenteTipo">Condición</label><select id="tplCondFuenteTipo" class="select">'+
+        '<option value=""'+(fuenteTipo?"":" selected")+'>Sin condición (siempre visible)</option>'+
+        '<option value="CAMPO"'+(fuenteTipo==="CAMPO"?" selected":"")+'>Campo del cotizador</option>'+
+        '<option value="COTIZACION_BASE"'+(fuenteTipo==="COTIZACION_BASE"?" selected":"")+'>Dato de la cotización</option>'+
+      '</select></div>'+
+      '<div class="field'+(fuenteTipo?"":" hidden")+'" id="tplCondFuenteIDBox"><label for="tplCondFuenteID">Campo o dato</label><select id="tplCondFuenteID" class="select"></select></div>'+
+      '<div class="field'+(fuenteTipo?"":" hidden")+'" id="tplCondOperadorBox"><label for="tplCondOperador">Operador</label><select id="tplCondOperador" class="select">'+
+        operadoresCondicionPlantilla.map(function(op){return '<option value="'+op.valor+'"'+(actual&&actual.operador===op.valor?" selected":"")+'>'+op.texto+'</option>';}).join("")+
+      '</select></div>'+
+      '<div class="field'+(fuenteTipo&&operadoresCondicionSinValor.indexOf(actual&&actual.operador)<0?"":" hidden")+'" id="tplCondValorBox"><label for="tplCondValor">Valor de comparación</label><input id="tplCondValor" class="input" type="text" value="'+escapar((actual&&actual.valor_comparacion)||"")+'"></div>'+
+      '<div class="tpl-inline-actions">'+
+        '<button id="tplBtnGuardarCondicion" class="btn btn-primary btn-mini" type="button">Guardar condición</button>'+
+        (actual?'<button id="tplBtnQuitarCondicion" class="btn tpl-btn-danger btn-mini" type="button">Quitar condición</button>':'')+
+      '</div></div>';
+  }
+  function poblarSelectCondicionFuenteID(fuenteTipo,valorActual){
+    const select=byId("tplCondFuenteID");if(!select)return;
+    const lista=fuenteTipo==="CAMPO"?estado.wizard.mapeo.campos:(fuenteTipo==="COTIZACION_BASE"?estado.wizard.mapeo.datosCotizacion:[]);
+    select.innerHTML=(lista||[]).map(function(f){return '<option value="'+escapar(f.fuente_id)+'">'+escapar(f.nombre)+'</option>';}).join("");
+    if(valorActual)select.value=valorActual;
+  }
+  function actualizarVisibilidadCondicion(){
+    const tipoSelect=byId("tplCondFuenteTipo");if(!tipoSelect)return;
+    const activo=!!tipoSelect.value;
+    const fuenteBox=byId("tplCondFuenteIDBox"),operadorBox=byId("tplCondOperadorBox");
+    if(fuenteBox)fuenteBox.classList.toggle("hidden",!activo);
+    if(operadorBox)operadorBox.classList.toggle("hidden",!activo);
+    const operador=byId("tplCondOperador")?byId("tplCondOperador").value:"";
+    const valorBox=byId("tplCondValorBox");
+    if(valorBox)valorBox.classList.toggle("hidden",!activo||operadoresCondicionSinValor.indexOf(operador)>=0);
+  }
+  function bindPanelCondicionBloque(){
+    const tipoSelect=byId("tplCondFuenteTipo");if(!tipoSelect)return;
+    const actual=condicionParaCotizador(buscarBloqueMapeoActual(),estado.wizard.mapeo.calculadoraID);
+    poblarSelectCondicionFuenteID(tipoSelect.value,actual?actual.fuente_id:"");
+    tipoSelect.addEventListener("change",function(){poblarSelectCondicionFuenteID(tipoSelect.value,"");actualizarVisibilidadCondicion();});
+    const operadorSelect=byId("tplCondOperador");if(operadorSelect)operadorSelect.addEventListener("change",actualizarVisibilidadCondicion);
+    const btnGuardar=byId("tplBtnGuardarCondicion");if(btnGuardar)btnGuardar.addEventListener("click",guardarCondicionActual);
+    const btnQuitar=byId("tplBtnQuitarCondicion");if(btnQuitar)btnQuitar.addEventListener("click",quitarCondicionActual);
+  }
+  async function guardarCondicionActual(){
+    const bloqueID=estado.wizard.mapeo.bloqueId,calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!bloqueID||!calculadoraID)return;
+    const fuenteTipo=byId("tplCondFuenteTipo").value;
+    if(!fuenteTipo){await quitarCondicionActual();return;}
+    const fuenteID=byId("tplCondFuenteID").value;
+    const operador=byId("tplCondOperador").value;
+    const valorComparacion=byId("tplCondValor").value.trim();
+    if(!fuenteID){toast("Seleccione un campo o dato para la condición.");return;}
+    if(operadoresCondicionSinValor.indexOf(operador)<0&&!valorComparacion){toast("Ingrese un valor de comparación.");return;}
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID)+"/condicion",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({calculadora_id:calculadoraID,fuente_tipo:fuenteTipo,fuente_id:fuenteID,operador:operador,valor_comparacion:valorComparacion})});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingBlockList();renderMappingFields();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Condición guardada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible guardar la condición.");
+    }
+  }
+  async function quitarCondicionActual(){
+    const bloqueID=estado.wizard.mapeo.bloqueId,calculadoraID=estado.wizard.mapeo.calculadoraID;
+    if(!bloqueID||!calculadoraID)return;
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID)+"/condicion?calculadora_id="+encodeURIComponent(calculadoraID),{method:"DELETE"});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingBlockList();renderMappingFields();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Condición eliminada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible eliminar la condición.");
+    }
+  }
+  // ---------- Origen de las filas + columnas de TABLA_INVERSION ----------
+  function renderPanelOrigenFilas(bloque){
+    const origen=bloque.origen_filas||"FIJO";
+    return '<div class="tpl-mapping-condition tpl-mapping-panel-extra">'+
+      '<h3>Origen de las filas</h3>'+
+      '<div class="field"><select id="tplOrigenFilas" class="select">'+
+        '<option value="FIJO"'+(origen==="FIJO"?" selected":"")+'>Fijo (una sola fila)</option>'+
+        '<option value="OPCIONES_PROPUESTA"'+(origen==="OPCIONES_PROPUESTA"?" selected":"")+'>Una por cada Opción de Propuesta</option>'+
+      '</select></div></div>';
+  }
+  function bindPanelOrigenFilas(bloque){
+    const select=byId("tplOrigenFilas");if(!select)return;
+    select.addEventListener("change",function(){guardarOrigenFilas(bloque.bloque_id,select.value);});
+  }
+  async function guardarOrigenFilas(bloqueID,origenFilas){
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({origen_filas:origenFilas})});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingFields();
+      cambiarEstadoMapeo("Guardado");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible actualizar el origen de las filas.");
+    }
+  }
+  function columnasParaCotizador(bloque,calculadoraID){
+    if(!calculadoraID)return [];
+    return (bloque.columnas||[]).filter(function(c){return c.calculadora_id===calculadoraID;}).sort(function(a,b){return a.orden-b.orden;});
+  }
+  function etiquetaFuenteColumna(columna){
+    if(columna.fuente_tipo==="NOMBRE_ESCENARIO")return "Nombre del escenario";
+    if(columna.fuente_tipo==="ES_RECOMENDADA")return "Recomendada (Sí/No)";
+    return nombreFuente(columna.fuente_tipo,columna.fuente_id);
+  }
+  function renderPanelColumnasTabla(bloque){
+    const columnas=columnasParaCotizador(bloque,estado.wizard.mapeo.calculadoraID);
+    return '<div class="tpl-mapping-condition tpl-mapping-panel-extra">'+
+      '<h3>Columnas (Concepto, Implementación, Mensualidad, Recomendada…)</h3>'+
+      '<div id="tplColumnasLista">'+(columnas.length?columnas.map(filaColumnaTabla).join(""):'<p class="tpl-mapping-current-empty">Todavía no hay columnas.</p>')+'</div>'+
+      '<div class="tpl-inline-action">'+
+        '<input id="tplNuevaColumnaTitulo" class="input" type="text" placeholder="Título de columna, ej. Mensualidad">'+
+        '<select id="tplNuevaColumnaTipo" class="select">'+
+          '<option value="CAMPO">Campo del cotizador</option>'+
+          '<option value="COTIZACION_BASE">Dato de la cotización</option>'+
+          '<option value="NOMBRE_ESCENARIO">Nombre del escenario</option>'+
+          '<option value="ES_RECOMENDADA">Recomendada (Sí/No)</option>'+
+        '</select>'+
+        '<select id="tplNuevaColumnaFuenteID" class="select"></select>'+
+        '<button id="tplBtnAgregarColumna" class="btn btn-primary btn-mini" type="button">Agregar columna</button>'+
+      '</div></div>';
+  }
+  function filaColumnaTabla(columna){
+    return '<div class="tpl-mapping-current" data-columna-id="'+escapar(columna.columna_id)+'">'+
+      '<div><span>'+escapar(columna.titulo)+'</span><small>'+escapar(etiquetaFuenteColumna(columna))+'</small></div>'+
+      '<button class="btn tpl-btn-danger btn-mini" type="button" data-quitar-columna="'+escapar(columna.columna_id)+'">Quitar</button>'+
+    '</div>';
+  }
+  function bindPanelColumnasTabla(bloque){
+    const tipoSelect=byId("tplNuevaColumnaTipo");if(!tipoSelect)return;
+    const actualizarFuenteID=function(){
+      const fuenteBox=byId("tplNuevaColumnaFuenteID");if(!fuenteBox)return;
+      const tipo=tipoSelect.value;
+      if(tipo==="NOMBRE_ESCENARIO"||tipo==="ES_RECOMENDADA"){fuenteBox.innerHTML="";fuenteBox.classList.add("hidden");return;}
+      fuenteBox.classList.remove("hidden");
+      const lista=tipo==="CAMPO"?estado.wizard.mapeo.campos:estado.wizard.mapeo.datosCotizacion;
+      fuenteBox.innerHTML=(lista||[]).map(function(f){return '<option value="'+escapar(f.fuente_id)+'">'+escapar(f.nombre)+'</option>';}).join("");
+    };
+    tipoSelect.addEventListener("change",actualizarFuenteID);
+    actualizarFuenteID();
+    const boton=byId("tplBtnAgregarColumna");if(boton)boton.addEventListener("click",function(){agregarColumnaTabla(bloque.bloque_id);});
+    const lista=byId("tplColumnasLista");
+    if(lista)lista.addEventListener("click",function(evento){
+      const btn=evento.target.closest("[data-quitar-columna]");if(!btn)return;
+      quitarColumnaTabla(btn.dataset.quitarColumna);
+    });
+  }
+  async function agregarColumnaTabla(bloqueID){
+    const calculadoraID=estado.wizard.mapeo.calculadoraID;
+    const titulo=byId("tplNuevaColumnaTitulo").value.trim();
+    const fuenteTipo=byId("tplNuevaColumnaTipo").value;
+    const fuenteBox=byId("tplNuevaColumnaFuenteID");
+    const fuenteID=fuenteBox&&!fuenteBox.classList.contains("hidden")?fuenteBox.value:"";
+    if(!titulo){toast("Ingrese un título de columna.");return;}
+    if((fuenteTipo==="CAMPO"||fuenteTipo==="COTIZACION_BASE")&&!fuenteID){toast("Seleccione la fuente de la columna.");return;}
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloqueID)+"/columnas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({calculadora_id:calculadoraID,titulo:titulo,fuente_tipo:fuenteTipo,fuente_id:fuenteID})});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingFields();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Columna creada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible crear la columna.");
+    }
+  }
+  async function quitarColumnaTabla(columnaID){
+    cambiarEstadoMapeo("Guardando...");
+    try{
+      const data=await solicitarJSON("/api/plantillas/columnas/"+encodeURIComponent(columnaID),{method:"DELETE"});
+      estado.wizard.detalle=await obtenerDetalle(estado.wizard.plantillaId);
+      renderMappingFields();
+      cambiarEstadoMapeo("Guardado");
+      toast(data.mensaje||"Columna eliminada.");
+    }catch(error){
+      cambiarEstadoMapeo("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible eliminar la columna.");
     }
   }
   function nombreFuente(fuenteTipo,fuenteID){
@@ -7466,6 +7701,11 @@ table tr:last-child td { border-bottom: none; }
     const contenedor=byId("tplAvailableSources");if(!contenedor)return;
     if(!estado.wizard.mapeo.bloqueId){
       contenedor.innerHTML='<div class="tpl-source-empty">Seleccione un bloque a la izquierda para vincular una fuente.</div>';
+      return;
+    }
+    const bloqueActual=buscarBloqueMapeoActual();
+    if(!bloqueActual||tiposBloqueVinculable.indexOf(bloqueActual.tipo_bloque)<0){
+      contenedor.innerHTML='<div class="tpl-source-empty">Este tipo de bloque no se vincula a una fuente puntual. Use el panel central para configurar su condición.</div>';
       return;
     }
     const termino=normalizarBusquedaFuente(estado.wizard.mapeo.busqueda);

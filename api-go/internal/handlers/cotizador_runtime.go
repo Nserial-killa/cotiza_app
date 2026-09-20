@@ -384,7 +384,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		err = insertarHistorial(ctx, tx, cotizacionID, &req.Version, "valores_actualizados", nil, nil, comentario, usuarioID)
 	}
 	if err == nil {
-		err = h.actualizarTotalesCotizacionVersion(ctx, tx, runtime.Estructura, cotizacionID, req.Version)
+		err = h.actualizarTotalesCotizacionVersion(ctx, tx, runtime.Estructura, runtime.Elementos, cotizacionID, req.Version)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
@@ -1091,21 +1091,68 @@ var columnaPorFuncionCampo = map[string]string{
 // numeroDesdeValor antes de guardar.
 var columnasFuncionCampoTexto = map[string]bool{"moneda": true}
 
+// valorColumnaFuncionCampo convierte el valor crudo de un elemento con
+// funcion_campo al tipo que espera su columna (texto para moneda, número
+// para el resto) — compartido entre el destino cotizacion_versiones y el
+// destino cotizacion_opciones (migración 0026). Un valor sin resolver
+// (operando faltante, ciclo, texto no numérico) da ok=false: no es un error
+// de la petición, simplemente esa columna no se actualiza esta vez.
+func valorColumnaFuncionCampo(columna string, valorCrudo any) (any, bool) {
+	if valorCrudo == nil {
+		return nil, false
+	}
+	if columnasFuncionCampoTexto[columna] {
+		texto := strings.TrimSpace(fmt.Sprint(valorCrudo))
+		if texto == "" {
+			return nil, false
+		}
+		return texto, true
+	}
+	return numeroDesdeValor(valorCrudo)
+}
+
 // actualizarTotalesCotizacionVersion recorre la estructura buscando
-// elementos con funcion_campo distinto de NORMAL, resuelve su valor (el ya
-// calculado de resolverCamposCalculados para CAMPO_CALCULADO, o el valor
-// crudo recién guardado para CAMPO/CAMPO_CATALOGO) y actualiza la columna
-// correspondiente de cotizacion_versiones — en la misma transacción que
-// GuardarValores usa para los valores, así ambos quedan atómicos. Un valor
-// sin resolver (operando faltante, ciclo, texto no numérico) simplemente no
-// actualiza esa columna esta vez; no es un error de la petición.
-func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context.Context, tx pgx.Tx, estructura map[string]any, cotizacionID string, version int) error {
+// elementos con funcion_campo distinto de NORMAL y actualiza la columna
+// correspondiente — en la misma transacción que GuardarValores usa para los
+// valores, así todo queda atómico.
+//
+// Un elemento con funcion_campo puede vivir en dos lugares distintos:
+//
+//   - Global (metadatos[id].PadreOpcionesID == ""): un único valor por
+//     versión, va a la columna de cotizacion_versiones de siempre.
+//   - Anidado bajo Opciones de Propuesta: su valor guardado es un mapa
+//     opcion_id -> valor (mismo que resolverCamposCalculadosPorOpcion ya usa
+//     para la vista del Motor de Ejecución), y cada opción tiene SU PROPIO
+//     total — no cabe una sola cifra en cotizacion_versiones (que es una
+//     fila por versión, no por escenario). Antes de la migración 0026 este
+//     caso no tenía ningún manejo: el valor llegaba como mapa donde se
+//     esperaba un escalar y actualizarColumnaCotizacionVersion simplemente
+//     no encontraba nada que guardar — ni tomaba la primera opción, ni
+//     sumaba, ni daba error, quedaba en silencio. Ahora se resuelve y
+//     persiste por opción, en las columnas homónimas de cotizacion_opciones.
+//
+// padre["opciones"] no llega poblado acá (a diferencia de Obtener, que sí
+// llama asegurarOpcionesPropuesta antes) — se completa de una vez, de solo
+// lectura, con la misma consulta que usa esa función.
+func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context.Context, tx pgx.Tx, estructura map[string]any, metadatos map[string]elementoRuntime, cotizacionID string, version int) error {
 	valores, err := h.leerValores(ctx, tx, cotizacionID, version)
 	if err != nil {
 		return err
 	}
 	elementosPorID := indexarElementosCompletoRuntime(estructura)
 	resolverCamposCalculados(elementosPorID, valores)
+
+	for padreID, padre := range elementosPorID {
+		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(padre["tipo"]))) != "OPCIONES_PROPUESTA" {
+			continue
+		}
+		opciones, err := listarOpcionesPropuesta(ctx, tx, cotizacionID, version, padreID)
+		if err != nil {
+			return err
+		}
+		padre["opciones"] = opciones
+	}
+	resolverCamposCalculadosPorOpcion(elementosPorID, metadatos, valores)
 
 	for id, elemento := range elementosPorID {
 		funcion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["funcion_campo"])))
@@ -1116,32 +1163,40 @@ func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context
 		if !ok {
 			continue
 		}
-		var valorCrudo any
 		tipoElemento := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"])))
-		if tipoElemento == "CAMPO_CALCULADO" || tipoElemento == "LISTA_PRECIOS" {
-			valorCrudo = elemento["valor_resuelto"]
-		} else {
-			valorCrudo = valores[id]
-		}
-		if valorCrudo == nil {
-			continue
-		}
-		if columnasFuncionCampoTexto[columna] {
-			texto := strings.TrimSpace(fmt.Sprint(valorCrudo))
-			if texto == "" {
+		esResuelto := tipoElemento == "CAMPO_CALCULADO" || tipoElemento == "LISTA_PRECIOS" || tipoElemento == "TABLA"
+
+		if metadatos[id].PadreOpcionesID == "" {
+			var valorCrudo any
+			if esResuelto {
+				valorCrudo = elemento["valor_resuelto"]
+			} else {
+				valorCrudo = valores[id]
+			}
+			valor, ok := valorColumnaFuncionCampo(columna, valorCrudo)
+			if !ok {
 				continue
 			}
-			if err := actualizarColumnaCotizacionVersion(ctx, tx, cotizacionID, version, columna, texto); err != nil {
+			if err := actualizarColumnaCotizacionVersion(ctx, tx, cotizacionID, version, columna, valor); err != nil {
 				return err
 			}
 			continue
 		}
-		numero, ok := numeroDesdeValor(valorCrudo)
-		if !ok {
-			continue
+
+		var porOpcion map[string]any
+		if esResuelto {
+			porOpcion, _ = elemento["valores_resueltos_por_opcion"].(map[string]any)
+		} else {
+			porOpcion, _ = valores[id].(map[string]any)
 		}
-		if err := actualizarColumnaCotizacionVersion(ctx, tx, cotizacionID, version, columna, numero); err != nil {
-			return err
+		for opcionID, valorCrudo := range porOpcion {
+			valor, ok := valorColumnaFuncionCampo(columna, valorCrudo)
+			if !ok {
+				continue
+			}
+			if err := actualizarColumnaCotizacionOpcion(ctx, tx, opcionID, columna, valor); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1173,6 +1228,35 @@ func actualizarColumnaCotizacionVersion(ctx context.Context, tx pgx.Tx, cotizaci
 		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET descuento=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
 	case "impuestos":
 		_, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET impuestos=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version, valor)
+	}
+	return err
+}
+
+// actualizarColumnaCotizacionOpcion es el equivalente de
+// actualizarColumnaCotizacionVersion para un elemento con funcion_campo
+// anidado bajo Opciones de Propuesta (migración 0026) — mismo criterio de
+// switch con columnas literales, nunca interpoladas.
+func actualizarColumnaCotizacionOpcion(ctx context.Context, tx pgx.Tx, opcionID string, columna string, valor any) error {
+	var err error
+	switch columna {
+	case "total_precio":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET total_precio=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "total_costo":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET total_costo=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "total_ganancia":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET total_ganancia=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "margen_total":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET margen_total=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "moneda":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET moneda=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "tipo_cambio":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET tipo_cambio=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "subtotal":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET subtotal=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "descuento":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET descuento=$2 WHERE opcion_id=$1`, opcionID, valor)
+	case "impuestos":
+		_, err = tx.Exec(ctx, `UPDATE cotizacion_opciones SET impuestos=$2 WHERE opcion_id=$1`, opcionID, valor)
 	}
 	return err
 }

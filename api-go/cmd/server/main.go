@@ -69,6 +69,8 @@ func main() {
 	plantillas := &handlers.PlantillasHandler{DB: pool}
 	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
 	plantillaVinculaciones := &handlers.PlantillaVinculacionesHandler{DB: pool}
+	plantillaCondiciones := &handlers.PlantillaCondicionesHandler{DB: pool}
+	plantillaTablaColumnas := &handlers.PlantillaTablaColumnasHandler{DB: pool}
 	plantillaEstilo := &handlers.PlantillaEstiloHandler{DB: pool}
 	integraciones := &handlers.IntegracionesHandler{DB: pool}
 	solicitudes := &handlers.SolicitudesHandler{DB: pool, Cotizaciones: cotizaciones}
@@ -156,6 +158,12 @@ func main() {
 				r.Get("/{id}/fuentes", plantillaVinculaciones.Fuentes)
 				r.Post("/bloques/{bloque_id}/vinculacion", plantillaVinculaciones.Guardar)
 				r.Delete("/bloques/{bloque_id}/vinculacion", plantillaVinculaciones.Eliminar)
+				r.Post("/bloques/{bloque_id}/condicion", plantillaCondiciones.Guardar)
+				r.Delete("/bloques/{bloque_id}/condicion", plantillaCondiciones.Eliminar)
+				r.Post("/bloques/{bloque_id}/columnas", plantillaTablaColumnas.Agregar)
+				r.Patch("/columnas/{columna_id}", plantillaTablaColumnas.Editar)
+				r.Delete("/columnas/{columna_id}", plantillaTablaColumnas.Eliminar)
+				r.Post("/bloques/{bloque_id}/columnas/orden", plantillaTablaColumnas.Ordenar)
 				r.Patch("/{id}/estilo", plantillaEstilo.Actualizar)
 			})
 

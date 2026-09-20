@@ -906,6 +906,15 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepThree .tpl-mapping-current .btn { min-height:32px; padding:6px 12px; font-size:9px; width:auto; margin:0; }
 #tplStepThree .tpl-mapping-current-empty { display:block; padding:18px; text-align:center; }
 #tplStepThree .tpl-mapping-current-empty p { color:#8491a2; font-size:9px; line-height:1.5; }
+#tplStepThree .tpl-mapping-panel-extra { margin-top:18px; padding-top:18px; border-top:1px solid #e5ebf3; }
+#tplStepThree .tpl-mapping-condition h3 { margin:0 0 10px; color:#0a294f; font-size:11px; font-weight:800; }
+#tplStepThree .tpl-mapping-condition .field.hidden { display:none; }
+#tplStepThree .tpl-inline-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+#tplStepThree .tpl-inline-actions .btn { width:auto; margin:0; }
+#tplStepThree .tpl-inline-action { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+#tplStepThree .tpl-inline-action .input,#tplStepThree .tpl-inline-action .select { flex:1; min-width:150px; margin:0; }
+#tplStepThree .tpl-inline-action .btn { width:auto; margin:0; white-space:nowrap; }
+#tplStepThree #tplColumnasLista .tpl-mapping-current { margin-bottom:8px; padding:10px 12px; }
 #tplStepThree .tpl-source-search { padding:10px 12px; border-bottom:1px solid #e5ebf3; }
 #tplStepThree .tpl-source-search .input { height:33px; padding:6px 10px; border-radius:7px; font-size:9px; }
 #tplStepThree .tpl-available-sources { display:flex; flex-direction:column; gap:12px; min-height:80px; max-height:520px; padding:10px 8px; overflow:auto; }

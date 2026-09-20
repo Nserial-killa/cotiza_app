@@ -54,10 +54,9 @@ var idsCotizacionBase = func() map[string]bool {
 	return resultado
 }()
 
-// Fuentes devuelve campos activos del Diseñador y los datos base comunes.
-// Las "salidas especiales" (resultados calculados por fórmula) no se ofrecen
-// todavía porque el sistema no persiste ningún dato de ese tipo; cuando exista
-// una fuente real para ellas se podrá agregar aquí sin inventar valores.
+// Fuentes devuelve campos activos del Diseñador (incluidos Campo Calculado,
+// Lista de Precios y Tabla — plantilla_renderizador.go ya sabe resolver su
+// valor_resuelto) y los datos base comunes.
 func (h *PlantillaVinculacionesHandler) Fuentes(w http.ResponseWriter, r *http.Request) {
 	plantillaID := strings.TrimSpace(chi.URLParam(r, "id"))
 	calculadoraID := strings.TrimSpace(r.URL.Query().Get("calculadora_id"))
@@ -92,7 +91,7 @@ func (h *PlantillaVinculacionesHandler) Fuentes(w http.ResponseWriter, r *http.R
 		  FROM tabs_cotizador t
 		  JOIN elementos_tab_cotizador e ON e.tab_id=t.tab_id
 		 WHERE t.calculadora_id=$1 AND t.activo=true AND e.activo=true
-		   AND e.tipo IN ('CAMPO','CAMPO_CATALOGO')
+		   AND e.tipo IN ('CAMPO','CAMPO_CATALOGO','CAMPO_CALCULADO','LISTA_PRECIOS','TABLA')
 		 ORDER BY t.orden, e.orden, e.elemento_id`, calculadoraID)
 	if err != nil {
 		responderErrorVinculacion(w, "consultar las fuentes", err)
@@ -194,19 +193,7 @@ func (h *PlantillaVinculacionesHandler) Guardar(w http.ResponseWriter, r *http.R
 }
 
 func (h *PlantillaVinculacionesHandler) fuenteValida(ctx context.Context, req guardarVinculacionRequest) (bool, error) {
-	if req.FuenteTipo == "COTIZACION_BASE" {
-		return idsCotizacionBase[req.FuenteID], nil
-	}
-	var existe bool
-	err := h.DB.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM elementos_tab_cotizador e
-			JOIN tabs_cotizador t ON t.tab_id=e.tab_id
-			WHERE e.elemento_id=$1 AND t.calculadora_id=$2
-			  AND t.activo=true AND e.activo=true
-			  AND e.tipo IN ('CAMPO','CAMPO_CATALOGO'))`,
-		req.FuenteID, req.CalculadoraID).Scan(&existe)
-	return existe, err
+	return fuenteCondicionValida(ctx, h.DB, req.FuenteTipo, req.FuenteID, req.CalculadoraID)
 }
 
 func (h *PlantillaVinculacionesHandler) Eliminar(w http.ResponseWriter, r *http.Request) {

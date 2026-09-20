@@ -51,6 +51,7 @@ type crearBloqueRequest struct {
 	Columna       int    `json:"columna"`
 	MostrarWeb    *bool  `json:"mostrar_web"`
 	MostrarPDF    *bool  `json:"mostrar_pdf"`
+	OrigenFilas   string `json:"origen_filas"`
 }
 
 type editarBloqueRequest struct {
@@ -61,7 +62,15 @@ type editarBloqueRequest struct {
 	Columna       *int    `json:"columna"`
 	MostrarWeb    *bool   `json:"mostrar_web"`
 	MostrarPDF    *bool   `json:"mostrar_pdf"`
+	OrigenFilas   *string `json:"origen_filas"`
 }
+
+// origenesFilasBloque son los dos orígenes de fila de un TABLA_INVERSION
+// (migración 0025): FIJO (una sola fila) u OPCIONES_PROPUESTA (una fila por
+// cada Opción de Propuesta de la cotización, ver plantilla_renderizador.go).
+// Se guarda igual en cualquier otro tipo_bloque, donde simplemente no se usa
+// — no vale la pena una columna nullable solo para un tipo de bloque.
+var origenesFilasBloque = map[string]bool{"FIJO": true, "OPCIONES_PROPUESTA": true}
 
 var visibilidadesSeccion = map[string]bool{"SIEMPRE": true, "CONDICIONAL": true}
 var disenosBloquesSeccion = map[string]bool{
@@ -259,12 +268,20 @@ func (h *PlantillaEstructuraHandler) CrearBloque(w http.ResponseWriter, r *http.
 	req.NombreInterno = strings.TrimSpace(req.NombreInterno)
 	req.Titulo = strings.TrimSpace(req.Titulo)
 	req.Contenido = strings.TrimSpace(req.Contenido)
+	req.OrigenFilas = strings.ToUpper(strings.TrimSpace(req.OrigenFilas))
+	if req.OrigenFilas == "" {
+		req.OrigenFilas = "FIJO"
+	}
 	if seccionID == "" || req.TipoBloque == "" || req.NombreInterno == "" {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar sección, tipo_bloque y nombre_interno."})
 		return
 	}
 	if req.Columna < 0 || req.Columna > 3 {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "columna debe estar entre 0 y 3."})
+		return
+	}
+	if !origenesFilasBloque[req.OrigenFilas] {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "origen_filas debe ser FIJO u OPCIONES_PROPUESTA."})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
@@ -282,12 +299,12 @@ func (h *PlantillaEstructuraHandler) CrearBloque(w http.ResponseWriter, r *http.
 	var orden int
 	err := h.DB.QueryRow(ctx, `
 		INSERT INTO plantilla_bloques
-			(seccion_id,tipo_bloque,nombre_interno,titulo,contenido,columna,mostrar_web,mostrar_pdf,orden)
-		SELECT $1::uuid,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,$7,$8,COALESCE(MAX(orden),-1)+1
+			(seccion_id,tipo_bloque,nombre_interno,titulo,contenido,columna,mostrar_web,mostrar_pdf,orden,origen_filas)
+		SELECT $1::uuid,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,$7,$8,COALESCE(MAX(orden),-1)+1,$9
 		  FROM plantilla_bloques WHERE seccion_id=$1::uuid
 		RETURNING bloque_id::text, orden`, seccionID, req.TipoBloque, req.NombreInterno,
 		req.Titulo, req.Contenido, req.Columna, boolPredeterminado(req.MostrarWeb, true),
-		boolPredeterminado(req.MostrarPDF, true)).Scan(&bloqueID, &orden)
+		boolPredeterminado(req.MostrarPDF, true), req.OrigenFilas).Scan(&bloqueID, &orden)
 	if err != nil {
 		responderErrorEstructura(w, "crear el bloque", err)
 		return
@@ -342,6 +359,14 @@ func (h *PlantillaEstructuraHandler) EditarBloque(w http.ResponseWriter, r *http
 	}
 	if req.MostrarPDF != nil {
 		agregar("mostrar_pdf", *req.MostrarPDF)
+	}
+	if req.OrigenFilas != nil {
+		v := strings.ToUpper(strings.TrimSpace(*req.OrigenFilas))
+		if !origenesFilasBloque[v] {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "origen_filas debe ser FIJO u OPCIONES_PROPUESTA."})
+			return
+		}
+		agregar("origen_filas", v)
 	}
 	if len(columnas) == 0 {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar al menos una propiedad para editar."})

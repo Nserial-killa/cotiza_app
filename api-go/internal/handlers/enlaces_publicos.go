@@ -245,6 +245,20 @@ func (h *EnlacesPublicosHandler) VerCotizacion(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Si el cotizador tiene una plantilla Publicada que aplique, la
+	// propuesta se arma con ella (secciones/bloques/condiciones/tabla de
+	// escenarios — ver plantilla_renderizador.go). Sin una, se sigue
+	// mostrando "tabs" (las secciones crudas del cotizador) como hasta
+	// ahora: no todo cotizador tiene todavía una plantilla armada, y eso no
+	// es un error. Un error real al intentar renderizar la plantilla SÍ
+	// tira 500 — a diferencia de "no hay plantilla", que es silencioso.
+	plantilla, err := renderizarPlantillaCotizacion(ctx, h.DB, cotizacionID, version)
+	if err != nil {
+		log.Printf("enlaces_publicos: error renderizando la plantilla de %s v%d: %v", cotizacionID, version, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el enlace."})
+		return
+	}
+
 	escribirJSON(w, http.StatusOK, map[string]any{
 		"ok":               true,
 		"cotizacion_id":    cotizacionID,
@@ -258,6 +272,7 @@ func (h *EnlacesPublicosHandler) VerCotizacion(w http.ResponseWriter, r *http.Re
 		"moneda":           moneda,
 		"total_precio":     totalPrecio,
 		"tabs":             tabs,
+		"plantilla":        plantilla,
 	})
 }
 
