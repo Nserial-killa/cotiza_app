@@ -72,8 +72,12 @@ func RequiereApiKey(db *pgxpool.Pool) func(http.Handler) http.Handler {
 			}
 
 			// El sello de último uso no es crítico: si falla, la clave
-			// sigue siendo válida para esta petición.
-			_, _ = db.Exec(ctx, `UPDATE integraciones_api SET ultima_uso = now() WHERE integracion_id::text = $1`, integracionID)
+			// sigue siendo válida para esta petición. Timeout propio en
+			// vez de reusar ctx: el bucle de bcrypt de arriba ya pudo
+			// haber consumido buena parte de esos 5 segundos.
+			ctxUltimaUso, cancelUltimaUso := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancelUltimaUso()
+			_, _ = db.Exec(ctxUltimaUso, `UPDATE integraciones_api SET ultima_uso = now() WHERE integracion_id::text = $1`, integracionID)
 
 			ctxConIntegracion := context.WithValue(r.Context(), IntegracionIDKey, integracionID)
 			next.ServeHTTP(w, r.WithContext(ctxConIntegracion))
