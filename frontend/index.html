@@ -5203,6 +5203,7 @@ table tr:last-child td { border-bottom: none; }
                       <label for="designerCotizadorCalculadoModoFormula">Tipo de fórmula</label>
                       <select id="designerCotizadorCalculadoModoFormula" class="select">
                         <option value="SIMPLE">Simple</option>
+                        <option value="AVANZADA">Avanzada</option>
                       </select>
                     </div>
                     <div class="field ctz-f-calc-operation">
@@ -5502,14 +5503,14 @@ table tr:last-child td { border-bottom: none; }
 
                     <div id="designerCotizadorFormulaAvanzadaBox" class="cotizador-formula-advanced-box hidden">
                       <div class="field">
-                        <label>Campo numérico disponible</label>
+                        <label for="designerCotizadorCalculadoCampoDisponibleAvanzado">Campo disponible</label>
                         <div class="cotizador-inline-action">
                           <select id="designerCotizadorCalculadoCampoDisponibleAvanzado" class="select">
                             <option value="">Seleccione campo numérico...</option>
                           </select>
                           <button id="btnDesignerAgregarCampoFormulaAvanzada" class="btn btn-light-blue btn-mini" type="button">Agregar campo</button>
                         </div>
-                        <span class="param-field-help">El campo se inserta como token seguro, por ejemplo COSTO o MARGEN_GANANCIA.</span>
+                        <span class="param-field-help">Se inserta el nombre interno exacto, por ejemplo COSTO o MARGEN_GANANCIA. Los campos Sí/No se usan como condición de SI(). Los catálogos aportan automáticamente su valor de cálculo en la aritmética.</span>
                       </div>
                       <div id="designerCotizadorCalculadoPropiedadListaAvanzadoBox" class="field hidden" style="margin-top:8px;">
                         <label for="designerCotizadorCalculadoPropiedadListaAvanzado">Valor de la Lista de Precios</label>
@@ -5530,6 +5531,8 @@ table tr:last-child td { border-bottom: none; }
                         <button class="cotizador-formula-op-btn" type="button" data-formula-op=" / ">÷</button>
                         <button class="cotizador-formula-op-btn" type="button" data-formula-op="( ">(</button>
                         <button class="cotizador-formula-op-btn" type="button" data-formula-op=" )">)</button>
+                        <button class="cotizador-formula-op-btn" type="button" data-formula-op="SI(">SI(</button>
+                        <button class="cotizador-formula-op-btn" type="button" data-formula-op="; ">;</button>
                       </div>
                       <div class="field">
                         <label>Valor fijo</label>
@@ -5540,10 +5543,11 @@ table tr:last-child td { border-bottom: none; }
                       </div>
                       <div class="field">
                         <label for="designerCotizadorFormulaAvanzadaTexto">Fórmula avanzada</label>
-                        <textarea id="designerCotizadorFormulaAvanzadaTexto" class="input" placeholder="COSTO + ( COSTO / 2 * 0.125 ) + ( COSTO * MARGEN_GANANCIA )"></textarea>
-                        <span class="param-field-help">Solo se permiten campos numéricos, valores fijos, +, -, *, / y paréntesis.</span>
+                        <textarea id="designerCotizadorFormulaAvanzadaTexto" class="input" maxlength="4096" aria-describedby="designerCotizadorFormulaAyuda designerCotizadorFormulaError" placeholder="SI(USA_TELEFONIA; MINUTOS_MES * COSTO_MINUTO_VOZ; 0)"></textarea>
+                        <span id="designerCotizadorFormulaAyuda" class="param-field-help">Use números con punto decimal, nombres internos, +, -, *, /, paréntesis y SI(campo; entonces; sino). Sí, SI, true y 1 son verdaderos; los demás valores son falsos. Puede anidar SI().</span>
                       </div>
                     </div>
+                    <div id="designerCotizadorFormulaError" class="hidden" role="alert" style="margin-top:10px;padding:10px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;white-space:pre-wrap;"></div>
 
                     <div class="field" style="margin-top:8px;">
                       <label>Fórmula generada</label>
@@ -16524,6 +16528,21 @@ window.CotizaApp = (function(){
         bind("btnDesignerAgregarCampoCatalogoHijo","click",agregarCampoCatalogoHijoCotizadorFase1_);
         bind("btnDesignerAgregarOperandoCalculado","click",agregarOperandoCalculadoCotizadorFase1_);
         bind("designerCotizadorCalculadoOperacion","change",actualizarFormulaPreviewCalculadoCotizadorFase1_);
+        bind("designerCotizadorCalculadoModoFormula","change",actualizarModoFormulaCotizadorFase1_);
+        bind("designerCotizadorFormulaAvanzadaTexto","input",function(){ mostrarErrorFormulaCotizadorFase1_(""); actualizarFormulaPreviewCalculadoCotizadorFase1_(); });
+        bind("btnDesignerAgregarCampoFormulaAvanzada","click",function(){
+          const sel = byId("designerCotizadorCalculadoCampoDisponibleAvanzado");
+          if(!sel || !sel.value){ mostrarErrorFormulaCotizadorFase1_("Seleccione un campo con nombre interno válido y único."); return; }
+          insertarTextoFormulaCotizadorFase1_(sel.value);
+        });
+        bind("btnDesignerAgregarValorFormulaAvanzada","click",function(){
+          const valor = String(byId("designerCotizadorFormulaValorFijo").value || "").trim();
+          if(!/^\d+(\.\d+)?$/.test(valor) || !Number.isFinite(Number(valor))){ mostrarErrorFormulaCotizadorFase1_("Ingrese un número con punto decimal, por ejemplo 0.30. Para un negativo use (0 - número)."); return; }
+          insertarTextoFormulaCotizadorFase1_(valor);
+        });
+        document.querySelectorAll("[data-formula-op]").forEach(function(btn){
+          btn.addEventListener("click",function(){ insertarTextoFormulaCotizadorFase1_(btn.getAttribute("data-formula-op")); });
+        });
         bind("btnDesignerAgregarItemListaPrecios","click",guardarItemListaPreciosCotizadorFase1_);
         bind("btnDesignerCancelarEdicionItemListaPrecios","click",cancelarEdicionItemListaPreciosCotizadorFase1_);
         bind("btnDesignerNuevaReglaCotizador","click",nuevaReglaCotizadorFase1_);
@@ -17103,7 +17122,7 @@ window.CotizaApp = (function(){
         const cfg = parseConfigElementoCotizadorFase1_(elemento.configuracion || elemento.config_json);
         elemento.tipo_elemento = elemento.tipo_elemento || elemento.tipo;
         elemento.config_json = cfg;
-        elemento.nombre_elemento = elemento.nombre_elemento || cfg.nombre_elemento || "";
+        elemento.nombre_elemento = cfg.nombre_interno || elemento.nombre_elemento || cfg.nombre_elemento || "";
         elemento.descripcion = elemento.descripcion || cfg.descripcion || "";
         if(!elemento.catalogo_id && cfg.catalogo_id) elemento.catalogo_id = cfg.catalogo_id;
         return elemento;
@@ -17367,7 +17386,7 @@ window.CotizaApp = (function(){
       function renderCampoCalculadoPreviewCotizadorFase1_(e, cfg, etiqueta){
         const operandos = Array.isArray(cfg && cfg.operandos) ? cfg.operandos : [];
         const operacion = String((cfg && cfg.operacion) || "SUMA").toUpperCase();
-        const formula = formulaPreviewTextoCotizadorFase1_(operandos, operacion);
+        const formula = cfg.tipo_formula === "AVANZADA" ? String(cfg.formula_texto || "Sin fórmula configurada.") : formulaPreviewTextoCotizadorFase1_(operandos, operacion);
         return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'
           + '<div class="cotizador-preview-caja-valor" title="'+escapeHtml(formula)+'">'+escapeHtml(formula)+'</div></div>';
       }
@@ -17865,7 +17884,10 @@ window.CotizaApp = (function(){
         llenarSelectCamposYReglasCotizadorFase1_();
         actualizarOpcionesFechaCampoCotizadorFase1_();
         actualizarMensajeCatalogoHijoCotizadorFase1_();
-        if(tipo === "CAMPO_CALCULADO") renderOperandosCalculadoCotizadorFase1_();
+        if(tipo === "CAMPO_CALCULADO"){
+          renderOperandosCalculadoCotizadorFase1_();
+          actualizarModoFormulaCotizadorFase1_();
+        }
         if(tipo === "SECCIONES_ADICIONALES") cargarSeccionesReutilizablesCotizadorFase1_();
       }
       function getCampoModeloByIdCotizadorFase1_(campoId){
@@ -17926,8 +17948,73 @@ window.CotizaApp = (function(){
         const st = getCotizadorFase1State_();
         const preview = byId("designerCotizadorCalculadoFormulaPreview");
         if(!preview) return;
+        if(byId("designerCotizadorCalculadoModoFormula").value === "AVANZADA"){
+          preview.textContent = byId("designerCotizadorFormulaAvanzadaTexto").value || "Sin fórmula configurada.";
+          return;
+        }
         const operacion = byId("designerCotizadorCalculadoOperacion") ? byId("designerCotizadorCalculadoOperacion").value : "SUMA";
         preview.textContent = formulaPreviewTextoCotizadorFase1_(st.calculadoOperandosTemp, operacion);
+      }
+
+      function mostrarErrorFormulaCotizadorFase1_(mensaje){
+        const error = byId("designerCotizadorFormulaError");
+        if(error){ error.textContent = mensaje || ""; error.classList.toggle("hidden",!mensaje); }
+        const texto = byId("designerCotizadorFormulaAvanzadaTexto");
+        if(texto) texto.setAttribute("aria-invalid", mensaje ? "true" : "false");
+      }
+
+      function insertarTextoFormulaCotizadorFase1_(texto){
+        const campo = byId("designerCotizadorFormulaAvanzadaTexto");
+        if(!campo) return;
+        const inicio = campo.selectionStart, fin = campo.selectionEnd;
+        const nuevo = campo.value.slice(0,inicio) + texto + campo.value.slice(fin);
+        if(nuevo.length > 4096){ mostrarErrorFormulaCotizadorFase1_("La fórmula no puede exceder 4096 caracteres."); return; }
+        campo.value = nuevo;
+        campo.focus();
+        campo.setSelectionRange(inicio + texto.length, inicio + texto.length);
+        mostrarErrorFormulaCotizadorFase1_("");
+        actualizarFormulaPreviewCalculadoCotizadorFase1_();
+      }
+
+      function actualizarModoFormulaCotizadorFase1_(){
+        const avanzada = byId("designerCotizadorCalculadoModoFormula").value === "AVANZADA";
+        byId("designerCotizadorFormulaSimpleBox").classList.toggle("hidden",avanzada);
+        byId("designerCotizadorFormulaAvanzadaBox").classList.toggle("hidden",!avanzada);
+        byId("designerCotizadorCalculadoOperacion").closest(".field").classList.toggle("hidden",avanzada);
+        if(avanzada) llenarCamposFormulaAvanzadaCotizadorFase1_();
+        mostrarErrorFormulaCotizadorFase1_("");
+        actualizarFormulaPreviewCalculadoCotizadorFase1_();
+      }
+
+      function llenarCamposFormulaAvanzadaCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const sel = byId("designerCotizadorCalculadoCampoDisponibleAvanzado");
+        if(!sel) return;
+        const actual = sel.value;
+        const nombres = {};
+        const candidatos = (st.elementos || []).filter(function(el){ return el.tab_id === st.tabId; }).map(function(el){
+          const cfg = parseConfigElementoCotizadorFase1_(el.configuracion || el.config_json);
+          const nombre = String(cfg.nombre_interno || cfg.nombre_elemento || "").trim();
+          nombres[nombre] = (nombres[nombre] || 0) + 1;
+          return {el:el,nombre:nombre,cfg:cfg};
+        });
+        sel.innerHTML = '<option value="">Seleccione campo o condición...</option>';
+        candidatos.forEach(function(c){
+          const tipo = String(c.el.tipo_elemento || c.el.tipo || "").toUpperCase();
+          if(c.el.elemento_id === st.elementoId || !normalizarActivoCotizadorFase1_(c.el.activo) || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.nombre) || /^SI$/i.test(c.nombre)) return;
+          if(["CAMPO","CAMPO_CATALOGO","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA"].indexOf(tipo)<0) return;
+          const opt = document.createElement("option");
+          opt.value = c.nombre;
+          let soloCondicion = tipo === "CAMPO" && ["NUMERO","MONEDA","PORCENTAJE"].indexOf(String(c.cfg.tipo_campo || "").toUpperCase())<0;
+          if(tipo === "CAMPO_CATALOGO"){
+            const cat = getCatalogoDefByIdCotizadorFase1_(c.el.catalogo_id);
+            soloCondicion = !cat || !cat.tipo_calculo || cat.tipo_calculo === "SIN_VALOR";
+          }
+          opt.disabled = nombres[c.nombre]>1;
+          opt.textContent = c.nombre + " · " + (c.el.etiqueta || tipo) + (opt.disabled ? " (nombre ambiguo)" : soloCondicion ? " (condición de SI)" : "");
+          sel.appendChild(opt);
+        });
+        sel.value = actual;
       }
 
       // ---------------------------------------------------------------
@@ -18316,7 +18403,8 @@ window.CotizaApp = (function(){
         renderItemsListaPreciosCotizadorFase1_();
         if(byId("designerCotizadorListaPreciosCodigoDefault")) byId("designerCotizadorListaPreciosCodigoDefault").value = cfg.item_seleccionado_por_defecto && cfg.item_seleccionado_por_defecto !== "PRIMERO_ACTIVO" ? cfg.item_seleccionado_por_defecto : "";
 
-        if(byId("designerCotizadorCalculadoModoFormula")) byId("designerCotizadorCalculadoModoFormula").value = "SIMPLE";
+        if(byId("designerCotizadorCalculadoModoFormula")) byId("designerCotizadorCalculadoModoFormula").value = cfg.tipo_formula || "SIMPLE";
+        if(byId("designerCotizadorFormulaAvanzadaTexto")) byId("designerCotizadorFormulaAvanzadaTexto").value = cfg.formula_texto || "";
         if(byId("designerCotizadorCalculadoOperacion")) byId("designerCotizadorCalculadoOperacion").value = cfg.operacion || "SUMA";
         if(byId("designerCotizadorCalculadoTipoResultado")) byId("designerCotizadorCalculadoTipoResultado").value = cfg.tipo_resultado || "NUMERO";
         if(byId("designerCotizadorCalculadoDecimales")) byId("designerCotizadorCalculadoDecimales").value = (cfg.decimales === undefined || cfg.decimales === null) ? 2 : cfg.decimales;
@@ -18409,12 +18497,13 @@ window.CotizaApp = (function(){
           cfg.visible_oferta = byId("designerCotizadorCajaValorVisibleOferta") ? byId("designerCotizadorCajaValorVisibleOferta").checked : true;
         }
         if(tipo === "CAMPO_CALCULADO"){
-          cfg.tipo_formula = "SIMPLE";
-          cfg.operacion = byId("designerCotizadorCalculadoOperacion") ? byId("designerCotizadorCalculadoOperacion").value : "SUMA";
+          cfg.tipo_formula = byId("designerCotizadorCalculadoModoFormula").value;
+          if(cfg.tipo_formula === "AVANZADA") cfg.formula_texto = byId("designerCotizadorFormulaAvanzadaTexto").value;
+          else cfg.operacion = byId("designerCotizadorCalculadoOperacion") ? byId("designerCotizadorCalculadoOperacion").value : "SUMA";
           cfg.tipo_resultado = byId("designerCotizadorCalculadoTipoResultado") ? byId("designerCotizadorCalculadoTipoResultado").value : "NUMERO";
           cfg.decimales = Number(byId("designerCotizadorCalculadoDecimales") ? byId("designerCotizadorCalculadoDecimales").value : 2);
           if(!(cfg.decimales >= 0)) cfg.decimales = 2;
-          cfg.operandos = Array.isArray(st.calculadoOperandosTemp) ? st.calculadoOperandosTemp : [];
+          if(cfg.tipo_formula === "SIMPLE") cfg.operandos = Array.isArray(st.calculadoOperandosTemp) ? st.calculadoOperandosTemp : [];
         }
         if(tipo === "LISTA_PRECIOS"){
           cfg.tipo_lista_precios = byId("designerCotizadorListaPreciosTipoLista") ? byId("designerCotizadorListaPreciosTipoLista").value : "UNICA";
@@ -18516,10 +18605,11 @@ window.CotizaApp = (function(){
         if(["CAMPO","CAMPO_CATALOGO","LEYENDA","TEXTO_INFORMATIVO","TITULO","CONTENEDOR","CAJA_VALOR","CAMPO_CALCULADO","LISTA_PRECIOS","TABLA","OPCIONES_PROPUESTA","SECCIONES_ADICIONALES"].indexOf(tipo) < 0){ mostrarToast("Este tipo de componente todavía no está disponible."); return; }
         const cfgObj = armarConfigComponenteCotizadorFase1_(tipo);
         cfgObj.nombre_elemento = byId("designerCotizadorElementoNombre") ? byId("designerCotizadorElementoNombre").value : "";
+        cfgObj.nombre_interno = cfgObj.nombre_elemento.trim();
         cfgObj.descripcion = byId("designerCotizadorElementoDescripcion") ? byId("designerCotizadorElementoDescripcion").value : "";
         const catalogoId = tipo === "CAMPO_CATALOGO" ? String(cfgObj.catalogo_id || "").trim() : "";
         if(tipo === "CAMPO_CATALOGO" && !catalogoId){ mostrarToast("Seleccione el catálogo del componente."); return; }
-        if(tipo === "CAMPO_CALCULADO"){
+        if(tipo === "CAMPO_CALCULADO" && cfgObj.tipo_formula === "SIMPLE"){
           const minimo = cfgObj.operacion === "PROMEDIO" ? 1 : 2;
           if(!Array.isArray(cfgObj.operandos) || cfgObj.operandos.length < minimo){ mostrarToast("La operación " + cfgObj.operacion + " necesita al menos " + minimo + " operando(s)."); return; }
         }
@@ -18557,7 +18647,11 @@ window.CotizaApp = (function(){
           if(tipo === "SECCIONES_ADICIONALES"){
             sincronizarSeccionesAdicionalesCotizadorFase1_(elementoId, finalizarGuardado, function(err){ mostrarToast("El componente se guardó, pero sus secciones no: " + ((err && err.message) || err)); });
           } else finalizarGuardado();
-        }, function(err){ mostrarToast("No se pudo guardar el componente: " + ((err && err.message) || err)); });
+        }, function(err){
+          const mensaje = "No se pudo guardar el componente: " + ((err && err.message) || err);
+          mostrarToast(mensaje);
+          if(tipo === "CAMPO_CALCULADO") mostrarErrorFormulaCotizadorFase1_(mensaje);
+        });
       }
 
       function eliminarComponenteCotizadorFase1_(){

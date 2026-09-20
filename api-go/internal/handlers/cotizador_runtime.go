@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,7 +20,7 @@ import (
 )
 
 // CotizadorRuntimeHandler sirve y persiste la ejecución de una estructura
-// previamente compilada. No interpreta fórmulas ni tipos complejos.
+// previamente compilada, incluidos sus cálculos y valores por opción.
 type CotizadorRuntimeHandler struct {
 	DB *pgxpool.Pool
 }
@@ -784,6 +785,76 @@ func precioPorItemDesdeConfiguracion(cfg map[string]any) map[string]float64 {
 	return resultado
 }
 
+// resolverFormulaConfigurada comparte el mismo resolutor de operandos entre
+// los modos Simple/Avanzada y entre valores globales/por opción. La fórmula
+// avanzada solicita únicamente los tokens de la rama elegida de SI.
+func resolverFormulaConfigurada(cfg map[string]any, resolver func(string) (float64, bool), condicion func(string) (any, bool)) (float64, error) {
+	decimales, ok := enteroDesdeConfiguracion(cfg, "decimales")
+	if !ok {
+		decimales = 2
+	}
+	if cfg["tipo_formula"] == "AVANZADA" {
+		texto, _ := cfg["formula_texto"].(string)
+		formula, err := compilarFormulaAvanzada(texto)
+		if err != nil {
+			return 0, err
+		}
+		// El compilado fija nombre interno -> ID. No se consulta ni se
+		// vuelve a enlazar la fórmula contra nombres editados posteriormente.
+		mapa := map[string]string{}
+		switch tokens := cfg["tokens_operandos"].(type) {
+		case map[string]string:
+			mapa = tokens
+		case map[string]any:
+			for nombre, valor := range tokens {
+				mapa[nombre], _ = valor.(string)
+			}
+		}
+		resultado, err := formula.evaluarConResolver(func(nombre string, esCondicion bool) (any, bool) {
+			id := mapa[nombre]
+			if id == "" {
+				return nil, false
+			}
+			if esCondicion {
+				return condicion(id)
+			}
+			return resolver(id)
+		})
+		if err != nil {
+			return 0, err
+		}
+		resultado = redondear(resultado, decimales)
+		if math.IsInf(resultado, 0) || math.IsNaN(resultado) {
+			return 0, fmt.Errorf("el resultado de la fórmula excede el rango numérico permitido")
+		}
+		return resultado, nil
+	}
+	operandos := operandosDesdeConfiguracion(cfg)
+	valoresOperandos := make([]float64, 0, len(operandos))
+	for _, id := range operandos {
+		valor, ok := resolver(id)
+		if !ok {
+			return 0, fmt.Errorf("el operando %s no tiene un valor resuelto", id)
+		}
+		valoresOperandos = append(valoresOperandos, valor)
+	}
+	return calcularOperacion(valoresOperandos, strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["operacion"]))), decimales)
+}
+
+func resolverCondicionFormulaRuntime(elemento map[string]any, valor any, id string, resolver func(string) (float64, bool)) (any, bool) {
+	if elemento == nil {
+		return nil, false
+	}
+	switch elemento["tipo"] {
+	case "CAMPO", "CAMPO_CATALOGO":
+		// Una condición usa la selección original (Sí/No, true/false),
+		// mientras que la aritmética del catálogo usa valor_calculo.
+		return valor, true
+	default:
+		return resolver(id)
+	}
+}
+
 // resolverCamposCalculados calcula el valor de cada CAMPO_CALCULADO, cada
 // LISTA_PRECIOS y cada TABLA de la estructura y lo deja en "valor_resuelto"
 // de ese elemento, mismo patrón que incluirValoresCajaValor — así el Motor
@@ -855,21 +926,9 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 		if cfg == nil {
 			return 0, false
 		}
-		operandos := operandosDesdeConfiguracion(cfg)
-		valoresOperandos := make([]float64, 0, len(operandos))
-		for _, opID := range operandos {
-			valorOp, ok := resolver(opID)
-			if !ok {
-				return 0, false
-			}
-			valoresOperandos = append(valoresOperandos, valorOp)
-		}
-		operacion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["operacion"])))
-		decimales, ok := enteroDesdeConfiguracion(cfg, "decimales")
-		if !ok {
-			decimales = 2
-		}
-		resultado, err := calcularOperacion(valoresOperandos, operacion, decimales)
+		resultado, err := resolverFormulaConfigurada(cfg, resolver, func(opID string) (any, bool) {
+			return resolverCondicionFormulaRuntime(elementosPorID[opID], valores[opID], opID, resolver)
+		})
 		if err != nil {
 			return 0, false
 		}
@@ -973,20 +1032,18 @@ func resolverCamposCalculadosPorOpcion(elementosPorID map[string]map[string]any,
 				enProceso[id] = true
 				defer delete(enProceso, id)
 				cfg, _ := elemento["configuracion"].(map[string]any)
-				operandos := operandosDesdeConfiguracion(cfg)
-				valoresOperandos := make([]float64, 0, len(operandos))
-				for _, operandoID := range operandos {
-					valorOperando, ok := resolver(operandoID)
-					if !ok {
-						return 0, false
+				resultado, err := resolverFormulaConfigurada(cfg, resolver, func(opID string) (any, bool) {
+					metaOp := metadatos[opID]
+					if metaOp.PadreOpcionesID != "" && metaOp.PadreOpcionesID != padreID {
+						return nil, false
 					}
-					valoresOperandos = append(valoresOperandos, valorOperando)
-				}
-				decimales, ok := enteroDesdeConfiguracion(cfg, "decimales")
-				if !ok {
-					decimales = 2
-				}
-				resultado, err := calcularOperacion(valoresOperandos, strings.ToUpper(strings.TrimSpace(fmt.Sprint(cfg["operacion"]))), decimales)
+					valor := valores[opID]
+					if metaOp.PadreOpcionesID == padreID {
+						porOpcion, _ := valor.(map[string]any)
+						valor = porOpcion[opcionID]
+					}
+					return resolverCondicionFormulaRuntime(elementosPorID[opID], valor, opID, resolver)
+				})
 				if err != nil {
 					return 0, false
 				}

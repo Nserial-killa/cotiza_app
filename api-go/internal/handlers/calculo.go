@@ -8,8 +8,7 @@ import (
 )
 
 // operacionesCalculoValidas es el conjunto de operaciones que acepta un
-// Campo Calculado (Ronda 2 del Diseñador). AVANZADA/otras fórmulas quedan
-// para una ronda futura.
+// Campo Calculado en modo Simple. Avanzada usa formula_avanzada.go.
 var operacionesCalculoValidas = map[string]bool{
 	"SUMA": true, "RESTA": true, "MULTIPLICACION": true, "DIVISION": true, "PROMEDIO": true,
 }

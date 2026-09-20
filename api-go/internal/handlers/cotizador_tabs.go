@@ -609,18 +609,11 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		if tipoFormula == "" || tipoFormula == "<NIL>" {
 			tipoFormula = "SIMPLE"
 		}
-		if tipoFormula != "SIMPLE" {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_formula debe ser SIMPLE (todavía no hay fórmula avanzada)."})
+		if tipoFormula != "SIMPLE" && tipoFormula != "AVANZADA" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_formula debe ser SIMPLE o AVANZADA."})
 			return
 		}
 		configuracion["tipo_formula"] = tipoFormula
-
-		operacion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["operacion"])))
-		if !operacionesCalculoValidas[operacion] {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "operacion debe ser SUMA, RESTA, MULTIPLICACION, DIVISION o PROMEDIO."})
-			return
-		}
-		configuracion["operacion"] = operacion
 
 		tipoResultado := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["tipo_resultado"])))
 		if tipoResultado != "NUMERO" && tipoResultado != "MONEDA" && tipoResultado != "PORCENTAJE" {
@@ -639,86 +632,103 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		}
 		configuracion["decimales"] = decimales
 
-		operandos := operandosDesdeConfiguracion(configuracion)
-		minimoOperandos := 2
-		if operacion == "PROMEDIO" {
-			minimoOperandos = 1
-		}
-		if len(operandos) < minimoOperandos {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("La operación %s necesita al menos %d operando(s).", operacion, minimoOperandos)})
-			return
-		}
-		for _, opID := range operandos {
-			if opID == req.ElementoID {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Campo Calculado no puede tener a sí mismo como operando."})
+		if tipoFormula == "AVANZADA" {
+			if err := h.prepararFormulaAvanzada(ctx, req.ElementoID, req.TabID, configuracion); err != nil {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
 				return
 			}
-			var tipoOp, tabOp string
-			var activoOp bool
-			var configOp map[string]any
-			var catalogoOpID *string
-			err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo, configuracion, catalogo_id FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &tabOp, &activoOp, &configOp, &catalogoOpID)
-			if errors.Is(err, pgx.ErrNoRows) {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no existe.", opID)})
+		} else {
+			delete(configuracion, "formula_texto")
+			delete(configuracion, "tokens")
+			delete(configuracion, "tokens_condicion")
+			delete(configuracion, "tokens_operandos")
+			operacion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["operacion"])))
+			if !operacionesCalculoValidas[operacion] {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "operacion debe ser SUMA, RESTA, MULTIPLICACION, DIVISION o PROMEDIO."})
 				return
 			}
-			if err != nil {
-				log.Printf("cotizador elementos: error validando operando %s: %v", opID, err)
-				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
+			configuracion["operacion"] = operacion
+			operandos := operandosDesdeConfiguracion(configuracion)
+			minimoOperandos := 2
+			if operacion == "PROMEDIO" {
+				minimoOperandos = 1
+			}
+			if len(operandos) < minimoOperandos {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("La operación %s necesita al menos %d operando(s).", operacion, minimoOperandos)})
 				return
 			}
-			if !activoOp {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s está inactivo.", opID)})
-				return
-			}
-			if tabOp != req.TabID {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe pertenecer a la misma sección (tab_id).", opID)})
-				return
-			}
-			if tipoOp == "CAMPO" {
-				tipoCampo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configOp["tipo_campo"])))
-				if tipoCampo != "NUMERO" && tipoCampo != "MONEDA" && tipoCampo != "PORCENTAJE" {
-					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico (Número, Moneda o Porcentaje).", opID)})
+			for _, opID := range operandos {
+				if opID == req.ElementoID {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Campo Calculado no puede tener a sí mismo como operando."})
 					return
 				}
-			} else if tipoOp == "CAMPO_CATALOGO" {
-				catalogoID := ""
-				if catalogoOpID != nil {
-					catalogoID = strings.TrimSpace(*catalogoOpID)
-				}
-				if catalogoID == "" {
-					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no tiene catálogo asignado.", opID)})
-					return
-				}
-				var tipoCalculoCatalogo, nombreCatalogo string
-				err := h.DB.QueryRow(ctx, `SELECT tipo_calculo, nombre_catalogo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&tipoCalculoCatalogo, &nombreCatalogo)
+				var tipoOp, tabOp string
+				var activoOp bool
+				var configOp map[string]any
+				var catalogoOpID *string
+				err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo, configuracion, catalogo_id FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &tabOp, &activoOp, &configOp, &catalogoOpID)
 				if errors.Is(err, pgx.ErrNoRows) {
-					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s apunta a un catálogo (%s) que no existe.", opID, catalogoID)})
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no existe.", opID)})
 					return
 				}
 				if err != nil {
-					log.Printf("cotizador elementos: error validando catálogo del operando %s: %v", opID, err)
+					log.Printf("cotizador elementos: error validando operando %s: %v", opID, err)
 					escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
 					return
 				}
-				if tipoCalculoCatalogo == "SIN_VALOR" {
-					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s usa el catálogo %s, que es solo descriptivo (SIN_VALOR) y no tiene valores de cálculo.", opID, nombreCatalogo)})
+				if !activoOp {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s está inactivo.", opID)})
 					return
 				}
-			} else if !tiposOperandoCalculadoValidos[tipoOp] {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico, un Campo Catálogo con valores de cálculo, una Lista de Precios, una Tabla o un Campo Calculado.", opID)})
+				if tabOp != req.TabID {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe pertenecer a la misma sección (tab_id).", opID)})
+					return
+				}
+				if tipoOp == "CAMPO" {
+					tipoCampo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configOp["tipo_campo"])))
+					if tipoCampo != "NUMERO" && tipoCampo != "MONEDA" && tipoCampo != "PORCENTAJE" {
+						escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico (Número, Moneda o Porcentaje).", opID)})
+						return
+					}
+				} else if tipoOp == "CAMPO_CATALOGO" {
+					catalogoID := ""
+					if catalogoOpID != nil {
+						catalogoID = strings.TrimSpace(*catalogoOpID)
+					}
+					if catalogoID == "" {
+						escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no tiene catálogo asignado.", opID)})
+						return
+					}
+					var tipoCalculoCatalogo, nombreCatalogo string
+					err := h.DB.QueryRow(ctx, `SELECT tipo_calculo, nombre_catalogo FROM catalogos WHERE catalogo_id=$1`, catalogoID).Scan(&tipoCalculoCatalogo, &nombreCatalogo)
+					if errors.Is(err, pgx.ErrNoRows) {
+						escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s apunta a un catálogo (%s) que no existe.", opID, catalogoID)})
+						return
+					}
+					if err != nil {
+						log.Printf("cotizador elementos: error validando catálogo del operando %s: %v", opID, err)
+						escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
+						return
+					}
+					if tipoCalculoCatalogo == "SIN_VALOR" {
+						escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s usa el catálogo %s, que es solo descriptivo (SIN_VALOR) y no tiene valores de cálculo.", opID, nombreCatalogo)})
+						return
+					}
+				} else if !tiposOperandoCalculadoValidos[tipoOp] {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe ser un Campo numérico, un Campo Catálogo con valores de cálculo, una Lista de Precios, una Tabla o un Campo Calculado.", opID)})
+					return
+				}
+			}
+			circular, err := h.tieneReferenciaCircular(ctx, req.ElementoID, operandos, map[string]bool{})
+			if err != nil {
+				log.Printf("cotizador elementos: error detectando referencia circular en %s: %v", req.ElementoID, err)
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
 				return
 			}
-		}
-		circular, err := h.tieneReferenciaCircular(ctx, req.ElementoID, operandos, map[string]bool{})
-		if err != nil {
-			log.Printf("cotizador elementos: error detectando referencia circular en %s: %v", req.ElementoID, err)
-			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
-			return
-		}
-		if circular {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Los operandos generan una referencia circular: un Campo Calculado no puede depender de sí mismo, ni directa ni indirectamente."})
-			return
+			if circular {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Los operandos generan una referencia circular: un Campo Calculado no puede depender de sí mismo, ni directa ni indirectamente."})
+				return
+			}
 		}
 	}
 

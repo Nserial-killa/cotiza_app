@@ -2351,6 +2351,7 @@
                       <label for="designerCotizadorCalculadoModoFormula">Tipo de fórmula</label>
                       <select id="designerCotizadorCalculadoModoFormula" class="select">
                         <option value="SIMPLE">Simple</option>
+                        <option value="AVANZADA">Avanzada</option>
                       </select>
                     </div>
                     <div class="field ctz-f-calc-operation">
@@ -2650,14 +2651,14 @@
 
                     <div id="designerCotizadorFormulaAvanzadaBox" class="cotizador-formula-advanced-box hidden">
                       <div class="field">
-                        <label>Campo numérico disponible</label>
+                        <label for="designerCotizadorCalculadoCampoDisponibleAvanzado">Campo disponible</label>
                         <div class="cotizador-inline-action">
                           <select id="designerCotizadorCalculadoCampoDisponibleAvanzado" class="select">
                             <option value="">Seleccione campo numérico...</option>
                           </select>
                           <button id="btnDesignerAgregarCampoFormulaAvanzada" class="btn btn-light-blue btn-mini" type="button">Agregar campo</button>
                         </div>
-                        <span class="param-field-help">El campo se inserta como token seguro, por ejemplo COSTO o MARGEN_GANANCIA.</span>
+                        <span class="param-field-help">Se inserta el nombre interno exacto, por ejemplo COSTO o MARGEN_GANANCIA. Los campos Sí/No se usan como condición de SI(). Los catálogos aportan automáticamente su valor de cálculo en la aritmética.</span>
                       </div>
                       <div id="designerCotizadorCalculadoPropiedadListaAvanzadoBox" class="field hidden" style="margin-top:8px;">
                         <label for="designerCotizadorCalculadoPropiedadListaAvanzado">Valor de la Lista de Precios</label>
@@ -2678,6 +2679,8 @@
                         <button class="cotizador-formula-op-btn" type="button" data-formula-op=" / ">÷</button>
                         <button class="cotizador-formula-op-btn" type="button" data-formula-op="( ">(</button>
                         <button class="cotizador-formula-op-btn" type="button" data-formula-op=" )">)</button>
+                        <button class="cotizador-formula-op-btn" type="button" data-formula-op="SI(">SI(</button>
+                        <button class="cotizador-formula-op-btn" type="button" data-formula-op="; ">;</button>
                       </div>
                       <div class="field">
                         <label>Valor fijo</label>
@@ -2688,10 +2691,11 @@
                       </div>
                       <div class="field">
                         <label for="designerCotizadorFormulaAvanzadaTexto">Fórmula avanzada</label>
-                        <textarea id="designerCotizadorFormulaAvanzadaTexto" class="input" placeholder="COSTO + ( COSTO / 2 * 0.125 ) + ( COSTO * MARGEN_GANANCIA )"></textarea>
-                        <span class="param-field-help">Solo se permiten campos numéricos, valores fijos, +, -, *, / y paréntesis.</span>
+                        <textarea id="designerCotizadorFormulaAvanzadaTexto" class="input" maxlength="4096" aria-describedby="designerCotizadorFormulaAyuda designerCotizadorFormulaError" placeholder="SI(USA_TELEFONIA; MINUTOS_MES * COSTO_MINUTO_VOZ; 0)"></textarea>
+                        <span id="designerCotizadorFormulaAyuda" class="param-field-help">Use números con punto decimal, nombres internos, +, -, *, /, paréntesis y SI(campo; entonces; sino). Sí, SI, true y 1 son verdaderos; los demás valores son falsos. Puede anidar SI().</span>
                       </div>
                     </div>
+                    <div id="designerCotizadorFormulaError" class="hidden" role="alert" style="margin-top:10px;padding:10px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;white-space:pre-wrap;"></div>
 
                     <div class="field" style="margin-top:8px;">
                       <label>Fórmula generada</label>

@@ -300,6 +300,25 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	if err := rows.Err(); err != nil {
 		return resultado, err
 	}
+	rows.Close()
+	for i := range resultado.Tabs {
+		tab := &resultado.Tabs[i]
+		for j := range tab.Elementos {
+			el := &tab.Elementos[j]
+			if el.Tipo == "CAMPO_CALCULADO" && el.Configuracion["tipo_formula"] == "AVANZADA" {
+				// Se congela el texto junto con tokens y IDs derivados del tab
+				// actual; una edición posterior no cambia versiones publicadas.
+				if err := (&CotizadorTabsHandler{DB: h.DB}).prepararFormulaAvanzada(ctx, el.ElementoID, tab.TabID, el.Configuracion); err != nil {
+					resultado.Errores = append(resultado.Errores, fmt.Sprintf("Campo Calculado %s: %s", el.ElementoID, err))
+				}
+			}
+		}
+	}
+	// Un renombrado puede reenlazar varios tokens a la vez. Comprobar
+	// también el grafo resultante, no solo las dependencias persistidas.
+	if ciclo := cicloCamposCalculadosCompilados(resultado.Tabs); ciclo != "" {
+		resultado.Errores = append(resultado.Errores, fmt.Sprintf("Referencia circular entre Campos Calculados: %s.", ciclo))
+	}
 	resultado.Resumen.Tabs = len(resultado.Tabs)
 	if resultado.Resumen.Tabs == 0 {
 		resultado.Errores = append(resultado.Errores, "El cotizador debe tener al menos una sección activa.")
