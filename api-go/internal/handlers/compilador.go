@@ -451,7 +451,7 @@ func (h *CompiladorHandler) incluirColumnasTabla(ctx context.Context, resultado 
 		return nil
 	}
 	rows, err := h.DB.Query(ctx, `
-		SELECT tc.elemento_id, tc.columna_id::text, tc.origen, tc.campo_existente_id, tc.tipo_dato, tc.etiqueta, tc.orden,
+		SELECT tc.elemento_id, tc.columna_id::text, tc.origen, tc.campo_existente_id, tc.tipo_dato, tc.etiqueta, tc.orden, tc.totalizable,
 		       ref.tipo, ref.etiqueta, ref.configuracion
 		FROM tabla_columnas tc
 		LEFT JOIN elementos_tab_cotizador ref ON ref.elemento_id = tc.campo_existente_id
@@ -466,9 +466,10 @@ func (h *CompiladorHandler) incluirColumnasTabla(ctx context.Context, resultado 
 		var elementoID, columnaID, origen string
 		var campoExistenteID, tipoDato, etiqueta *string
 		var orden int
+		var totalizable bool
 		var refTipo, refEtiqueta *string
 		var refConfig map[string]any
-		if err := rows.Scan(&elementoID, &columnaID, &origen, &campoExistenteID, &tipoDato, &etiqueta, &orden, &refTipo, &refEtiqueta, &refConfig); err != nil {
+		if err := rows.Scan(&elementoID, &columnaID, &origen, &campoExistenteID, &tipoDato, &etiqueta, &orden, &totalizable, &refTipo, &refEtiqueta, &refConfig); err != nil {
 			return err
 		}
 		tipoDatoFinal := valorString(tipoDato)
@@ -479,7 +480,7 @@ func (h *CompiladorHandler) incluirColumnasTabla(ctx context.Context, resultado 
 		}
 		columnasPorElemento[elementoID] = append(columnasPorElemento[elementoID], map[string]any{
 			"columna_id": columnaID, "origen": origen, "campo_existente_id": valorString(campoExistenteID),
-			"tipo_dato": tipoDatoFinal, "etiqueta": etiquetaFinal, "orden": orden,
+			"tipo_dato": tipoDatoFinal, "etiqueta": etiquetaFinal, "orden": orden, "totalizable": totalizable,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -496,6 +497,29 @@ func (h *CompiladorHandler) incluirColumnasTabla(ctx context.Context, resultado 
 				columnas = make([]map[string]any, 0)
 			}
 			el.Configuracion["columnas"] = columnas
+			// TAB-003/CTZ-TBL-002: sin ninguna columna marcada totalizable,
+			// se sigue infiriendo la primera numérica (compatibilidad con
+			// cotizadores ya publicados) — pero solo vale la pena avisar
+			// cuando esa inferencia en verdad encuentra algo que totalizar.
+			hayTotalizableExplicita := false
+			primeraNumericaID := ""
+			for _, col := range columnas {
+				if totalizable, _ := col["totalizable"].(bool); totalizable {
+					hayTotalizableExplicita = true
+					break
+				}
+				if primeraNumericaID == "" {
+					tipoDato := strings.ToUpper(strings.TrimSpace(fmt.Sprint(col["tipo_dato"])))
+					if tipoDato == "NUMERO" || tipoDato == "MONEDA" {
+						primeraNumericaID = strings.TrimSpace(fmt.Sprint(col["columna_id"]))
+					}
+				}
+			}
+			if !hayTotalizableExplicita && primeraNumericaID != "" {
+				resultado.Advertencias = append(resultado.Advertencias, fmt.Sprintf(
+					"TABLA_TOTALES_COLUMNAS_INFERIDAS: la tabla %s (%s) no tiene ninguna columna marcada como Totalizable; se sigue infiriendo la primera columna numérica para el total.",
+					valorString(el.Etiqueta), el.ElementoID))
+			}
 		}
 	}
 	return nil

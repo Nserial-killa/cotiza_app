@@ -169,11 +169,12 @@ func valorCalculoCatalogo(cfg map[string]any, valorGuardado any) (float64, bool)
 }
 
 // primeraColumnaNumericaTabla busca, en el orden en que vienen, la primera
-// columna con tipo_dato NUMERO o MONEDA — la misma que se totaliza al pie
-// de la tabla y la que alimenta un Campo Calculado que la use como
-// operando (Ronda 4). "columnas" es el array ya compilado (ver
-// incluirColumnasTabla en compilador.go), donde CAMPO_EXISTENTE y PROPIA ya
-// vienen normalizadas a la misma forma {columna_id, tipo_dato, ...}.
+// columna con tipo_dato NUMERO o MONEDA — el total inferido de la tabla
+// cuando ninguna columna está marcada Totalizable explícitamente (TAB-003/
+// CTZ-TBL-002; ver columnasTotalizables para el caso explícito, que tiene
+// prioridad). "columnas" es el array ya compilado (ver incluirColumnasTabla
+// en compilador.go), donde CAMPO_EXISTENTE y PROPIA ya vienen normalizadas
+// a la misma forma {columna_id, tipo_dato, totalizable, ...}.
 func primeraColumnaNumericaTabla(columnas []any) string {
 	for _, colRaw := range columnas {
 		col, _ := colRaw.(map[string]any)
@@ -185,18 +186,39 @@ func primeraColumnaNumericaTabla(columnas []any) string {
 	return ""
 }
 
-// valorTotalTabla suma, a través de todas las filas guardadas, la primera
-// columna numérica de la Tabla (Ronda 4) — mismo patrón que
-// valorListaPrecios: puro, sin acceso a base de datos, y con un segundo
+// columnasTotalizables devuelve los columna_id marcados totalizable=true,
+// en el orden en que vienen. TAB-003/CTZ-TBL-002: el diseñador puede marcar
+// una o varias; el total suma todas las que estén marcadas.
+func columnasTotalizables(columnas []any) []string {
+	resultado := make([]string, 0)
+	for _, colRaw := range columnas {
+		col, _ := colRaw.(map[string]any)
+		if totalizable, _ := col["totalizable"].(bool); totalizable {
+			resultado = append(resultado, strings.TrimSpace(fmt.Sprint(col["columna_id"])))
+		}
+	}
+	return resultado
+}
+
+// valorTotalTabla suma, a través de todas las filas guardadas, las columnas
+// de la Tabla marcadas Totalizable; sin ninguna marcada, cae a la primera
+// columna numérica (compatibilidad con cotizadores ya publicados — ver el
+// aviso TABLA_TOTALES_COLUMNAS_INFERIDAS en compilador.go). Mismo patrón
+// que valorListaPrecios: puro, sin acceso a base de datos, y con un segundo
 // valor de retorno que distingue "no hay nada que sumar todavía" (sin
-// columna numérica, o sin filas) de "el total da cero".
+// columna numérica/totalizable, o sin filas) de "el total da cero".
 func valorTotalTabla(cfg map[string]any, valorGuardado map[string]any) (float64, bool) {
 	if cfg == nil {
 		return 0, false
 	}
 	columnas, _ := cfg["columnas"].([]any)
-	columnaID := primeraColumnaNumericaTabla(columnas)
-	if columnaID == "" {
+	columnaIDs := columnasTotalizables(columnas)
+	if len(columnaIDs) == 0 {
+		if id := primeraColumnaNumericaTabla(columnas); id != "" {
+			columnaIDs = []string{id}
+		}
+	}
+	if len(columnaIDs) == 0 {
 		return 0, false
 	}
 	filasRaw, _ := valorGuardado["filas"].([]any)
@@ -207,12 +229,14 @@ func valorTotalTabla(cfg map[string]any, valorGuardado map[string]any) (float64,
 	huboAlMenosUna := false
 	for _, filaRaw := range filasRaw {
 		fila, _ := filaRaw.(map[string]any)
-		valor, ok := numeroDesdeValor(fila[columnaID])
-		if !ok {
-			continue
+		for _, columnaID := range columnaIDs {
+			valor, ok := numeroDesdeValor(fila[columnaID])
+			if !ok {
+				continue
+			}
+			total += valor
+			huboAlMenosUna = true
 		}
-		total += valor
-		huboAlMenosUna = true
 	}
 	return redondear(total, 2), huboAlMenosUna
 }

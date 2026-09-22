@@ -464,6 +464,7 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .runtime-contenedor { grid-column: 1/-1; border: 1px solid #d7e1ee; border-radius: 12px; padding: 14px 16px; background: #f8fafc; }
 .runtime-contenedor-titulo { color: #17345b; font-size: 13px; font-weight: 800; margin-bottom: 10px; }
 .runtime-contenedor-grid { display: grid; gap: 4px 16px; }
+.runtime-contenedor-grid.runtime-contenedor-cols-1 { grid-template-columns: 1fr; }
 .runtime-contenedor-grid.runtime-contenedor-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .runtime-contenedor-grid.runtime-contenedor-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 

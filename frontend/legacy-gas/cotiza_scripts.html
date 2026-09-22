@@ -1845,7 +1845,8 @@ window.CotizaApp = (function(){
             (vista === "PESTANAS" ? '<div class="runtime-opcion-tabs">' + tabs + '</div>' : '') + paneles + '</section>';
         }
         if(el.tipo === "CONTENEDOR"){
-          const cols = Number(cfg.columnas) === 3 ? 3 : 2;
+          // DIS-003: 1 columna es ancho completo, sin dividir en grid.
+          const cols = Number(cfg.columnas) === 3 ? 3 : Number(cfg.columnas) === 1 ? 1 : 2;
           const hijos = (el.hijos || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
           const cuerpo = hijos.map(function(h){ return renderRuntimeElemento(h, valores, opcionID); }).join("");
           return '<div class="runtime-field runtime-contenedor" ' + estiloSpan + '>' +

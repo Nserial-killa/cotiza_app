@@ -343,7 +343,7 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 	}
 	if len(idsTablas) > 0 {
 		columnasRows, err := h.DB.Query(ctx, `
-			SELECT columna_id::text, elemento_id, origen, campo_existente_id, tipo_dato, etiqueta, orden
+			SELECT columna_id::text, elemento_id, origen, campo_existente_id, tipo_dato, etiqueta, orden, totalizable
 			FROM tabla_columnas WHERE elemento_id = ANY($1) ORDER BY elemento_id, orden`, idsTablas)
 		if err != nil {
 			log.Printf("cotizador elementos: error listando columnas de tabla: %v", err)
@@ -353,7 +353,7 @@ func (h *CotizadorTabsHandler) ListarElementos(w http.ResponseWriter, r *http.Re
 		columnasPorElemento := make(map[string][]tablaColumna)
 		for columnasRows.Next() {
 			var col tablaColumna
-			if err := columnasRows.Scan(&col.ColumnaID, &col.ElementoID, &col.Origen, &col.CampoExistenteID, &col.TipoDato, &col.Etiqueta, &col.Orden); err != nil {
+			if err := columnasRows.Scan(&col.ColumnaID, &col.ElementoID, &col.Origen, &col.CampoExistenteID, &col.TipoDato, &col.Etiqueta, &col.Orden, &col.Totalizable); err != nil {
 				columnasRows.Close()
 				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible leer las columnas de las tablas."})
 				return
@@ -440,9 +440,12 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if req.Tipo == "CONTENEDOR" {
+		// DIS-003: 1 columna es ancho completo, sin dividir en grid — el
+		// Motor de Ejecución (CSS) y el compilador ya lo tratan igual que
+		// "sin grid" en vez de necesitar un caso aparte.
 		columnasContenedor, ok := enteroDesdeConfiguracion(configuracion, "columnas")
-		if !ok || (columnasContenedor != 2 && columnasContenedor != 3) {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El Contenedor debe indicar columnas: 2 o 3."})
+		if !ok || (columnasContenedor != 1 && columnasContenedor != 2 && columnasContenedor != 3) {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El Contenedor debe indicar columnas: 1, 2 o 3."})
 			return
 		}
 	}

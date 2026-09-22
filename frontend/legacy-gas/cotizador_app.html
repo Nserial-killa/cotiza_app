@@ -513,6 +513,7 @@
               display:grid;
               gap:12px;
             }
+            .cotizador-preview-grid.cols-1{grid-template-columns:1fr;}
             .cotizador-preview-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
             .cotizador-preview-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}
             .cotizador-preview-full-row{
@@ -987,6 +988,54 @@
               font-size:12px !important;
             }
 
+            /* UX-002 - Guardar/Cancelar quedan fijos al fondo del modal
+               mientras se hace scroll dentro del cuerpo; el nombre del
+               componente (modal-head) ya vive fuera del área con scroll,
+               así que no necesita este mismo tratamiento. */
+            .cotizador-componente-modal-body-v50o .designer-props-actions.cotizador-modal-actions-compact{
+              position:sticky !important;
+              bottom:0 !important;
+              z-index:5 !important;
+              margin:10px -18px 0 !important;
+              padding:10px 18px 14px !important;
+              background:#fff !important;
+              border-top:1px solid #e5edf8 !important;
+            }
+
+            /* UX-001 - Divisores de sección visual dentro del modal de
+               componente (General/Datos/Presentación/Cálculo/Reglas/
+               Avanzado). Un tipo de componente no necesariamente usa las 6:
+               cuando todos los campos de una sección quedan ocultos por
+               data-component-config/data-checks-for, la sección entera
+               queda vacía visualmente (sin contenido debajo del título) —
+               aceptable, evita duplicar la lógica de mostrar/ocultar por
+               tipo en dos lugares distintos. */
+            .cotizador-modal-section-head{
+              grid-column:1 / -1;
+              padding:10px 0 4px;
+              margin-top:4px;
+              border-top:1px solid #e5edf8;
+            }
+            .cotizador-modal-section-head:first-child{
+              border-top:0;
+              margin-top:0;
+              padding-top:0;
+            }
+            .cotizador-modal-section-head h3{
+              margin:0;
+              color:#0b2450;
+              font-size:12.5px;
+              font-weight:800;
+              text-transform:uppercase;
+              letter-spacing:.35px;
+            }
+            .cotizador-modal-section-head p{
+              margin:2px 0 0;
+              color:#64748b;
+              font-size:11px;
+              line-height:1.3;
+            }
+
             /* V50AR - Columnas propias e integradas en tabla */
             .cotizador-table-column-mode{
               display:grid !important;
@@ -1102,68 +1151,9 @@
             .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-label{
               grid-column:1 / -1 !important;
             }
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-name{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-order{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-type{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-legend-type{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-label{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-parent{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-desc{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-checks-legend{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LEYENDA"] .ctz-f-actions{order:900;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-field-type{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-fecha{order:45;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-name{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-order{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-label{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-default{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-parent{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-desc{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-checks-field{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO"] .ctz-f-actions{order:900;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-catalog-calc{order:40;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-catalog-calc-type{order:45;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-catalog-calc-source{order:46;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-catalog{order:50;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-name{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-order{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-label{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-parent{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-desc{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-catalog-child{order:105;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-checks-catalog{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-actions{order:900;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-container-cols{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-container-style{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-name{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-order{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-label{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-parent{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-desc{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CONTENEDOR"] .ctz-f-actions{order:900;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-name{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-order{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-label{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-parent{order:65;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-catalog-calc{grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CATALOGO"] .ctz-f-catalog{grid-column:1 / -1 !important;}
             .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-desc{display:none !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-table-options{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-checks-table{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-columns{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TABLA"] .ctz-f-actions{order:900;}
             .cotizador-check-row-4{grid-template-columns:repeat(4,minmax(0,1fr)) !important;}
             .cotizador-check-row-5{grid-template-columns:repeat(5,minmax(0,1fr)) !important;}
             @media (max-width: 720px){
@@ -1262,18 +1252,6 @@
             /* V50AB - Componente Secciones adicionales */
             .cotizador-component-card[data-tipo="SECCIONES_ADICIONALES"] .cotizador-component-icon{background:#fff7ed;color:#c2410c;}
             .cotizador-check-row-6{grid-template-columns:repeat(6,minmax(0,1fr)) !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-selector-visual{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-selector-columns{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-name{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-order{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-label{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-parent{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-desc{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-checks-extra{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="SECCIONES_ADICIONALES"] .ctz-f-actions{order:900;}
             .cotizador-secciones-adicionales-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;}
             .cotizador-seccion-reutilizable{display:flex;gap:9px;align-items:flex-start;padding:10px 11px;border:1px solid #dce6f3;border-radius:10px;background:#fff;cursor:pointer;}
             .cotizador-seccion-reutilizable input{margin-top:3px;}
@@ -1317,22 +1295,7 @@
             .cotizador-component-card[data-tipo="CAMPO_CALCULADO"] .cotizador-component-icon{background:#ecfdf3;color:#047857;}
             .cotizador-component-modal-form-v50o .ctz-f-checks-calc,
             .cotizador-component-modal-form-v50o .ctz-f-formula{grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-calc-mode{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-calc-operation{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-calc-result{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-name{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-order{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-label{order:90;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-calc-default{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-calc-decimals{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-parent{order:120;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-desc{order:130;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-formula{order:140;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-checks-calc{order:150;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-actions{order:900;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="CAMPO_CALCULADO"] .ctz-f-label{grid-column:1 / -1 !important;}
             .cotizador-formula-panel{border:1px solid #d9f99d !important;border-radius:12px !important;background:#f7fee7 !important;padding:10px !important;}
             .cotizador-formula-generated{border:1px dashed #86efac;background:#fff;border-radius:10px;padding:9px 10px;color:#14532d;font-size:12px;font-weight:700;min-height:36px;white-space:pre-wrap;}
             .cotizador-formula-advanced-box{border:1px solid #bbf7d0;background:#fff;border-radius:12px;padding:10px;margin-top:10px;}
@@ -1362,31 +1325,8 @@
             .cotizador-component-card[data-tipo="TEXTO_INFORMATIVO"] .cotizador-component-icon{background:#f8fafc;color:#334155;}
             .cotizador-component-modal-form-v50o .ctz-f-checks-box,
             .cotizador-component-modal-form-v50o .ctz-f-checks-info{grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-box-source{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-name{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-order{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-label{order:70;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-box-default{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-box-prefix{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-box-suffix{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-parent{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-desc{order:120;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-checks-box{order:130;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-actions{order:900;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-info-style{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-name{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-order{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-label{order:70;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-parent{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-desc{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-checks-info{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-actions{order:900;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="CAJA_VALOR"] .ctz-f-label{grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="TEXTO_INFORMATIVO"] .ctz-f-label{grid-column:1 / -1 !important;}
             .cotizador-preview-value-card{
               border:1px solid #dbeafe;
               border-radius:14px;
@@ -1742,22 +1682,8 @@
             /* V50AQ - Opciones de Propuesta / Escenarios */
             .cotizador-component-card[data-tipo="OPCIONES_PROPUESTA"] .cotizador-component-icon{background:#eef2ff;color:#3730a3;}
             .cotizador-component-modal-form-v50o .ctz-f-checks-scenario{grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-initial{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-names{order:50;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-edit-view{order:60;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-summary-view{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-offer-view{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-main-field{order:90;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-name{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-order{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-label{order:120;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-parent{order:130;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-desc{order:140;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-checks-scenario{order:150;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-actions{order:900;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-names{grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-label{grid-column:1 / -1 !important;}
             .cotizador-design-scenario{border:1px solid #c7d2fe;background:linear-gradient(180deg,#eef2ff,#ffffff);border-radius:16px;padding:10px;margin-bottom:12px;}
             .cotizador-design-scenario.inactive{opacity:.62;border-style:dashed;}
             .cotizador-design-scenario .cotizador-design-container-children{border-left:3px solid #c7d2fe;margin-left:18px;padding-left:12px;}
@@ -1802,22 +1728,8 @@
             .cotizador-component-modal-form-v50o .ctz-f-price-list-quantity,
             .cotizador-component-modal-form-v50o .ctz-f-checks-price-list,
             .cotizador-component-modal-form-v50o .ctz-f-price-list-default{grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-code{order:10;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-status{order:20;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-type{order:30;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-price-list-selection-type{order:40;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-price-list-view{order:50;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-price-list-value{order:60;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-name{order:70;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-order{order:80;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-label{order:90;grid-column:1 / -1 !important;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-parent{order:100;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-desc{order:110;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-checks-price-list{order:120;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-price-list-quantity{order:130;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-price-list-items{order:140;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-price-list-default{order:150;}
-            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-actions{order:900;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-price-list-value{grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="LISTA_PRECIOS"] .ctz-f-label{grid-column:1 / -1 !important;}
             .cotizador-price-list-quantity-config{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;border:1px solid #fed7aa;background:#fffaf5;border-radius:12px;padding:10px;}
             .cotizador-price-list-quantity-config.hidden{display:none!important;}
             .cotizador-price-list-quantity-config .field{margin:0!important;}
@@ -2213,6 +2125,10 @@
                 <div id="designerCotizadorPropsComponente" class="designer-props-form cotizador-component-modal-form cotizador-component-modal-form-v50o">
                   <input id="designerCotizadorElementoIdOriginal" type="hidden">
 
+                  <div class="cotizador-modal-section-head cotizador-full-row">
+                    <h3>General</h3><p>Identificación básica: cómo se llama, si está activo y qué tipo de componente es.</p>
+                  </div>
+
                   <div class="field ctz-f-code">
                     <label for="designerCotizadorElementoId">Código de componente</label>
                     <input id="designerCotizadorElementoId" class="input" type="text" placeholder="EL-CAMPO-001">
@@ -2242,21 +2158,13 @@
                     </select>
                   </div>
 
-                  <div id="designerCotizadorFuncionCampoBox" class="field ctz-f-function hidden">
-                    <label for="designerCotizadorFuncionCampo">Función del campo</label>
-                    <select id="designerCotizadorFuncionCampo" class="select">
-                      <option value="NORMAL">Campo normal</option>
-                      <option value="MONEDA_OFERTA">Moneda de la oferta</option>
-                      <option value="TIPO_CAMBIO">Tipo de cambio</option>
-                      <option value="SUBTOTAL_OFERTA">Subtotal de la oferta</option>
-                      <option value="DESCUENTO_OFERTA">Descuento de la oferta</option>
-                      <option value="IMPUESTOS_OFERTA">Impuestos de la oferta</option>
-                      <option value="TOTAL_PRECIO_OFERTA">Total precio de la oferta</option>
-                      <option value="TOTAL_COSTO_INTERNO">Total costo interno</option>
-                      <option value="TOTAL_GANANCIA_INTERNA">Total ganancia interna</option>
-                      <option value="MARGEN_TOTAL">Margen total</option>
-                    </select>
-                    <span class="param-field-help">Define qué salida normalizada alimenta el Gestor, el Dashboard y la propuesta. Moneda y tipo de cambio solo pueden existir una vez.</span>
+                  <div class="field ctz-f-order">
+                    <label for="designerCotizadorElementoOrden">Orden</label>
+                    <input id="designerCotizadorElementoOrden" class="input" type="number" placeholder="1">
+                  </div>
+
+                  <div class="cotizador-modal-section-head cotizador-full-row">
+                    <h3>Datos</h3><p>Lo específico de este tipo de componente — catálogo, fórmula, ítems, columnas, etc.</p>
                   </div>
 
                   <div id="designerCotizadorConfigTitulo" class="cotizador-config-group" data-component-config="TITULO">
@@ -2297,6 +2205,19 @@
                         <option value="URL">URL</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div id="designerCotizadorCampoFechaOpciones" class="cotizador-check-panel cotizador-check-panel-small cotizador-full-row hidden ctz-f-fecha" data-checks-for="CAMPO">
+                    <div class="cotizador-check-panel-title">Opciones especiales del campo</div>
+                    <div class="cotizador-check-row cotizador-check-row-2">
+                      <label class="param-switch"><input id="designerCotizadorCampoFechaSistema" type="checkbox"> Usar fecha del sistema</label>
+                      <label class="param-switch"><input id="designerCotizadorCampoFechaSeleccionable" type="checkbox" checked> Permitir seleccionar fecha</label>
+                    </div>
+                  </div>
+
+                  <div id="designerCotizadorValorDefectoCampo" class="field ctz-f-default" data-checks-for="CAMPO">
+                    <label for="designerCotizadorCampoValorDefecto">Valor por defecto</label>
+                    <input id="designerCotizadorCampoValorDefecto" class="input" type="text" placeholder="Opcional">
                   </div>
 
                   <div id="designerCotizadorConfigCampoCatalogo" class="cotizador-config-group" data-component-config="CAMPO_CATALOGO">
@@ -2357,6 +2278,11 @@
                     </div>
                   </div>
 
+                  <div id="designerCotizadorCampoCatalogoHijosBox" class="cotizador-catalog-child-box cotizador-full-row hidden ctz-f-catalog-child">
+                    <div id="designerCotizadorCampoCatalogoHijosTexto"></div>
+                    <button id="btnDesignerAgregarCampoCatalogoHijo" class="btn btn-light-blue btn-mini" type="button">Agregar campo hijo</button>
+                  </div>
+
                   <div id="designerCotizadorConfigCampoCalculado" class="cotizador-config-group" data-component-config="CAMPO_CALCULADO">
                     <div class="field ctz-f-calc-mode">
                       <label for="designerCotizadorCalculadoModoFormula">Tipo de fórmula</label>
@@ -2374,18 +2300,6 @@
                         <option value="DIVISION">División</option>
                         <option value="PROMEDIO">Promedio</option>
                       </select>
-                    </div>
-                    <div class="field ctz-f-calc-result">
-                      <label for="designerCotizadorCalculadoTipoResultado">Tipo de resultado</label>
-                      <select id="designerCotizadorCalculadoTipoResultado" class="select">
-                        <option value="NUMERO">Número</option>
-                        <option value="MONEDA">Moneda</option>
-                        <option value="PORCENTAJE">Porcentaje</option>
-                      </select>
-                    </div>
-                    <div class="field ctz-f-calc-decimals">
-                      <label for="designerCotizadorCalculadoDecimales">Decimales</label>
-                      <input id="designerCotizadorCalculadoDecimales" class="input" type="number" min="0" max="4" placeholder="2">
                     </div>
                   </div>
 
@@ -2474,6 +2388,7 @@
                     <div class="field ctz-f-container-cols">
                       <label for="designerCotizadorContenedorColumnas">Columnas del contenedor</label>
                       <select id="designerCotizadorContenedorColumnas" class="select">
+                        <option value="1">1 columna (ancho completo)</option>
                         <option value="2">2 columnas</option>
                         <option value="3">3 columnas</option>
                       </select>
@@ -2530,8 +2445,68 @@
                     </div>
                   </div>
 
-                  <div id="designerCotizadorConfigTabla" class="cotizador-config-group" data-component-config="TABLA">
-                    <div class="cotizador-config-spacer"></div>
+                  <div id="designerCotizadorTablaOpciones" class="cotizador-check-panel cotizador-full-row ctz-f-table-options" data-checks-for="TABLA">
+                    <div class="cotizador-check-panel-title">Opciones de tabla</div>
+                    <div class="cotizador-table-type-grid">
+                      <div class="field" style="margin-bottom:0;">
+                        <label for="designerCotizadorTablaTipoTabla">Tipo de tabla</label>
+                        <select id="designerCotizadorTablaTipoTabla" class="select">
+                          <option value="SIMPLE">Tabla simple</option>
+                        </select>
+                      </div>
+                      <div class="field" style="margin-bottom:0;">
+                        <label for="designerCotizadorTablaEtiquetaTotal">Etiqueta total</label>
+                        <input id="designerCotizadorTablaEtiquetaTotal" class="input" type="text" value="TOTAL" placeholder="TOTAL">
+                      </div>
+                      <div class="field" style="margin-bottom:0;">
+                        <label for="designerCotizadorTablaUnidad">Unidad</label>
+                        <input id="designerCotizadorTablaUnidad" class="input" type="text" placeholder="horas, USD, %...">
+                      </div>
+                    </div>
+                    <div class="cotizador-check-row cotizador-check-row-3">
+                      <label class="param-switch"><input id="designerCotizadorTablaPermiteAgregar" type="checkbox" checked> Permitir agregar filas</label>
+                      <label class="param-switch"><input id="designerCotizadorTablaPermiteEliminar" type="checkbox" checked> Permitir eliminar filas</label>
+                      <label class="param-switch"><input id="designerCotizadorTablaEditableUsuario" type="checkbox" checked> Tabla editable</label>
+                    </div>
+                  </div>
+
+                  <div id="designerCotizadorConfigTablaColumnas" class="cotizador-columnas-panel cotizador-full-row ctz-f-columns" data-checks-for="TABLA">
+                    <div class="cotizador-check-panel-title">Columnas</div>
+                    <div class="cotizador-props-note cotizador-modal-note-compact">
+                      Puede integrar campos existentes o crear columnas propias que viven solo dentro de esta tabla.
+                    </div>
+
+                    <div class="cotizador-table-column-mode">
+                      <label class="param-switch"><input id="designerCotizadorTablaModoCampoExistente" name="designerCotizadorTablaModoColumna" type="radio" value="CAMPO" checked> Integrar campo existente</label>
+                      <label class="param-switch"><input id="designerCotizadorTablaModoColumnaPropia" name="designerCotizadorTablaModoColumna" type="radio" value="PROPIA"> Crear columna propia</label>
+                    </div>
+
+                    <div id="designerCotizadorTablaBloqueCampoExistente" class="field">
+                      <label>Campo disponible</label>
+                      <div class="cotizador-inline-action">
+                        <select id="designerCotizadorTablaCampoDisponible" class="select">
+                          <option value="">Seleccione campo...</option>
+                        </select>
+                        <button id="btnDesignerAgregarColumnaTabla" class="btn btn-light-blue btn-mini" type="button">Agregar campo</button>
+                      </div>
+                      <span class="param-field-help">Integra componentes tipo Campo, Campo Catálogo o Campo Calculado ya creados en esta sección.</span>
+                    </div>
+
+                    <div id="designerCotizadorTablaBloqueColumnaPropia" class="field hidden">
+                      <label>Columna propia de tabla</label>
+                      <div class="cotizador-table-own-column-grid">
+                        <input id="designerCotizadorTablaColumnaNombre" class="input" type="text" placeholder="Nombre de columna">
+                        <select id="designerCotizadorTablaColumnaTipo" class="select">
+                          <option value="TEXTO">Texto</option>
+                          <option value="NUMERO">Número</option>
+                          <option value="MONEDA">Moneda</option>
+                          <option value="PORCENTAJE">Porcentaje</option>
+                        </select>
+                        <button id="btnDesignerAgregarColumnaPropiaTabla" class="btn btn-light-blue btn-mini" type="button">Agregar columna</button>
+                      </div>
+                      <span class="param-field-help">Use columnas propias para datos simples como Perfil, Cantidad, Observación, Monto o Porcentaje. El total al pie de la tabla suma la primera columna Número o Moneda, en el orden en que aparecen.</span>
+                    </div>
+                    <div id="designerCotizadorTablaColumnasLista" class="cotizador-mini-list"></div>
                   </div>
 
                   <div id="designerCotizadorConfigSeccionesAdicionales" class="cotizador-config-group" data-component-config="SECCIONES_ADICIONALES">
@@ -2586,12 +2561,8 @@
                     </div>
                   </div>
 
-                  <div id="designerCotizadorCampoFechaOpciones" class="cotizador-check-panel cotizador-check-panel-small cotizador-full-row hidden ctz-f-fecha" data-checks-for="CAMPO">
-                    <div class="cotizador-check-panel-title">Opciones especiales del campo</div>
-                    <div class="cotizador-check-row cotizador-check-row-2">
-                      <label class="param-switch"><input id="designerCotizadorCampoFechaSistema" type="checkbox"> Usar fecha del sistema</label>
-                      <label class="param-switch"><input id="designerCotizadorCampoFechaSeleccionable" type="checkbox" checked> Permitir seleccionar fecha</label>
-                    </div>
+                  <div class="cotizador-modal-section-head cotizador-full-row">
+                    <h3>Reglas / Dependencias</h3><p>De qué otro componente depende este — dónde vive y qué lo alimenta.</p>
                   </div>
 
                   <div id="designerCotizadorElementoPadreWrap" class="field cotizador-parent-field ctz-f-parent">
@@ -2602,15 +2573,10 @@
                     <span class="param-field-help">Úselo para colocar el componente dentro de un contenedor u Opciones de Propuesta.</span>
                   </div>
 
-                  <div class="field ctz-f-order">
-                    <label for="designerCotizadorElementoOrden">Orden</label>
-                    <input id="designerCotizadorElementoOrden" class="input" type="number" placeholder="1">
+                  <div class="cotizador-modal-section-head cotizador-full-row">
+                    <h3>Presentación</h3><p>Cómo se ve y qué texto de ayuda trae para quien llena el cotizador.</p>
                   </div>
 
-                  <div class="field ctz-f-name">
-                    <label for="designerCotizadorElementoNombre">Nombre interno</label>
-                    <input id="designerCotizadorElementoNombre" class="input" type="text" placeholder="datos_cliente">
-                  </div>
                   <div class="field ctz-f-label">
                     <label id="designerCotizadorEtiquetaLabel" for="designerCotizadorElementoEtiqueta">Texto visible / etiqueta</label>
                     <input id="designerCotizadorElementoEtiqueta" class="input" type="text" placeholder="Texto que se mostrará">
@@ -2621,12 +2587,39 @@
                     <textarea id="designerCotizadorElementoDescripcion" class="input" placeholder="Texto de ayuda o descripción del componente"></textarea>
                   </div>
 
-                  <div id="designerCotizadorValorDefectoCampo" class="field ctz-f-default" data-checks-for="CAMPO">
-                    <label for="designerCotizadorCampoValorDefecto">Valor por defecto</label>
-                    <input id="designerCotizadorCampoValorDefecto" class="input" type="text" placeholder="Opcional">
+                  <div class="cotizador-modal-section-head cotizador-full-row">
+                    <h3>Cálculo</h3><p>Qué salida normalizada alimenta, y cómo se calcula el resultado (cuando aplica).</p>
                   </div>
 
-                  
+                  <div id="designerCotizadorFuncionCampoBox" class="field ctz-f-function hidden">
+                    <label for="designerCotizadorFuncionCampo">Función del campo</label>
+                    <select id="designerCotizadorFuncionCampo" class="select">
+                      <option value="NORMAL">Campo normal</option>
+                      <option value="MONEDA_OFERTA">Moneda de la oferta</option>
+                      <option value="TIPO_CAMBIO">Tipo de cambio</option>
+                      <option value="SUBTOTAL_OFERTA">Subtotal de la oferta</option>
+                      <option value="DESCUENTO_OFERTA">Descuento de la oferta</option>
+                      <option value="IMPUESTOS_OFERTA">Impuestos de la oferta</option>
+                      <option value="TOTAL_PRECIO_OFERTA">Total precio de la oferta</option>
+                      <option value="TOTAL_COSTO_INTERNO">Total costo interno</option>
+                      <option value="TOTAL_GANANCIA_INTERNA">Total ganancia interna</option>
+                      <option value="MARGEN_TOTAL">Margen total</option>
+                    </select>
+                    <span class="param-field-help">Define qué salida normalizada alimenta el Gestor, el Dashboard y la propuesta. Moneda y tipo de cambio solo pueden existir una vez.</span>
+                  </div>
+
+                  <div class="field ctz-f-calc-result" data-component-config="CAMPO_CALCULADO">
+                    <label for="designerCotizadorCalculadoTipoResultado">Tipo de resultado</label>
+                    <select id="designerCotizadorCalculadoTipoResultado" class="select">
+                      <option value="NUMERO">Número</option>
+                      <option value="MONEDA">Moneda</option>
+                      <option value="PORCENTAJE">Porcentaje</option>
+                    </select>
+                  </div>
+                  <div class="field ctz-f-calc-decimals" data-component-config="CAMPO_CALCULADO">
+                    <label for="designerCotizadorCalculadoDecimales">Decimales</label>
+                    <input id="designerCotizadorCalculadoDecimales" class="input" type="number" min="0" max="4" placeholder="2">
+                  </div>
 
                   <div id="designerCotizadorFormulaCalculada" class="cotizador-columnas-panel cotizador-full-row ctz-f-formula cotizador-formula-panel" data-checks-for="CAMPO_CALCULADO">
                     <div class="cotizador-check-panel-title">Editor de fórmula</div>
@@ -2714,9 +2707,14 @@
                     </div>
                   </div>
 
-                  <div id="designerCotizadorCampoCatalogoHijosBox" class="cotizador-catalog-child-box cotizador-full-row hidden ctz-f-catalog-child">
-                    <div id="designerCotizadorCampoCatalogoHijosTexto"></div>
-                    <button id="btnDesignerAgregarCampoCatalogoHijo" class="btn btn-light-blue btn-mini" type="button">Agregar campo hijo</button>
+                  <div class="cotizador-modal-section-head cotizador-full-row">
+                    <h3>Avanzado</h3><p>Ajustes menos comunes: nombre técnico y controles de edición/visibilidad.</p>
+                  </div>
+
+                  <div class="field ctz-f-name">
+                    <label for="designerCotizadorElementoNombre">Nombre interno</label>
+                    <input id="designerCotizadorElementoNombre" class="input" type="text" placeholder="datos_cliente">
+                    <span class="param-field-help">Token técnico usado por fórmulas y plantillas (ej. [NOMBRE_INTERNO]). Opcional salvo que otro componente vaya a referenciarlo.</span>
                   </div>
 
                   <div id="designerCotizadorChecksLeyenda" class="cotizador-check-panel cotizador-full-row ctz-f-checks-legend" data-checks-for="LEYENDA">
@@ -2821,31 +2819,6 @@
                     </div>
                   </div>
 
-                  <div id="designerCotizadorTablaOpciones" class="cotizador-check-panel cotizador-full-row ctz-f-table-options" data-checks-for="TABLA">
-                    <div class="cotizador-check-panel-title">Opciones de tabla</div>
-                    <div class="cotizador-table-type-grid">
-                      <div class="field" style="margin-bottom:0;">
-                        <label for="designerCotizadorTablaTipoTabla">Tipo de tabla</label>
-                        <select id="designerCotizadorTablaTipoTabla" class="select">
-                          <option value="SIMPLE">Tabla simple</option>
-                        </select>
-                      </div>
-                      <div class="field" style="margin-bottom:0;">
-                        <label for="designerCotizadorTablaEtiquetaTotal">Etiqueta total</label>
-                        <input id="designerCotizadorTablaEtiquetaTotal" class="input" type="text" value="TOTAL" placeholder="TOTAL">
-                      </div>
-                      <div class="field" style="margin-bottom:0;">
-                        <label for="designerCotizadorTablaUnidad">Unidad</label>
-                        <input id="designerCotizadorTablaUnidad" class="input" type="text" placeholder="horas, USD, %...">
-                      </div>
-                    </div>
-                    <div class="cotizador-check-row cotizador-check-row-3">
-                      <label class="param-switch"><input id="designerCotizadorTablaPermiteAgregar" type="checkbox" checked> Permitir agregar filas</label>
-                      <label class="param-switch"><input id="designerCotizadorTablaPermiteEliminar" type="checkbox" checked> Permitir eliminar filas</label>
-                      <label class="param-switch"><input id="designerCotizadorTablaEditableUsuario" type="checkbox" checked> Tabla editable</label>
-                    </div>
-                  </div>
-
                   <div id="designerCotizadorChecksTabla" class="cotizador-check-panel cotizador-full-row ctz-f-checks-table" data-checks-for="TABLA">
                     <div class="cotizador-check-panel-title">Marque o seleccione</div>
                     <div class="cotizador-check-row cotizador-check-row-4">
@@ -2854,45 +2827,6 @@
                       <label class="param-switch"><input id="designerCotizadorTablaVisibleCalc" type="checkbox" checked> Visible en calculadora</label>
                       <label class="param-switch"><input id="designerCotizadorTablaVisibleOferta" type="checkbox" checked> Visible en oferta</label>
                     </div>
-                  </div>
-
-                  <div id="designerCotizadorConfigTablaColumnas" class="cotizador-columnas-panel cotizador-full-row ctz-f-columns" data-checks-for="TABLA">
-                    <div class="cotizador-check-panel-title">Columnas</div>
-                    <div class="cotizador-props-note cotizador-modal-note-compact">
-                      Puede integrar campos existentes o crear columnas propias que viven solo dentro de esta tabla.
-                    </div>
-
-                    <div class="cotizador-table-column-mode">
-                      <label class="param-switch"><input id="designerCotizadorTablaModoCampoExistente" name="designerCotizadorTablaModoColumna" type="radio" value="CAMPO" checked> Integrar campo existente</label>
-                      <label class="param-switch"><input id="designerCotizadorTablaModoColumnaPropia" name="designerCotizadorTablaModoColumna" type="radio" value="PROPIA"> Crear columna propia</label>
-                    </div>
-
-                    <div id="designerCotizadorTablaBloqueCampoExistente" class="field">
-                      <label>Campo disponible</label>
-                      <div class="cotizador-inline-action">
-                        <select id="designerCotizadorTablaCampoDisponible" class="select">
-                          <option value="">Seleccione campo...</option>
-                        </select>
-                        <button id="btnDesignerAgregarColumnaTabla" class="btn btn-light-blue btn-mini" type="button">Agregar campo</button>
-                      </div>
-                      <span class="param-field-help">Integra componentes tipo Campo, Campo Catálogo o Campo Calculado ya creados en esta sección.</span>
-                    </div>
-
-                    <div id="designerCotizadorTablaBloqueColumnaPropia" class="field hidden">
-                      <label>Columna propia de tabla</label>
-                      <div class="cotizador-table-own-column-grid">
-                        <input id="designerCotizadorTablaColumnaNombre" class="input" type="text" placeholder="Nombre de columna">
-                        <select id="designerCotizadorTablaColumnaTipo" class="select">
-                          <option value="TEXTO">Texto</option>
-                          <option value="NUMERO">Número</option>
-                          <option value="MONEDA">Moneda</option>
-                          <option value="PORCENTAJE">Porcentaje</option>
-                        </select>
-                        <button id="btnDesignerAgregarColumnaPropiaTabla" class="btn btn-light-blue btn-mini" type="button">Agregar columna</button>
-                      </div>
-                      <span class="param-field-help">Use columnas propias para datos simples como Perfil, Cantidad, Observación, Monto o Porcentaje. El total al pie de la tabla suma la primera columna Número o Moneda, en el orden en que aparecen.</span>
-                    </div>
-                    <div id="designerCotizadorTablaColumnasLista" class="cotizador-mini-list"></div>
                   </div>
 
                   <textarea id="designerCotizadorElementoConfig" class="input hidden" placeholder="{}"></textarea>

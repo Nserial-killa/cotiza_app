@@ -787,6 +787,26 @@ func (h *PlantillasHandler) Eliminar(w http.ResponseWriter, r *http.Request) {
 		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "Solo se puede eliminar una plantilla en estado Borrador; una plantilla publicada debe despublicarse primero."})
 		return
 	}
+	// PLA-012: no borrar una plantilla que un cotizador en uso podría estar
+	// mostrando. Criterio deliberadamente más protector que el de
+	// plantilla_renderizador.go (que entre varias plantillas Publicadas de
+	// un mismo cotizador elige UNA para mostrar): acá no importa cuál
+	// terminaría resolviendo esa cotización — si existe AL MENOS UNA
+	// cotización de un cotizador vinculado a esta plantilla, se bloquea.
+	var enUso bool
+	if err := h.DB.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM cotizaciones c
+			JOIN plantilla_calculadoras pc ON pc.calculadora_id = c.calculadora_id
+			WHERE pc.plantilla_id::text = $1
+		)`, id).Scan(&enUso); err != nil {
+		responderErrorPlantilla(w, "validar si la plantilla está en uso", err)
+		return
+	}
+	if enUso {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "No se puede eliminar: existen cotizaciones de un cotizador que usa esta plantilla."})
+		return
+	}
 	if _, err := h.DB.Exec(ctx, `DELETE FROM plantillas WHERE plantilla_id::text=$1`, id); err != nil {
 		responderErrorPlantilla(w, "eliminar la plantilla", err)
 		return

@@ -54,6 +54,7 @@ type tablaColumna struct {
 	TipoDato         *string `json:"tipo_dato"`
 	Etiqueta         *string `json:"etiqueta"`
 	Orden            int     `json:"orden"`
+	Totalizable      bool    `json:"totalizable"`
 }
 
 type crearColumnaTablaRequest struct {
@@ -62,6 +63,7 @@ type crearColumnaTablaRequest struct {
 	TipoDato         string         `json:"tipo_dato"`
 	Etiqueta         string         `json:"etiqueta"`
 	Orden            enteroFlexible `json:"orden"`
+	Totalizable      bool           `json:"totalizable"`
 }
 
 // Crear agrega una columna a un elemento TABLA ya existente.
@@ -159,10 +161,10 @@ func (h *TablaColumnasHandler) Crear(w http.ResponseWriter, r *http.Request) {
 
 	var columnaID string
 	err = h.DB.QueryRow(ctx, `
-		INSERT INTO tabla_columnas (elemento_id, origen, campo_existente_id, tipo_dato, etiqueta, orden)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO tabla_columnas (elemento_id, origen, campo_existente_id, tipo_dato, etiqueta, orden, totalizable)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING columna_id::text`,
-		elementoID, req.Origen, campoExistenteID, tipoDato, etiqueta, int(req.Orden),
+		elementoID, req.Origen, campoExistenteID, tipoDato, etiqueta, int(req.Orden), req.Totalizable,
 	).Scan(&columnaID)
 	if err != nil {
 		log.Printf("tabla columnas: error creando columna de %s: %v", elementoID, err)
@@ -173,8 +175,9 @@ func (h *TablaColumnasHandler) Crear(w http.ResponseWriter, r *http.Request) {
 }
 
 type editarColumnaTablaRequest struct {
-	Etiqueta *string         `json:"etiqueta"`
-	Orden    *enteroFlexible `json:"orden"`
+	Etiqueta    *string         `json:"etiqueta"`
+	Orden       *enteroFlexible `json:"orden"`
+	Totalizable *bool           `json:"totalizable"`
 }
 
 // Editar reordena y/o cambia la etiqueta de una columna. Solo una columna
@@ -193,7 +196,7 @@ func (h *TablaColumnasHandler) Editar(w http.ResponseWriter, r *http.Request) {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	if req.Etiqueta == nil && req.Orden == nil {
+	if req.Etiqueta == nil && req.Orden == nil && req.Totalizable == nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar al menos un campo para editar."})
 		return
 	}
@@ -234,6 +237,9 @@ func (h *TablaColumnasHandler) Editar(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Orden != nil {
 		agregar("orden", int(*req.Orden))
+	}
+	if req.Totalizable != nil {
+		agregar("totalizable", *req.Totalizable)
 	}
 
 	valores = append(valores, columnaID)

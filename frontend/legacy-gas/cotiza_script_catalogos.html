@@ -1049,7 +1049,7 @@
         const id = String(e.elemento_id || "").trim();
         const hijos = hijosPorPadre[id] || [];
         const cols = Math.max(1, Math.min(3, Number(cfg.columnas || 2) || 2));
-        const cls = cols === 3 ? " cols-3" : cols === 2 ? " cols-2" : "";
+        const cls = " cols-" + cols;
         const cuerpo = hijos.length ? hijos.map(function(h){ return renderComponentePreviewCotizadorFase1_(h, hijosPorPadre); }).join("") : '<div class="cotizador-preview-empty">Contenedor sin campos asignados.</div>';
         return '<div class="cotizador-preview-container"><div class="cotizador-preview-container-head"><strong>'+escapeHtml(etiqueta)+'</strong>'+(desc ? '<span>'+escapeHtml(desc)+'</span>' : '')+'</div><div class="cotizador-preview-grid'+cls+'">'+cuerpo+'</div></div>';
       }
@@ -1617,7 +1617,38 @@
           actualizarModoFormulaCotizadorFase1_();
         }
         if(tipo === "SECCIONES_ADICIONALES") cargarSeccionesReutilizablesCotizadorFase1_();
+        actualizarSeccionesModalComponenteCotizadorFase1_();
       }
+
+      // UX-001/UX-004: oculta el título de una sección (General/Datos/
+      // Presentación/Cálculo/Reglas/Avanzado) cuando, para el tipo de
+      // componente actual, ninguno de sus campos quedó visible — no todo
+      // tipo usa las 6 secciones, y un título sin nada debajo confunde más
+      // de lo que ayuda. Recorre los hijos directos del formulario (los
+      // grupos por tipo son display:contents, así que ocultar el grupo ya
+      // oculta sus campos; acá solo se lee ese estado, no se decide de
+      // nuevo por tipo).
+      function actualizarSeccionesModalComponenteCotizadorFase1_(){
+        const form = byId("designerCotizadorPropsComponente");
+        if(!form) return;
+        let seccionActual = null;
+        let contenidoVisible = false;
+        const cerrarSeccion = function(){
+          if(seccionActual) seccionActual.classList.toggle("hidden", !contenidoVisible);
+        };
+        Array.prototype.forEach.call(form.children, function(nodo){
+          if(nodo.classList && nodo.classList.contains("cotizador-modal-section-head")){
+            cerrarSeccion();
+            seccionActual = nodo;
+            contenidoVisible = false;
+            return;
+          }
+          if(!seccionActual || nodo.tagName === "INPUT" && nodo.type === "hidden") return;
+          if(!nodo.classList || !nodo.classList.contains("hidden")) contenidoVisible = true;
+        });
+        cerrarSeccion();
+      }
+
       function getCampoModeloByIdCotizadorFase1_(campoId){
         const st = getCotizadorFase1State_();
         campoId = String(campoId || "").trim();
@@ -1938,11 +1969,21 @@
               const esPropia = String(c.origen || "").toUpperCase() === "PROPIA";
               const elemento = esPropia ? null : (st.elementos || []).find(function(el){ return String(el.elemento_id || "").trim() === String(c.campo_existente_id || "").trim(); });
               const txt = esPropia ? (c.etiqueta || "Columna propia") + " (" + (c.tipo_dato || "TEXTO") + ")" : (elemento ? labelElementoCampoCotizadorFase1_(elemento) : (c.campo_existente_id || "Campo"));
-              return '<div class="cotizador-mini-row"><span>'+(idx+1)+'. '+escapeHtml(txt)+'</span><button type="button" class="btn btn-ghost btn-mini" data-quitar-columna="'+escapeHtml(c.columna_id)+'">Quitar</button></div>';
+              return '<div class="cotizador-mini-row" style="display:flex;align-items:center;gap:8px;">' +
+                '<span style="flex:1;">'+(idx+1)+'. '+escapeHtml(txt)+'</span>' +
+                '<label class="param-switch" style="padding:0;min-height:auto;font-size:11px;white-space:nowrap;" title="Sumar esta columna en el total de la tabla (TAB-003)">' +
+                  '<input type="checkbox" data-totalizable-columna="'+escapeHtml(c.columna_id)+'"'+(c.totalizable ? ' checked' : '')+'> Totalizable' +
+                '</label>' +
+                '<button type="button" class="btn btn-ghost btn-mini" data-quitar-columna="'+escapeHtml(c.columna_id)+'">Quitar</button></div>';
             }).join("");
             cont.querySelectorAll("[data-quitar-columna]").forEach(function(btn){
               btn.addEventListener("click", function(){
                 eliminarColumnaTablaCotizadorFase1_(btn.getAttribute("data-quitar-columna"));
+              });
+            });
+            cont.querySelectorAll("[data-totalizable-columna]").forEach(function(chk){
+              chk.addEventListener("change", function(){
+                cambiarTotalizableColumnaTablaCotizadorFase1_(chk.getAttribute("data-totalizable-columna"), chk.checked);
               });
             });
           }
@@ -1999,6 +2040,19 @@
           .catch(function(err){ mostrarToast((err && err.message) || "No se pudo agregar la columna."); });
       }
 
+      // TAB-003/CTZ-TBL-002: marca/desmarca una columna como Totalizable.
+      // Sin ninguna marcada, el compilador sigue infiriendo la primera
+      // numérica (ver TABLA_TOTALES_COLUMNAS_INFERIDAS al validar).
+      function cambiarTotalizableColumnaTablaCotizadorFase1_(columnaId, totalizable){
+        if(!columnaId) return;
+        fetchAutenticado("/api/cotizador/columnas/" + encodeURIComponent(columnaId), {
+          method: "PATCH", headers: {"Accept":"application/json","Content-Type":"application/json"},
+          body: JSON.stringify({totalizable: totalizable})
+        }).then(function(resp){ return resp.json().then(function(data){ if(!resp.ok || !data.ok) throw new Error(data.error || "No se pudo actualizar la columna."); return data; }); })
+          .then(function(){ mostrarToast(totalizable ? "Columna marcada como totalizable." : "Columna ya no suma en el total."); refrescarColumnasTablaCotizadorFase1_(); })
+          .catch(function(err){ mostrarToast((err && err.message) || "No se pudo actualizar la columna."); refrescarColumnasTablaCotizadorFase1_(); });
+      }
+
       function eliminarColumnaTablaCotizadorFase1_(columnaId){
         if(!columnaId) return;
         if(!window.confirm("¿Desea eliminar esta columna? Si alguna cotización ya tiene datos guardados con ella, no se podrá eliminar.")) return;
@@ -2050,12 +2104,37 @@
         renderReglasCampoCotizadorFase1_();
       }
 
+      // CAT-011: crea (o abre, si ya existe) el Campo Catálogo del hijo
+      // correspondiente en el mismo tab, sin que el diseñador tenga que
+      // salir a buscarlo — el filtrado real en tiempo de ejecución
+      // (CAT-012/013) depende de que exista un Campo Catálogo por cada
+      // catálogo de la relación, así que esta acción deja esa condición
+      // resuelta de una vez.
       function agregarCampoCatalogoHijoCotizadorFase1_(){
-        const st = getCotizadorFase1State_();
         const catalogoId = String(byId("designerCotizadorCampoCatalogoId") ? byId("designerCotizadorCampoCatalogoId").value : "").trim();
         const hijos = hijosCatalogoCotizadorFase1_(catalogoId);
         if(!hijos.length){ mostrarToast("El catálogo seleccionado no tiene catálogos hijos activos."); return; }
-        mostrarToast("Seleccione + Nuevo componente y cree un Campo Catálogo usando el catálogo hijo: " + (hijos[0].nombre_catalogo || hijos[0].catalogo_id || "catálogo hijo") + ".");
+        const hijoCatalogo = hijos[0];
+        const hijoCatalogoId = String(hijoCatalogo.catalogo_id || hijoCatalogo.id || "").trim();
+        if(!hijoCatalogoId){ mostrarToast("El catálogo hijo no tiene un ID válido."); return; }
+
+        const existente = elementosDeTabCotizadorFase1_().find(function(e){
+          if(String(e.tipo_elemento || e.tipo || "").toUpperCase() !== "CAMPO_CATALOGO") return false;
+          const cfg = parseConfigElementoCotizadorFase1_(e.configuracion || e.config_json);
+          return String(e.catalogo_id || cfg.catalogo_id || "").trim() === hijoCatalogoId;
+        });
+        if(existente){
+          seleccionarComponenteCotizadorFase1_(existente.elemento_id);
+          mostrarToast("Ya existe un Campo Catálogo para " + (hijoCatalogo.nombre_catalogo || hijoCatalogoId) + " en este tab; se abrió para editar.");
+          return;
+        }
+
+        nuevoComponenteCotizadorFase1_();
+        if(byId("designerCotizadorElementoTipo")) byId("designerCotizadorElementoTipo").value = "CAMPO_CATALOGO";
+        if(byId("designerCotizadorElementoEtiqueta")) byId("designerCotizadorElementoEtiqueta").value = hijoCatalogo.nombre_catalogo || hijoCatalogoId;
+        cargarConfigVisualComponenteCotizadorFase1_({catalogo_id: hijoCatalogoId});
+        actualizarPropiedadesPorTipoComponenteCotizadorFase1_();
+        mostrarToast("Complete y guarde el Campo Catálogo hijo de " + (hijoCatalogo.nombre_catalogo || hijoCatalogoId) + ".");
       }
 
       function setCheckedCotizadorFase1_(id, value){ if(byId(id)) byId(id).checked = value === true || String(value || "").toUpperCase() === "TRUE" || String(value || "").toUpperCase() === "SI" || String(value || "") === "1"; }

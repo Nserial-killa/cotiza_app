@@ -95,12 +95,27 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": runtime.Snapshot.Valores, "version": runtime.Version, "solo_lectura": true})
 		return
 	}
-	if runtime.Snapshot == nil {
-		if err := h.incluirOpcionesCatalogo(ctx, runtime.Estructura); err != nil {
-			log.Printf("cotizador runtime: error cargando opciones de %s: %v", cotizacionID, err)
-			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las opciones de catálogo."})
-			return
-		}
+	// CAT-012/013: incluirOpcionesCatalogo necesita los valores ya
+	// guardados para filtrar un Campo Catálogo hijo según el valor ACTUAL
+	// de su padre — por eso se adelanta acá, antes se cargaba después.
+	valoresParaOpciones, err := h.leerValores(ctx, h.DB, cotizacionID, runtime.Version)
+	if err != nil {
+		log.Printf("cotizador runtime: error leyendo valores de %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar los valores de la cotización."})
+		return
+	}
+	// Mismo criterio que las Opciones de Propuesta un poco más abajo: una
+	// versión NO histórica siempre recalcula fresco, aunque ya exista un
+	// snapshot — congelarFuentesSalidas (salidas_runtime.go) escribe un
+	// snapshot en CADA guardado, aunque la versión siga viva/editable, con
+	// las opciones del catálogo SIN filtrar por padre-hijo (esa congelación
+	// es para la propuesta ya enviada, no para la edición en curso). Si
+	// llegamos hasta acá, el caso "snapshot + histórica" ya se resolvió con
+	// el return de arriba.
+	if err := h.incluirOpcionesCatalogo(ctx, runtime.Estructura, valoresParaOpciones); err != nil {
+		log.Printf("cotizador runtime: error cargando opciones de %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las opciones de catálogo."})
+		return
 	}
 	if !runtime.Historica {
 		if err := h.asegurarOpcionesPropuesta(ctx, &runtime); err != nil {
@@ -118,12 +133,7 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 			padre["opciones"] = opciones
 		}
 	}
-	valores, err := h.leerValores(ctx, h.DB, cotizacionID, runtime.Version)
-	if err != nil {
-		log.Printf("cotizador runtime: error leyendo valores de %s: %v", cotizacionID, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar los valores de la cotización."})
-		return
-	}
+	valores := valoresParaOpciones
 	resolverCamposCalculados(indexarElementosCompletoRuntime(runtime.Estructura), valores)
 	resolverCamposCalculadosPorOpcion(indexarElementosCompletoRuntime(runtime.Estructura), runtime.Elementos, valores)
 	incluirValoresCajaValor(runtime.Estructura, valores)
@@ -382,6 +392,17 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		}
 	}
 
+	// CAT-012/013: si el padre cambió (o ya había cambiado antes de esta
+	// llamada) y el valor guardado del hijo ya no es válido para el valor
+	// ACTUAL del padre, se limpia acá — nunca se rechaza el guardado por
+	// esto, mismo criterio que el motor de Reglas con un campo oculto.
+	pendientes, err = h.limpiarCatalogosHijoDesactualizados(ctx, tx, cotizacionID, req.Version, runtime.Estructura, runtime.Elementos, pendientes)
+	if err != nil {
+		log.Printf("cotizador runtime: error limpiando catálogos hijo de %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los catálogos dependientes."})
+		return
+	}
+
 	for _, pendiente := range pendientes {
 		if pendiente.OpcionID == "" {
 			_, err = tx.Exec(ctx, `
@@ -562,54 +583,271 @@ func indexarElementosRuntimeRecursivo(elementos []any, resultado map[string]elem
 	}
 }
 
-func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogo(ctx context.Context, estructura map[string]any) error {
+// incluirOpcionesCatalogo llena "opciones" de cada Campo Catálogo. CAT-012/
+// 013: cuando el catálogo tiene un padre declarado (catalogos.
+// catalogo_padre_id) Y existe al menos una fila en catalogo_relaciones para
+// ese par de catálogos, las opciones se filtran a las que están vinculadas
+// al valor ACTUAL del campo padre en esta misma cotización — sin relación
+// alguna configurada para el par, el catálogo se sigue mostrando completo
+// (catalogo_padre_id por sí solo es solo la declaración; no basta para
+// bloquear un catálogo que nadie terminó de relacionar valor por valor).
+func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogo(ctx context.Context, estructura map[string]any, valores map[string]any) error {
+	elementoPorCatalogo, catalogosDistintos := elementoPorCatalogoRuntime(estructura)
+	padresPorCatalogo, err := catalogoPadrePorCatalogo(ctx, h.DB, catalogosDistintos)
+	if err != nil {
+		return err
+	}
 	tabs, _ := estructura["tabs"].([]any)
 	for _, tabRaw := range tabs {
 		tab, _ := tabRaw.(map[string]any)
 		elementos, _ := tab["elementos"].([]any)
-		if err := h.incluirOpcionesCatalogoRecursivo(ctx, elementos); err != nil {
+		if err := h.incluirOpcionesCatalogoRecursivo(ctx, elementos, elementoPorCatalogo, padresPorCatalogo, valores); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogoRecursivo(ctx context.Context, elementos []any) error {
+func (h *CotizadorRuntimeHandler) incluirOpcionesCatalogoRecursivo(ctx context.Context, elementos []any, elementoPorCatalogo, padresPorCatalogo map[string]string, valores map[string]any) error {
 	for _, elementoRaw := range elementos {
 		elemento, _ := elementoRaw.(map[string]any)
 		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "CAMPO_CATALOGO" {
 			catalogoID := strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"]))
-			rows, err := h.DB.Query(ctx, `
-				SELECT valor_id, COALESCE(clave, ''), texto_visible, valor_sistema, COALESCE(orden, 0)
-				FROM catalogo_valores WHERE catalogo_id=$1 AND activo=true
-				ORDER BY COALESCE(orden, 0), texto_visible`, catalogoID)
+			opciones, err := h.opcionesCatalogoFiltradas(ctx, catalogoID, elementoPorCatalogo, padresPorCatalogo, valores)
 			if err != nil {
 				return err
 			}
-			opciones := make([]map[string]any, 0)
-			for rows.Next() {
-				var valorID, clave, textoVisible, valorSistema string
-				var orden int
-				if err := rows.Scan(&valorID, &clave, &textoVisible, &valorSistema, &orden); err != nil {
-					rows.Close()
-					return err
-				}
-				opciones = append(opciones, map[string]any{"valor_id": valorID, "clave": clave, "texto_visible": textoVisible, "valor_sistema": valorSistema, "orden": orden})
-			}
-			if err := rows.Err(); err != nil {
-				rows.Close()
-				return err
-			}
-			rows.Close()
 			elemento["opciones"] = opciones
 		}
 		if hijos, ok := elemento["hijos"].([]any); ok {
-			if err := h.incluirOpcionesCatalogoRecursivo(ctx, hijos); err != nil {
+			if err := h.incluirOpcionesCatalogoRecursivo(ctx, hijos, elementoPorCatalogo, padresPorCatalogo, valores); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (h *CotizadorRuntimeHandler) opcionesCatalogoFiltradas(ctx context.Context, catalogoID string, elementoPorCatalogo, padresPorCatalogo map[string]string, valores map[string]any) ([]map[string]any, error) {
+	catalogoPadreID := padresPorCatalogo[catalogoID]
+	if catalogoPadreID == "" {
+		return consultarOpcionesCatalogo(ctx, h.DB, catalogoID, "", "")
+	}
+	hayRelaciones, err := hayRelacionesCatalogo(ctx, h.DB, catalogoPadreID, catalogoID)
+	if err != nil {
+		return nil, err
+	}
+	if !hayRelaciones {
+		return consultarOpcionesCatalogo(ctx, h.DB, catalogoID, "", "")
+	}
+	valorPadreSistema := ""
+	if padreElementoID := elementoPorCatalogo[catalogoPadreID]; padreElementoID != "" {
+		valorPadreSistema = textoDesdeValorAny(valores[padreElementoID])
+	}
+	return consultarOpcionesCatalogo(ctx, h.DB, catalogoID, catalogoPadreID, valorPadreSistema)
+}
+
+// elementoPorCatalogoRuntime indexa, para cada catálogo con un Campo
+// Catálogo en la estructura, el elemento_id que lo usa (asume un único
+// Campo Catálogo por catálogo en un mismo cotizador — el caso real del
+// padre-hijo) y devuelve además la lista de catálogos distintos referidos,
+// para resolver sus catalogo_padre_id en una sola consulta.
+func elementoPorCatalogoRuntime(estructura map[string]any) (map[string]string, []string) {
+	resultado := map[string]string{}
+	var recorrer func(elementos []any)
+	recorrer = func(elementos []any) {
+		for _, elementoRaw := range elementos {
+			elemento, _ := elementoRaw.(map[string]any)
+			if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) == "CAMPO_CATALOGO" {
+				catalogoID := strings.TrimSpace(fmt.Sprint(elemento["catalogo_id"]))
+				elementoID := strings.TrimSpace(fmt.Sprint(elemento["elemento_id"]))
+				if catalogoID != "" && elementoID != "" {
+					resultado[catalogoID] = elementoID
+				}
+			}
+			if hijos, ok := elemento["hijos"].([]any); ok {
+				recorrer(hijos)
+			}
+		}
+	}
+	tabs, _ := estructura["tabs"].([]any)
+	for _, tabRaw := range tabs {
+		tab, _ := tabRaw.(map[string]any)
+		elementos, _ := tab["elementos"].([]any)
+		recorrer(elementos)
+	}
+	catalogos := make([]string, 0, len(resultado))
+	for catalogoID := range resultado {
+		catalogos = append(catalogos, catalogoID)
+	}
+	return resultado, catalogos
+}
+
+func catalogoPadrePorCatalogo(ctx context.Context, q consultadorRuntime, catalogoIDs []string) (map[string]string, error) {
+	resultado := map[string]string{}
+	if len(catalogoIDs) == 0 {
+		return resultado, nil
+	}
+	rows, err := q.Query(ctx, `SELECT catalogo_id, COALESCE(catalogo_padre_id, '') FROM catalogos WHERE catalogo_id = ANY($1)`, catalogoIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, padre string
+		if err := rows.Scan(&id, &padre); err != nil {
+			return nil, err
+		}
+		if padre != "" {
+			resultado[id] = padre
+		}
+	}
+	return resultado, rows.Err()
+}
+
+func hayRelacionesCatalogo(ctx context.Context, q consultadorContextoRuntime, catalogoPadreID, catalogoHijoID string) (bool, error) {
+	var existe bool
+	err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM catalogo_relaciones WHERE catalogo_padre_id=$1 AND catalogo_hijo_id=$2 AND activo=true)`,
+		catalogoPadreID, catalogoHijoID).Scan(&existe)
+	return existe, err
+}
+
+// consultarOpcionesCatalogo trae los valores activos de catalogoID. Con
+// catalogoPadreID no vacío, filtra a los vinculados (catalogo_relaciones,
+// activo) al valorPadreSistema indicado — un padre sin valor todavía (o un
+// valor sin ningún hijo vinculado) devuelve, correctamente, cero opciones.
+func consultarOpcionesCatalogo(ctx context.Context, q consultadorRuntime, catalogoID, catalogoPadreID, valorPadreSistema string) ([]map[string]any, error) {
+	var rows pgx.Rows
+	var err error
+	if catalogoPadreID == "" {
+		rows, err = q.Query(ctx, `
+			SELECT valor_id, COALESCE(clave, ''), texto_visible, valor_sistema, COALESCE(orden, 0)
+			FROM catalogo_valores WHERE catalogo_id=$1 AND activo=true
+			ORDER BY COALESCE(orden, 0), texto_visible`, catalogoID)
+	} else {
+		rows, err = q.Query(ctx, `
+			SELECT cv.valor_id, COALESCE(cv.clave, ''), cv.texto_visible, cv.valor_sistema, COALESCE(cv.orden, 0)
+			FROM catalogo_valores cv
+			JOIN catalogo_relaciones cr ON cr.valor_hijo_id = cv.valor_id AND cr.activo = true
+			JOIN catalogo_valores vp ON vp.valor_id = cr.valor_padre_id
+			WHERE cv.catalogo_id=$1 AND cv.activo=true
+			  AND cr.catalogo_padre_id=$2 AND cr.catalogo_hijo_id=$1
+			  AND vp.valor_sistema=$3
+			ORDER BY COALESCE(cv.orden, 0), cv.texto_visible`, catalogoID, catalogoPadreID, valorPadreSistema)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	opciones := make([]map[string]any, 0)
+	for rows.Next() {
+		var valorID, clave, textoVisible, valorSistema string
+		var orden int
+		if err := rows.Scan(&valorID, &clave, &textoVisible, &valorSistema, &orden); err != nil {
+			return nil, err
+		}
+		opciones = append(opciones, map[string]any{"valor_id": valorID, "clave": clave, "texto_visible": textoVisible, "valor_sistema": valorSistema, "orden": orden})
+	}
+	return opciones, rows.Err()
+}
+
+// textoDesdeValorAny extrae el texto de un valor de CAMPO_CATALOGO tal
+// como queda en el mapa de valores (una cadena JSON decodificada); un
+// valor ausente o de otro tipo se trata como "sin valor todavía".
+func textoDesdeValorAny(valor any) string {
+	texto, _ := valor.(string)
+	return texto
+}
+
+// limpiarCatalogosHijoDesactualizados aplica CAT-012/013: para cada par
+// catálogo padre/hijo con catalogo_relaciones configuradas, si el valor
+// EFECTIVO del hijo (el que trae este guardado, o si no el ya persistido)
+// no está vinculado al valor EFECTIVO del padre, se descarta de pendientes
+// y se borra de cotizacion_valores — nunca se rechaza el guardado por
+// esto. Los campos anidados en Opciones de Propuesta quedan fuera, igual
+// que el motor de Reglas (evaluarEstadoCamposRegla, arriba).
+func (h *CotizadorRuntimeHandler) limpiarCatalogosHijoDesactualizados(ctx context.Context, tx pgx.Tx, cotizacionID string, version int, estructura map[string]any, elementos map[string]elementoRuntime, pendientes []valorPendienteRuntime) ([]valorPendienteRuntime, error) {
+	elementoPorCatalogo, catalogosDistintos := elementoPorCatalogoRuntime(estructura)
+	if len(catalogosDistintos) < 2 {
+		return pendientes, nil
+	}
+	padresPorCatalogo, err := catalogoPadrePorCatalogo(ctx, tx, catalogosDistintos)
+	if err != nil || len(padresPorCatalogo) == 0 {
+		return pendientes, err
+	}
+
+	indicePendiente := func(elementoID string) int {
+		for i, p := range pendientes {
+			if p.ElementoID == elementoID && p.OpcionID == "" {
+				return i
+			}
+		}
+		return -1
+	}
+	valorEfectivo := func(elementoID string) string {
+		if i := indicePendiente(elementoID); i >= 0 {
+			var texto string
+			json.Unmarshal(pendientes[i].Valor, &texto)
+			return texto
+		}
+		var raw []byte
+		if err := tx.QueryRow(ctx, `
+			SELECT valor FROM cotizacion_valores
+			WHERE cotizacion_id=$1 AND version=$2 AND elemento_id=$3 AND opcion_id IS NULL`,
+			cotizacionID, version, elementoID).Scan(&raw); err != nil {
+			return ""
+		}
+		var texto string
+		json.Unmarshal(raw, &texto)
+		return texto
+	}
+
+	for catalogoHijoID, catalogoPadreID := range padresPorCatalogo {
+		hijoElementoID := elementoPorCatalogo[catalogoHijoID]
+		padreElementoID := elementoPorCatalogo[catalogoPadreID]
+		if hijoElementoID == "" || padreElementoID == "" {
+			continue
+		}
+		if elementos[hijoElementoID].PadreOpcionesID != "" || elementos[padreElementoID].PadreOpcionesID != "" {
+			continue
+		}
+		hayRelaciones, err := hayRelacionesCatalogo(ctx, tx, catalogoPadreID, catalogoHijoID)
+		if err != nil {
+			return pendientes, err
+		}
+		if !hayRelaciones {
+			continue
+		}
+		valorHijo := valorEfectivo(hijoElementoID)
+		if valorHijo == "" {
+			continue
+		}
+		valorPadre := valorEfectivo(padreElementoID)
+		var valido bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM catalogo_relaciones cr
+				JOIN catalogo_valores vp ON vp.valor_id=cr.valor_padre_id
+				JOIN catalogo_valores vh ON vh.valor_id=cr.valor_hijo_id
+				WHERE cr.catalogo_padre_id=$1 AND cr.catalogo_hijo_id=$2 AND cr.activo=true
+				  AND vp.valor_sistema=$3 AND vh.valor_sistema=$4
+			)`, catalogoPadreID, catalogoHijoID, valorPadre, valorHijo).Scan(&valido); err != nil {
+			return pendientes, err
+		}
+		if valido {
+			continue
+		}
+		if i := indicePendiente(hijoElementoID); i >= 0 {
+			pendientes = append(pendientes[:i], pendientes[i+1:]...)
+		}
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM cotizacion_valores
+			WHERE cotizacion_id=$1 AND version=$2 AND elemento_id=$3 AND opcion_id IS NULL`,
+			cotizacionID, version, hijoElementoID); err != nil {
+			return pendientes, err
+		}
+	}
+	return pendientes, nil
 }
 
 // incluirValoresCajaValor resuelve, para cada CAJA_VALOR de la estructura
