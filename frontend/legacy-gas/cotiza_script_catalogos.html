@@ -741,6 +741,11 @@
         renderComponentesCotizadorFase1_();
         actualizarPropiedadesPorTipoComponenteCotizadorFase1_();
         cargarResumenAplicabilidadSeccionCotizadorFase1_();
+        // Ronda B: mantiene el indicador de Salidas del topbar al día sin
+        // que el usuario tenga que entrar al paso "Salidas".
+        if(typeof window.sincronizarIndicadorSalidasCotizador === "function"){
+          window.sincronizarIndicadorSalidasCotizador(getCotizadorFase1State_().cotizadorId);
+        }
       }
 
       function normalizarActivoCotizadorFase1_(v){ return v === true || String(v || "").trim().toUpperCase() === "SI" || String(v || "").trim().toUpperCase() === "TRUE" || String(v || "").trim().toUpperCase() === "ACTIVO" || String(v || "").trim() === "1"; }
@@ -2565,27 +2570,34 @@
         if(el && el.getAttribute("data-elemento-id")) seleccionarComponenteCotizadorFase1_(el.getAttribute("data-elemento-id"));
       }
 
+      const PANTALLAS_DESIGNER = {
+        catalogos: {step:"Catalogos", vista:"designerCatalogosView", titulo:"Catálogos", subtitulo:"Defina y relacione los catálogos del cotizador."},
+        cotizador: {step:"Cotizador", vista:"designerCotizadorView", titulo:"Cotizador", subtitulo:"Diseñe secciones, componentes visuales y la estructura base de la calculadora."},
+        reglas: {step:"Reglas", vista:"designerReglasView", titulo:"Reglas", subtitulo:"Busque, cree y ajuste reglas y fórmulas del cotizador."},
+        salidas: {step:"Salidas", vista:"designerSalidasView", titulo:"Salidas", subtitulo:"Defina de dónde toma su valor cada salida estándar del cotizador."}
+      };
+
       function cambiarPantallaDesigner(pantalla){
-        pantalla = pantalla || "catalogos";
+        pantalla = PANTALLAS_DESIGNER[pantalla] ? pantalla : "catalogos";
         const d = state.disenadorCotiza || {};
         d.pantalla = pantalla;
         state.disenadorCotiza = d;
-        ["catalogos","cotizador","reglas"].forEach(function(p){
-          const step = byId("designerStep" + (p === "catalogos" ? "Catalogos" : p === "cotizador" ? "Cotizador" : "Reglas"));
+        Object.keys(PANTALLAS_DESIGNER).forEach(function(p){
+          const step = byId("designerStep" + PANTALLAS_DESIGNER[p].step);
           if(step){
             step.classList.toggle("active", p === pantalla);
             if(p === pantalla) step.setAttribute("aria-current", "step");
             else step.removeAttribute("aria-current");
           }
+          const vista = byId(PANTALLAS_DESIGNER[p].vista);
+          if(vista) vista.classList.toggle("hidden", p !== pantalla);
         });
-        if(byId("designerCatalogosView")) byId("designerCatalogosView").classList.toggle("hidden", pantalla !== "catalogos");
-        if(byId("designerCotizadorView")) byId("designerCotizadorView").classList.toggle("hidden", pantalla !== "cotizador");
-        if(byId("designerReglasView")) byId("designerReglasView").classList.toggle("hidden", pantalla !== "reglas");
         const head = byId("designerTituloModulo") ? byId("designerTituloModulo").closest(".designer-page-head") : null;
         if(head) head.classList.remove("hidden");
-        if(byId("designerTituloModulo")) byId("designerTituloModulo").textContent = pantalla === "catalogos" ? "Catálogos" : pantalla === "cotizador" ? "Cotizador" : "Reglas";
-        if(byId("designerSubtituloModulo")) byId("designerSubtituloModulo").textContent = pantalla === "catalogos" ? "Defina y relacione los catálogos del cotizador." : pantalla === "cotizador" ? "Diseñe secciones, componentes visuales y la estructura base de la calculadora." : "Busque, cree y ajuste reglas y fórmulas del cotizador.";
+        if(byId("designerTituloModulo")) byId("designerTituloModulo").textContent = PANTALLAS_DESIGNER[pantalla].titulo;
+        if(byId("designerSubtituloModulo")) byId("designerSubtituloModulo").textContent = PANTALLAS_DESIGNER[pantalla].subtitulo;
         if(pantalla === "cotizador") inicializarCotizadorFase1(false);
+        if(pantalla === "salidas" && typeof window.inicializarSalidasCotizador === "function") window.inicializarSalidasCotizador();
       }
 
 

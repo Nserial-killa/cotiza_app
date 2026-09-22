@@ -1,0 +1,463 @@
+<script>
+/* ============================================================
+   COTIZA — Salidas del Cotizador (Ronda B, Anexo Técnico)
+   4to paso del Diseñador (designerSalidasView, en cotizador_app.html).
+   Contra GET/POST/DELETE /api/cotizador/salidas (Ronda A,
+   salidas_cotizador.go). Reutiliza el estado ya cargado por el paso
+   "Cotizador" (state.cotizadorFase1: cotizador y tab seleccionados,
+   elementos del tab actual) — por eso Campo/Calculado/Total de
+   Tabla/Lista de Precios solo ofrecen elementos del tab abierto ahí.
+   ============================================================ */
+(function(core){
+  core = core || {};
+  const state = core.state || (window.state || {});
+  const byId = core.byId || function(id){ return document.getElementById(id); };
+  const bind = core.bind || function(id, ev, fn){ const el = byId(id); if(el) el.addEventListener(ev, fn); };
+  const mostrarToast = core.mostrarToast || function(texto){ console.log(texto || ""); };
+  const escapeHtml = core.escapeHtml || function(value){
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  };
+  const fetchAutenticado = core.fetchAutenticado || fetch;
+
+  const CLAVES_SALIDAS = ["TOTAL_PRECIO","TOTAL_COSTO","TOTAL_GANANCIA","MARGEN_TOTAL","SUBTOTAL","DESCUENTO","IMPUESTOS","MONEDA","TIPO_CLIENTE","TIPO_PROPUESTA"];
+  const ETIQUETAS_SALIDAS = {
+    TOTAL_PRECIO:"Total del precio", TOTAL_COSTO:"Total del costo", TOTAL_GANANCIA:"Total de la ganancia",
+    MARGEN_TOTAL:"Margen total", SUBTOTAL:"Subtotal", DESCUENTO:"Descuento", IMPUESTOS:"Impuestos",
+    MONEDA:"Moneda", TIPO_CLIENTE:"Tipo de cliente", TIPO_PROPUESTA:"Tipo de propuesta"
+  };
+  const ETIQUETAS_TIPO_FUENTE = {
+    CAMPO:"Campo", CALCULADO:"Campo Calculado", TOTAL_TABLA:"Total de Tabla",
+    LISTA_PRECIO:"Lista de Precios", ESCENARIO:"Escenario", SALIDA:"Otra salida"
+  };
+  const TIPOS_ELEMENTO_POR_FUENTE = {
+    CAMPO:["CAMPO","CAMPO_CATALOGO"], CALCULADO:["CAMPO_CALCULADO"],
+    TOTAL_TABLA:["TABLA"], LISTA_PRECIO:["LISTA_PRECIOS"]
+  };
+  const TIPOS_NUMERICOS_CAMPO = {NUMERO:true, MONEDA:true, PORCENTAJE:true};
+  const TIPOS_NO_TEXTO_CAMPO = {NUMERO:true, MONEDA:true, PORCENTAJE:true, FECHA:true, CHECK:true};
+
+  function getSalidasState_(){
+    state.salidasCotizador = state.salidasCotizador || {
+      cargado:false, calculadoraId:"", salidas:[], tiposSalidas:{}, claveEditando:""
+    };
+    return state.salidasCotizador;
+  }
+
+  function cotizadorFase1State_(){
+    return state.cotizadorFase1 || {};
+  }
+
+  function calculadoraActualId_(){
+    return String(cotizadorFase1State_().cotizadorId || "").trim().toUpperCase();
+  }
+
+  async function solicitarJSONSalidas_(url, opciones){
+    const resp = await fetchAutenticado(url, opciones || {});
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+    if(!resp.ok || !data || !data.ok){
+      throw new Error((data && data.error) || "No fue posible completar la solicitud.");
+    }
+    return data;
+  }
+
+  // ------------------------------------------------------------
+  // Carga e indicador compartido con el topbar del paso Cotizador
+  // ------------------------------------------------------------
+
+  function inicializarSalidasCotizador(){
+    bindSalidasEventos_();
+    cargarSalidasCotizador();
+  }
+
+  function cargarSalidasCotizador(){
+    const calculadoraId = calculadoraActualId_();
+    const st = getSalidasState_();
+    st.calculadoraId = calculadoraId;
+    renderCabeceraSalidas_();
+    if(!calculadoraId){
+      st.cargado = false;
+      st.salidas = [];
+      if(byId("salidasSinCotizador")) byId("salidasSinCotizador").classList.remove("hidden");
+      if(byId("salidasGrid")) byId("salidasGrid").classList.add("hidden");
+      actualizarIndicadorSalidasCotizador();
+      return Promise.resolve();
+    }
+    if(byId("salidasSinCotizador")) byId("salidasSinCotizador").classList.add("hidden");
+    const grid = byId("salidasGrid");
+    if(grid){ grid.classList.remove("hidden"); grid.innerHTML = '<div class="salidas-empty-cotizador">Cargando salidas...</div>'; }
+    return solicitarJSONSalidas_("/api/cotizador/salidas?calculadora_id=" + encodeURIComponent(calculadoraId))
+      .then(function(res){
+        st.cargado = true;
+        st.salidas = res.salidas || [];
+        st.tiposSalidas = res.tipos_salidas || {};
+        renderSalidasGrid_();
+        actualizarIndicadorSalidasCotizador();
+      })
+      .catch(function(error){
+        const mensaje = (error && error.message) || "No fue posible cargar las salidas.";
+        if(grid) grid.innerHTML = '<div class="salidas-empty-cotizador">' + escapeHtml(mensaje) + '</div>';
+        actualizarIndicadorSalidasCotizador();
+        mostrarToast(mensaje);
+      });
+  }
+
+  // Único punto de entrada llamado desde cotiza_script_catalogos.html
+  // (renderCotizadorFase1_) cada vez que cambia o se recarga el
+  // cotizador seleccionado en el paso "Cotizador" — así el indicador del
+  // topbar no depende de que el usuario haya entrado al paso "Salidas".
+  function sincronizarIndicadorSalidasCotizador(calculadoraId){
+    calculadoraId = String(calculadoraId || "").trim().toUpperCase();
+    const st = getSalidasState_();
+    if(!calculadoraId){
+      st.calculadoraId = "";
+      st.cargado = false;
+      actualizarIndicadorSalidasCotizador();
+      return;
+    }
+    if(st.calculadoraId === calculadoraId && st.cargado){
+      actualizarIndicadorSalidasCotizador();
+      return;
+    }
+    cargarSalidasCotizador();
+  }
+
+  function resumenSalidas_(salidas){
+    let mapeadas = 0, faltanRequeridas = 0;
+    (salidas || []).forEach(function(s){
+      const tieneFuente = !!(s.tipo_fuente && s.fuente_id);
+      if(tieneFuente) mapeadas++;
+      if(s.requerido && !tieneFuente) faltanRequeridas++;
+    });
+    return {mapeadas:mapeadas, total:CLAVES_SALIDAS.length, faltanRequeridas:faltanRequeridas};
+  }
+
+  function actualizarIndicadorSalidasCotizador(){
+    const el = byId("designerCotizadorSalidasResumen");
+    if(!el) return;
+    const st = getSalidasState_();
+    if(!st.calculadoraId){
+      el.textContent = "Sin cotizador";
+      el.className = "designer-chip chip-gray";
+      return;
+    }
+    if(!st.cargado){
+      el.textContent = "Cargando...";
+      el.className = "designer-chip chip-gray";
+      return;
+    }
+    const resumen = resumenSalidas_(st.salidas);
+    el.textContent = resumen.mapeadas + "/" + resumen.total + (resumen.faltanRequeridas ? " · " + resumen.faltanRequeridas + " sin fuente" : "");
+    el.className = "designer-chip " + (resumen.faltanRequeridas ? "chip-orange" : (resumen.mapeadas === resumen.total ? "chip-green" : "chip-gray"));
+  }
+
+  function renderCabeceraSalidas_(){
+    const nombreEl = byId("salidasCotizadorNombre");
+    if(!nombreEl) return;
+    const id = calculadoraActualId_();
+    if(!id){
+      nombreEl.textContent = "Sin cotizador seleccionado";
+      if(byId("salidasCotizadorResumen")) byId("salidasCotizadorResumen").textContent = "";
+      return;
+    }
+    const st = cotizadorFase1State_();
+    const c = (st.cotizadores || []).find(function(x){
+      return String(x.cotizador_id || x.calculadora_id || x.id || x.codigo || "").trim().toUpperCase() === id;
+    });
+    const nombre = c ? String(c.nombre_calculadora || c.nombre_cotizador || c.nombre || id).trim() : id;
+    nombreEl.textContent = nombre + " (" + id + ")";
+  }
+
+  // ------------------------------------------------------------
+  // Tarjetas de las 10 salidas
+  // ------------------------------------------------------------
+
+  function elementoPorId_(id){
+    const st = cotizadorFase1State_();
+    return (st.elementos || []).find(function(e){ return String(e.elemento_id) === String(id); });
+  }
+
+  function etiquetaFuente_(s){
+    if(s.tipo_fuente === "SALIDA") return ETIQUETAS_SALIDAS[s.fuente_id] || s.fuente_id;
+    const el = elementoPorId_(s.fuente_id);
+    let etiqueta = el ? (el.etiqueta || s.fuente_id) : s.fuente_id;
+    if(s.propiedad_fuente) etiqueta += " (" + s.propiedad_fuente + ")";
+    return etiqueta;
+  }
+
+  function renderSalidasGrid_(){
+    const st = getSalidasState_();
+    const grid = byId("salidasGrid");
+    if(!grid) return;
+    const resumen = resumenSalidas_(st.salidas);
+    const resumenEl = byId("salidasCotizadorResumen");
+    if(resumenEl){
+      resumenEl.textContent = resumen.mapeadas + "/" + resumen.total + " salidas mapeadas" +
+        (resumen.faltanRequeridas ? " · " + resumen.faltanRequeridas + " requerida(s) sin fuente" : "");
+    }
+    grid.innerHTML = CLAVES_SALIDAS.map(function(clave){
+      const s = (st.salidas || []).find(function(x){ return x.clave_salida === clave; }) || {clave_salida:clave};
+      const tieneFuente = !!(s.tipo_fuente && s.fuente_id);
+      const faltaRequerida = !!s.requerido && !tieneFuente;
+      const fuenteTexto = tieneFuente ? (ETIQUETAS_TIPO_FUENTE[s.tipo_fuente] || s.tipo_fuente) + ": " + etiquetaFuente_(s) : "Sin fuente asignada";
+      const estadoChip = tieneFuente ? '<span class="designer-chip chip-green">Mapeada</span>' :
+        (faltaRequerida ? '<span class="designer-chip chip-orange">Requerida</span>' : '<span class="designer-chip chip-gray">Sin mapear</span>');
+      return '' +
+        '<div class="salida-card' + (faltaRequerida ? ' warn' : '') + '" data-clave-salida="' + escapeHtml(clave) + '">' +
+          '<div class="salida-card-head">' +
+            '<div><strong>' + escapeHtml(ETIQUETAS_SALIDAS[clave] || clave) + '</strong><small>' + escapeHtml(clave) + ' · ' + escapeHtml((st.tiposSalidas || {})[clave] || "") + '</small></div>' +
+            estadoChip +
+          '</div>' +
+          '<div class="salida-card-fuente' + (tieneFuente ? '' : ' vacia') + '">' + escapeHtml(fuenteTexto) + '</div>' +
+          (faltaRequerida ? '<div class="salida-card-warn-msg">Requerida y sin fuente: bloqueará la publicación.</div>' : '') +
+          '<div class="salida-card-foot">' +
+            '<label class="param-switch" onclick="event.stopPropagation();"><input type="checkbox" data-toggle-requerido="' + escapeHtml(clave) + '"' + (s.requerido ? ' checked' : '') + '> Requerida</label>' +
+            '<button class="btn btn-ghost btn-mini" type="button" data-editar-salida="' + escapeHtml(clave) + '">Editar fuente</button>' +
+          '</div>' +
+        '</div>';
+    }).join("");
+    grid.querySelectorAll("[data-editar-salida]").forEach(function(btn){
+      btn.addEventListener("click", function(e){ e.stopPropagation(); abrirEditorSalida_(btn.getAttribute("data-editar-salida")); });
+    });
+    grid.querySelectorAll(".salida-card").forEach(function(card){
+      card.addEventListener("click", function(){ abrirEditorSalida_(card.getAttribute("data-clave-salida")); });
+    });
+    grid.querySelectorAll("[data-toggle-requerido]").forEach(function(chk){
+      chk.addEventListener("change", function(){ guardarRequeridoRapido_(chk.getAttribute("data-toggle-requerido"), chk.checked); });
+    });
+  }
+
+  function reemplazarSalidaEnEstado_(salida){
+    const st = getSalidasState_();
+    st.salidas = (st.salidas || []).filter(function(s){ return s.clave_salida !== salida.clave_salida; });
+    st.salidas.push(salida);
+  }
+
+  function guardarRequeridoRapido_(clave, requerido){
+    const st = getSalidasState_();
+    const actual = (st.salidas || []).find(function(x){ return x.clave_salida === clave; }) || {};
+    const payload = {
+      calculadora_id: calculadoraActualId_(),
+      clave_salida: clave,
+      tipo_fuente: actual.tipo_fuente || "CAMPO",
+      fuente_id: actual.fuente_id || "",
+      propiedad_fuente: actual.propiedad_fuente || "",
+      requerido: requerido
+    };
+    solicitarJSONSalidas_("/api/cotizador/salidas", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)})
+      .then(function(res){
+        reemplazarSalidaEnEstado_(res.salida || payload);
+        renderSalidasGrid_();
+        actualizarIndicadorSalidasCotizador();
+      })
+      .catch(function(error){
+        mostrarToast((error && error.message) || "No fue posible actualizar la salida.");
+        renderSalidasGrid_();
+      });
+  }
+
+  // ------------------------------------------------------------
+  // Editor de fuente (modal)
+  // ------------------------------------------------------------
+
+  function tipoCampoNormalizado_(el){
+    const cfg = (el && (el.configuracion || el.config_json)) || {};
+    return String(cfg.tipo_campo || "").trim().toUpperCase();
+  }
+
+  function elementoEsTexto_(el){
+    const tipo = el.tipo || el.tipo_elemento;
+    if(tipo !== "CAMPO" && tipo !== "CAMPO_CATALOGO") return false;
+    return !TIPOS_NO_TEXTO_CAMPO[tipoCampoNormalizado_(el)];
+  }
+
+  function elementoEsNumerico_(el){
+    const tipo = el.tipo || el.tipo_elemento;
+    if(tipo === "CAMPO_CALCULADO" || tipo === "TABLA" || tipo === "LISTA_PRECIOS") return true;
+    if(tipo === "CAMPO") return !!TIPOS_NUMERICOS_CAMPO[tipoCampoNormalizado_(el)];
+    return false;
+  }
+
+  function elementoCompatibleConClave_(el, clave){
+    const tipoEsperado = (getSalidasState_().tiposSalidas || {})[clave];
+    return tipoEsperado === "TEXTO" ? elementoEsTexto_(el) : elementoEsNumerico_(el);
+  }
+
+  function elementoEsHijoDeOpcionesPropuesta_(el){
+    if(!el.componente_padre_id) return false;
+    const padre = elementoPorId_(el.componente_padre_id);
+    return !!padre && (padre.tipo || padre.tipo_elemento) === "OPCIONES_PROPUESTA";
+  }
+
+  function opcionesFuenteParaTipo_(tipoFuente, claveEditando){
+    if(tipoFuente === "SALIDA"){
+      const st = getSalidasState_();
+      const tipoEsperado = (st.tiposSalidas || {})[claveEditando];
+      return (st.salidas || [])
+        .filter(function(s){ return s.clave_salida !== claveEditando && s.tipo_fuente && s.fuente_id && (st.tiposSalidas || {})[s.clave_salida] === tipoEsperado; })
+        .map(function(s){ return {value:s.clave_salida, label:ETIQUETAS_SALIDAS[s.clave_salida] || s.clave_salida}; });
+    }
+    const elementos = (cotizadorFase1State_().elementos || []).filter(function(e){ return e.activo !== false; });
+    if(tipoFuente === "ESCENARIO"){
+      return elementos
+        .filter(function(e){ return elementoEsHijoDeOpcionesPropuesta_(e) && elementoCompatibleConClave_(e, claveEditando); })
+        .map(function(e){ return {value:e.elemento_id, label:e.etiqueta || e.elemento_id}; });
+    }
+    const tiposEsperados = TIPOS_ELEMENTO_POR_FUENTE[tipoFuente] || [];
+    return elementos
+      .filter(function(e){
+        const tipo = e.tipo || e.tipo_elemento;
+        return tiposEsperados.indexOf(tipo) !== -1 && !elementoEsHijoDeOpcionesPropuesta_(e) && elementoCompatibleConClave_(e, claveEditando);
+      })
+      .map(function(e){ return {value:e.elemento_id, label:e.etiqueta || e.elemento_id}; });
+  }
+
+  function renderOpcionesFuenteEditor_(valorSeleccionado){
+    const clave = getSalidasState_().claveEditando;
+    const tipoFuente = byId("salidaEditorTipoFuente").value;
+    const opciones = opcionesFuenteParaTipo_(tipoFuente, clave);
+    const sel = byId("salidaEditorFuente");
+    if(!sel) return;
+    if(!opciones.length){
+      sel.innerHTML = '<option value="">Sin opciones disponibles para este tipo</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">Seleccione...</option>' + opciones.map(function(o){
+      return '<option value="' + escapeHtml(o.value) + '"' + (o.value === valorSeleccionado ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>';
+    }).join("");
+  }
+
+  function actualizarVisibilidadPropiedadEditor_(propiedadActual){
+    const tipoFuente = byId("salidaEditorTipoFuente").value;
+    const wrap = byId("salidaEditorPropiedadWrap");
+    const sel = byId("salidaEditorPropiedad");
+    if(!wrap || !sel) return;
+    if(tipoFuente === "LISTA_PRECIO"){
+      wrap.classList.remove("hidden");
+      sel.innerHTML = '<option value="total_precio">Total del precio</option><option value="total_costo">Total del costo</option>';
+      sel.value = propiedadActual === "total_costo" ? "total_costo" : "total_precio";
+    } else if(tipoFuente === "TOTAL_TABLA"){
+      wrap.classList.remove("hidden");
+      sel.innerHTML = '<option value="total_precio">Total de la tabla</option>';
+      sel.value = "total_precio";
+    } else {
+      wrap.classList.add("hidden");
+      sel.innerHTML = "";
+    }
+  }
+
+  function mostrarErrorEditorSalida_(mensaje){
+    const box = byId("salidaEditorError");
+    const texto = byId("salidaEditorErrorTexto");
+    if(texto) texto.textContent = mensaje;
+    if(box) box.classList.remove("hidden");
+  }
+
+  function ocultarErrorEditorSalida_(){
+    const box = byId("salidaEditorError");
+    if(box) box.classList.add("hidden");
+  }
+
+  function abrirEditorSalida_(clave){
+    const st = getSalidasState_();
+    if(!st.calculadoraId) return;
+    st.claveEditando = clave;
+    const s = (st.salidas || []).find(function(x){ return x.clave_salida === clave; }) || {clave_salida:clave};
+    ocultarErrorEditorSalida_();
+    if(byId("salidaEditorClave")) byId("salidaEditorClave").value = clave;
+    if(byId("salidaEditorTitulo")) byId("salidaEditorTitulo").textContent = "Fuente de " + (ETIQUETAS_SALIDAS[clave] || clave);
+    if(byId("salidaEditorSubtitulo")) byId("salidaEditorSubtitulo").textContent = clave + " · tipo esperado: " + ((st.tiposSalidas || {})[clave] || "");
+    if(byId("salidaEditorTipoFuente")) byId("salidaEditorTipoFuente").value = s.tipo_fuente || "CAMPO";
+    if(byId("salidaEditorRequerido")) byId("salidaEditorRequerido").checked = !!s.requerido;
+    renderOpcionesFuenteEditor_(s.fuente_id || "");
+    actualizarVisibilidadPropiedadEditor_(s.propiedad_fuente || "");
+    const btnQuitar = byId("btnQuitarMapeoSalida");
+    if(btnQuitar) btnQuitar.classList.toggle("hidden", !s.tipo_fuente);
+    const modal = byId("modalSalidaEditor");
+    if(modal) modal.classList.add("open");
+  }
+
+  function cerrarEditorSalida_(){
+    const modal = byId("modalSalidaEditor");
+    if(modal) modal.classList.remove("open");
+    getSalidasState_().claveEditando = "";
+  }
+
+  function payloadActualEditor_(){
+    const propiedadOculta = byId("salidaEditorPropiedadWrap") && byId("salidaEditorPropiedadWrap").classList.contains("hidden");
+    return {
+      calculadora_id: calculadoraActualId_(),
+      clave_salida: byId("salidaEditorClave").value,
+      tipo_fuente: byId("salidaEditorTipoFuente").value,
+      fuente_id: byId("salidaEditorFuente").value,
+      propiedad_fuente: propiedadOculta ? "" : byId("salidaEditorPropiedad").value,
+      requerido: !!byId("salidaEditorRequerido").checked
+    };
+  }
+
+  function guardarDesdeEditorSalida_(){
+    const payload = payloadActualEditor_();
+    ocultarErrorEditorSalida_();
+    return solicitarJSONSalidas_("/api/cotizador/salidas", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+    }).then(function(res){
+      reemplazarSalidaEnEstado_(res.salida || payload);
+      renderSalidasGrid_();
+      actualizarIndicadorSalidasCotizador();
+      const btnQuitar = byId("btnQuitarMapeoSalida");
+      if(btnQuitar) btnQuitar.classList.remove("hidden");
+      mostrarToast("Salida actualizada.");
+    }).catch(function(error){
+      mostrarErrorEditorSalida_((error && error.message) || "No fue posible guardar la salida.");
+    });
+  }
+
+  function eliminarMapeoSalida_(){
+    const clave = byId("salidaEditorClave").value;
+    const calculadoraId = calculadoraActualId_();
+    if(!clave || !calculadoraId) return;
+    ocultarErrorEditorSalida_();
+    solicitarJSONSalidas_("/api/cotizador/salidas/" + encodeURIComponent(clave) + "?calculadora_id=" + encodeURIComponent(calculadoraId), {method:"DELETE"})
+      .then(function(){
+        const st = getSalidasState_();
+        st.salidas = (st.salidas || []).filter(function(s){ return s.clave_salida !== clave; });
+        renderSalidasGrid_();
+        actualizarIndicadorSalidasCotizador();
+        cerrarEditorSalida_();
+        mostrarToast("Mapeo eliminado.");
+      })
+      .catch(function(error){
+        mostrarErrorEditorSalida_((error && error.message) || "No fue posible eliminar el mapeo.");
+      });
+  }
+
+  // ------------------------------------------------------------
+  // Enlaces de eventos
+  // ------------------------------------------------------------
+
+  function bindSalidasEventos_(){
+    if(window.__cotizaSalidasBound) return;
+    window.__cotizaSalidasBound = true;
+    bind("btnCerrarModalSalidaEditor","click", cerrarEditorSalida_);
+    bind("btnCerrarSalidaEditor","click", cerrarEditorSalida_);
+    bind("btnQuitarMapeoSalida","click", eliminarMapeoSalida_);
+    bind("salidaEditorTipoFuente","change", function(){
+      renderOpcionesFuenteEditor_("");
+      actualizarVisibilidadPropiedadEditor_("");
+    });
+    bind("salidaEditorFuente","change", guardarDesdeEditorSalida_);
+    bind("salidaEditorPropiedad","change", guardarDesdeEditorSalida_);
+    bind("salidaEditorRequerido","change", guardarDesdeEditorSalida_);
+    const modal = byId("modalSalidaEditor");
+    if(modal) modal.addEventListener("click", function(e){ if(e.target === modal) cerrarEditorSalida_(); });
+  }
+
+  window.inicializarSalidasCotizador = inicializarSalidasCotizador;
+  window.sincronizarIndicadorSalidasCotizador = sincronizarIndicadorSalidasCotizador;
+})(window.__cotizaCore || {});
+</script>

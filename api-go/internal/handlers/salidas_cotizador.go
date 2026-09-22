@@ -34,6 +34,33 @@ var tiposSalidas = map[string]string{
 	"MONEDA": "TEXTO", "TIPO_CLIENTE": "TEXTO", "TIPO_PROPUESTA": "TEXTO",
 }
 
+// Mismo orden del CHECK de clave_salida en 0027_salidas_cotizador.sql. El
+// Diseñador (pantalla "Salidas") necesita ver el estado de las 10 de una
+// sola vez, no solo las que ya tienen fila en mapa_salidas_cotizador.
+var clavesSalidasOrden = []string{
+	"TOTAL_PRECIO", "TOTAL_COSTO", "TOTAL_GANANCIA", "MARGEN_TOTAL", "SUBTOTAL",
+	"DESCUENTO", "IMPUESTOS", "MONEDA", "TIPO_CLIENTE", "TIPO_PROPUESTA",
+}
+
+// completarMapaSalidas devuelve las 10 claves siempre, en orden fijo: la fila
+// real si existe, o un registro vacío (tipo_fuente=="") que el frontend lee
+// como "sin mapear todavía" — nunca se persiste tal cual.
+func completarMapaSalidas(calculadoraID string, mapa []salidaCotizador) []salidaCotizador {
+	porClave := map[string]salidaCotizador{}
+	for _, s := range mapa {
+		porClave[s.ClaveSalida] = s
+	}
+	completo := make([]salidaCotizador, 0, len(clavesSalidasOrden))
+	for _, clave := range clavesSalidasOrden {
+		if s, existe := porClave[clave]; existe {
+			completo = append(completo, s)
+			continue
+		}
+		completo = append(completo, salidaCotizador{CalculadoraID: calculadoraID, ClaveSalida: clave})
+	}
+	return completo
+}
+
 func leerMapaSalidas(ctx context.Context, q consultadorRuntime, calculadoraID string) ([]salidaCotizador, error) {
 	rows, err := q.Query(ctx, `SELECT calculadora_id,clave_salida,tipo_fuente,COALESCE(fuente_id,''),COALESCE(propiedad_fuente,''),requerido,activo FROM mapa_salidas_cotizador WHERE calculadora_id=$1 ORDER BY clave_salida`, calculadoraID)
 	if err != nil {
@@ -69,7 +96,7 @@ func (h *SalidasCotizadorHandler) Listar(w http.ResponseWriter, r *http.Request)
 		h.error(w, err)
 		return
 	}
-	escribirJSON(w, 200, map[string]any{"ok": true, "salidas": mapa, "tipos_salidas": tiposSalidas})
+	escribirJSON(w, 200, map[string]any{"ok": true, "salidas": completarMapaSalidas(id, mapa), "tipos_salidas": tiposSalidas})
 }
 
 func (h *SalidasCotizadorHandler) Guardar(w http.ResponseWriter, r *http.Request) {

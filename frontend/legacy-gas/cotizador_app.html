@@ -38,6 +38,10 @@
               <div class="designer-step-number">3</div>
               <div><h3>Reglas</h3><p>Configure reglas y cálculos</p></div>
             </button>
+            <button id="designerStepSalidas" class="designer-step" data-designer-step="salidas" type="button">
+              <div class="designer-step-number">4</div>
+              <div><h3>Salidas</h3><p>Mapee las salidas del cotizador</p></div>
+            </button>
           </nav>
 
           <div id="designerCatalogosView">
@@ -1931,6 +1935,9 @@
             .cotizador-compile-log-item small{display:block;color:#64748b;font-size:10px;line-height:1.35;margin-top:2px;}
             @media(max-width:640px){.cotizador-compile-overlay{padding:10px}.cotizador-compile-overlay-card{max-height:calc(100vh - 20px)}.cotizador-compile-overlay-head{grid-template-columns:auto minmax(0,1fr);}.cotizador-compile-overlay-close{grid-column:2;grid-row:1;justify-self:end}.cotizador-compile-overlay-title{grid-column:1 / -1;grid-row:2}.cotizador-compile-log{max-height:42vh;}}
 
+            /* V51A - Indicador de Salidas en el topbar del paso Cotizador */
+            .chip-orange{background:#fef3c7;color:#92400e;}
+
 </style>
 
           <div id="designerCotizadorView" class="hidden">
@@ -1954,6 +1961,10 @@
                   <div class="cotizador-mini-status">
                     <small>Validación</small>
                     <span id="designerCotizadorValidacionActual">Pendiente</span>
+                  </div>
+                  <div class="cotizador-mini-status">
+                    <small>Salidas</small>
+                    <span id="designerCotizadorSalidasResumen" class="designer-chip chip-gray">Sin cargar</span>
                   </div>
                 </div>
                 <div class="cotizador-action-bar cotizador-action-bar-v50">
@@ -3242,6 +3253,105 @@
                     </div>
                   </div>
                 </aside>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ronda B (Anexo Técnico): Salidas del Cotizador, 4to paso del
+               Diseñador. La lógica vive en cotiza_script_salidas_cotizador.html. -->
+          <div id="designerSalidasView" class="hidden">
+            <style id="cotizaSalidasStyles">
+              .salidas-shell{display:flex;flex-direction:column;gap:12px;}
+              .salidas-toolbar{padding:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+              .salidas-toolbar h2{margin:0;color:#0b2450;font-size:17px;}
+              .salidas-toolbar p{margin:3px 0 0;color:#64748b;font-size:12px;max-width:520px;}
+              .salidas-toolbar-cotizador{font-size:12px;color:#334155;text-align:right;}
+              .salidas-toolbar-cotizador strong{display:block;color:#0b2450;font-size:13px;}
+              .salidas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;}
+              .salida-card{border:1px solid #e5edf8;background:#fff;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;}
+              .salida-card:hover{border-color:#bfdbfe;}
+              .salida-card.warn{border-color:#fde68a;background:#fffbeb;}
+              .salida-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+              .salida-card-head strong{display:block;color:#0b2450;font-size:13px;}
+              .salida-card-head small{display:block;color:#64748b;font-size:10.5px;margin-top:2px;}
+              .salida-card-fuente{font-size:12px;color:#334155;background:#f8fbff;border:1px solid #e5edf8;border-radius:9px;padding:7px 9px;min-height:34px;display:flex;align-items:center;}
+              .salida-card-fuente.vacia{color:#94a3b8;font-style:italic;}
+              .salida-card-warn-msg{font-size:11px;color:#92400e;background:#fef3c7;border-radius:8px;padding:5px 7px;}
+              .salida-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+              .salida-card-foot .param-switch{padding:0;min-height:auto;font-size:11.5px;}
+              .salidas-empty-cotizador{padding:34px 20px;text-align:center;color:#667085;}
+              .salidas-resumen-linea{font-size:11.5px;color:#64748b;margin:0;}
+              @media(max-width:640px){.salidas-toolbar{flex-direction:column;}.salidas-toolbar-cotizador{text-align:left;}}
+            </style>
+
+            <div class="salidas-shell">
+              <div class="card salidas-toolbar">
+                <div>
+                  <h2>Salidas del cotizador</h2>
+                  <p>Defina de dónde toma su valor cada una de las 10 salidas estándar. Una salida marcada como requerida sin fuente bloquea la publicación.</p>
+                </div>
+                <div class="salidas-toolbar-cotizador">
+                  <strong id="salidasCotizadorNombre">Sin cotizador seleccionado</strong>
+                  <span id="salidasCotizadorResumen" class="salidas-resumen-linea"></span>
+                </div>
+              </div>
+
+              <div id="salidasSinCotizador" class="card salidas-empty-cotizador">
+                Seleccione primero un cotizador en el paso <strong>Cotizador</strong> (y un tab, si el campo que necesita no está en el primero) para configurar sus salidas.
+              </div>
+
+              <div id="salidasGrid" class="salidas-grid hidden"></div>
+            </div>
+          </div>
+
+          <!-- Editor de fuente de una salida (Ronda B) -->
+          <div id="modalSalidaEditor" class="modal">
+            <div class="modal-card">
+              <div class="modal-head">
+                <div>
+                  <h2 id="salidaEditorTitulo">Fuente de la salida</h2>
+                  <p id="salidaEditorSubtitulo">Elija de dónde toma su valor esta salida.</p>
+                </div>
+                <button id="btnCerrarModalSalidaEditor" class="modal-close" type="button">×</button>
+              </div>
+
+              <input id="salidaEditorClave" type="hidden">
+
+              <div id="salidaEditorError" class="designer-info hidden" style="border-color:#fecaca;background:#fff7f7;">
+                <span class="designer-info-icon" style="background:#fecaca;color:#991b1b;">!</span>
+                <div id="salidaEditorErrorTexto"></div>
+              </div>
+
+              <div class="field">
+                <label for="salidaEditorTipoFuente">Tipo de fuente</label>
+                <select id="salidaEditorTipoFuente" class="select">
+                  <option value="CAMPO">Campo</option>
+                  <option value="CALCULADO">Campo Calculado</option>
+                  <option value="TOTAL_TABLA">Total de Tabla</option>
+                  <option value="LISTA_PRECIO">Lista de Precios</option>
+                  <option value="ESCENARIO">Opción de Propuesta (Escenario)</option>
+                  <option value="SALIDA">Otra salida</option>
+                </select>
+                <span class="param-field-help">Campo, Campo Calculado, Total de Tabla y Lista de Precios se buscan en el tab actualmente abierto en el paso Cotizador.</span>
+              </div>
+
+              <div class="field">
+                <label for="salidaEditorFuente">Fuente</label>
+                <select id="salidaEditorFuente" class="select"><option value="">Seleccione...</option></select>
+              </div>
+
+              <div class="field hidden" id="salidaEditorPropiedadWrap">
+                <label for="salidaEditorPropiedad">Propiedad</label>
+                <select id="salidaEditorPropiedad" class="select"></select>
+              </div>
+
+              <label class="param-switch">
+                <input id="salidaEditorRequerido" type="checkbox"> Requerida (bloquea publicar si no tiene fuente)
+              </label>
+
+              <div class="modal-actions">
+                <button id="btnQuitarMapeoSalida" class="btn btn-ghost hidden" type="button">Quitar mapeo</button>
+                <button id="btnCerrarSalidaEditor" class="btn btn-ghost" type="button">Cerrar</button>
               </div>
             </div>
           </div>

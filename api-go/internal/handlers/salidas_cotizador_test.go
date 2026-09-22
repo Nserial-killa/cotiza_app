@@ -389,6 +389,51 @@ func TestSalidas_CRUDComposicionCiclosYPertenencia(t *testing.T) {
 	}
 }
 
+func TestSalidas_ListarCompletaLasDiez(t *testing.T) {
+	f := crearFixtureFormulaAvanzada(t)
+	n := f.crear(t, "CAMPO", "N", map[string]any{"tipo_campo": "NUMERO"}, nil)
+	h := &SalidasCotizadorHandler{DB: f.handler.DB}
+	exigirGuardadoSalida(t, mapearSalidaPrueba(t, f, "TOTAL_PRECIO", "CAMPO", n, "", true))
+
+	router := chi.NewRouter()
+	router.Get("/salidas", h.Listar)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/salidas?calculadora_id="+url.QueryEscape(f.calculadoraID), nil))
+	exigirGuardadoSalida(t, rec)
+
+	var body struct {
+		Salidas []salidaCotizador `json:"salidas"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Salidas) != 10 {
+		t.Fatalf("esperaba 10 claves, dio %d: %s", len(body.Salidas), rec.Body.String())
+	}
+	for i, clave := range clavesSalidasOrden {
+		if body.Salidas[i].ClaveSalida != clave {
+			t.Fatalf("orden incorrecto en la posición %d: %s (esperaba %s)", i, body.Salidas[i].ClaveSalida, clave)
+		}
+	}
+	var mapeada, vacia int
+	for _, s := range body.Salidas {
+		if s.ClaveSalida == "TOTAL_PRECIO" {
+			mapeada++
+			if s.TipoFuente != "CAMPO" || s.FuenteID != n {
+				t.Fatalf("TOTAL_PRECIO no trajo su mapeo: %+v", s)
+			}
+			continue
+		}
+		if s.TipoFuente != "" || s.FuenteID != "" {
+			t.Fatalf("%s debería venir vacía, dio %+v", s.ClaveSalida, s)
+		}
+		vacia++
+	}
+	if mapeada != 1 || vacia != 9 {
+		t.Fatalf("mapeada=%d vacia=%d", mapeada, vacia)
+	}
+}
+
 func TestSalidas_CatalogoCongelaEtiquetaYValorCalculo(t *testing.T) {
 	f := crearFixtureFormulaAvanzada(t)
 	cat := f.catalogo(t, "MARGEN", "M30", 0.30)
