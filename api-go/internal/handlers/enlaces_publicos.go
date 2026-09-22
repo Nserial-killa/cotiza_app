@@ -66,7 +66,8 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 	defer cancel()
 
 	if version <= 0 {
-		if err := h.DB.QueryRow(ctx, `SELECT version_actual FROM cotizaciones WHERE cotizacion_id = $1`, cotizacionID).Scan(&version); err != nil {
+		resuelta, err := resolverVersionCotizacion(ctx, h.DB, cotizacionID)
+		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Cotización no encontrada."})
 				return
@@ -75,6 +76,7 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
 			return
 		}
+		version = resuelta
 	} else {
 		var existeVersion bool
 		if err := h.DB.QueryRow(ctx, `
@@ -219,10 +221,76 @@ func (h *EnlacesPublicosHandler) VerCotizacion(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// construirDocumentoOferta es la MISMA cadena (cabecera + tabs/valores +
+	// plantilla vinculada) que usa la Vista Previa de la Oferta protegida
+	// por sesión (vista_previa_oferta.go, Ronda C / CTZ-TEC-004) — ninguna
+	// de las dos tiene su propia lógica de resolución.
+	doc, err := construirDocumentoOferta(ctx, h.DB, cotizacionID, version)
+	if err != nil {
+		log.Printf("enlaces_publicos: error armando la oferta de %s v%d: %v", cotizacionID, version, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el enlace."})
+		return
+	}
+
+	escribirJSON(w, http.StatusOK, map[string]any{
+		"ok":               true,
+		"cotizacion_id":    doc.CotizacionID,
+		"version":          doc.Version,
+		"codigo_oferta":    doc.CodigoOferta,
+		"tipo_propuesta":   doc.TipoPropuesta,
+		"cliente":          doc.Cliente,
+		"empresa":          doc.Empresa,
+		"cotizador_nombre": doc.CotizadorNombre,
+		"estado":           doc.Estado,
+		"moneda":           doc.Moneda,
+		"total_precio":     doc.TotalPrecio,
+		"tabs":             doc.Tabs,
+		"plantilla":        doc.Plantilla,
+	})
+}
+
+// documentoOfertaResuelto es la propuesta ya resuelta para una
+// cotización+versión puntual: cabecera + tabs/valores crudos (fallback
+// cuando el cotizador no tiene una plantilla vinculada) + la plantilla
+// vinculada ya renderizada, si aplica (ver plantilla_renderizador.go).
+// Es EXACTAMENTE el mismo documento que ve el cliente en el enlace
+// público (VerCotizacion, arriba) y que ve el equipo de Cotiza en la
+// Vista Previa de la Oferta (vista_previa_oferta.go, Ronda C) — los dos
+// llaman a construirDocumentoOferta, ninguno tiene su propia lógica de
+// resolución (CTZ-TEC-004: "para una misma cotización y plantilla,
+// preview y publicación resuelven el mismo valor").
+type documentoOfertaResuelto struct {
+	CotizacionID    string                `json:"cotizacion_id"`
+	Version         int                   `json:"version"`
+	CodigoOferta    any                   `json:"codigo_oferta"`
+	TipoPropuesta   any                   `json:"tipo_propuesta"`
+	Cliente         any                   `json:"cliente"`
+	Empresa         any                   `json:"empresa"`
+	CotizadorNombre string                `json:"cotizador_nombre"`
+	Estado          string                `json:"estado"`
+	Moneda          string                `json:"moneda"`
+	TotalPrecio     float64               `json:"total_precio"`
+	Tabs            []*enlacePublicoTab   `json:"tabs"`
+	Plantilla       *plantillaRenderizada `json:"plantilla"`
+}
+
+// construirDocumentoOferta arma documentoOfertaResuelto para (cotizacionID,
+// version); version=0 cae a version_actual. Sin efectos secundarios: no
+// marca visitas ni cambia estado — eso es responsabilidad de cada llamador
+// (VerCotizacion sí lo hace, para el visitante anónimo real; la Vista
+// Previa nunca).
+func construirDocumentoOferta(ctx context.Context, db *pgxpool.Pool, cotizacionID string, version int) (*documentoOfertaResuelto, error) {
+	if version <= 0 {
+		resuelta, err := resolverVersionCotizacion(ctx, db, cotizacionID)
+		if err != nil {
+			return nil, err
+		}
+		version = resuelta
+	}
+
+	doc := &documentoOfertaResuelto{CotizacionID: cotizacionID, Version: version}
 	var codigoOferta, tipoPropuesta, cliente, empresa *string
-	var calculadoraNombre, estado, moneda string
-	var totalPrecio float64
-	err = h.DB.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 		SELECT c.codigo_oferta, c.tipo_propuesta, cl.nombre_comercial, COALESCE(cl.razon_social, cl.nombre_comercial),
 		       calc.nombre_calculadora, cv.estado, cv.moneda, cv.total_precio
 		  FROM cotizaciones c
@@ -231,49 +299,44 @@ func (h *EnlacesPublicosHandler) VerCotizacion(w http.ResponseWriter, r *http.Re
 		  JOIN cotizacion_versiones cv ON cv.cotizacion_id = c.cotizacion_id AND cv.numero_version = $2
 		 WHERE c.cotizacion_id = $1`,
 		cotizacionID, version,
-	).Scan(&codigoOferta, &tipoPropuesta, &cliente, &empresa, &calculadoraNombre, &estado, &moneda, &totalPrecio)
+	).Scan(&codigoOferta, &tipoPropuesta, &cliente, &empresa, &doc.CotizadorNombre, &doc.Estado, &doc.Moneda, &doc.TotalPrecio)
 	if err != nil {
-		log.Printf("enlaces_publicos: error consultando cabecera de %s v%d: %v", cotizacionID, version, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el enlace."})
-		return
+		return nil, err
 	}
-
-	tabs, err := h.consultarTabsYValores(ctx, cotizacionID, version)
-	if err != nil {
-		log.Printf("enlaces_publicos: error consultando tabs/elementos de %s v%d: %v", cotizacionID, version, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el enlace."})
-		return
-	}
+	doc.CodigoOferta = valorTexto(codigoOferta)
+	doc.TipoPropuesta = valorTexto(tipoPropuesta)
+	doc.Cliente = valorTexto(cliente)
+	doc.Empresa = valorTexto(empresa)
 
 	// Si el cotizador tiene una plantilla Publicada que aplique, la
 	// propuesta se arma con ella (secciones/bloques/condiciones/tabla de
-	// escenarios — ver plantilla_renderizador.go). Sin una, se sigue
-	// mostrando "tabs" (las secciones crudas del cotizador) como hasta
-	// ahora: no todo cotizador tiene todavía una plantilla armada, y eso no
-	// es un error. Un error real al intentar renderizar la plantilla SÍ
-	// tira 500 — a diferencia de "no hay plantilla", que es silencioso.
-	plantilla, err := renderizarPlantillaCotizacion(ctx, h.DB, cotizacionID, version)
+	// escenarios). Sin una, se sigue mostrando "tabs" (las secciones crudas
+	// del cotizador): no todo cotizador tiene todavía una plantilla armada,
+	// y eso no es un error. Un error real al renderizar la plantilla SÍ se
+	// propaga — a diferencia de "no hay plantilla", que es silencioso.
+	tabs, err := (&EnlacesPublicosHandler{DB: db}).consultarTabsYValores(ctx, cotizacionID, version)
 	if err != nil {
-		log.Printf("enlaces_publicos: error renderizando la plantilla de %s v%d: %v", cotizacionID, version, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el enlace."})
-		return
+		return nil, err
 	}
+	doc.Tabs = tabs
 
-	escribirJSON(w, http.StatusOK, map[string]any{
-		"ok":               true,
-		"cotizacion_id":    cotizacionID,
-		"version":          version,
-		"codigo_oferta":    valorTexto(codigoOferta),
-		"tipo_propuesta":   valorTexto(tipoPropuesta),
-		"cliente":          valorTexto(cliente),
-		"empresa":          valorTexto(empresa),
-		"cotizador_nombre": calculadoraNombre,
-		"estado":           estado,
-		"moneda":           moneda,
-		"total_precio":     totalPrecio,
-		"tabs":             tabs,
-		"plantilla":        plantilla,
-	})
+	plantilla, err := renderizarPlantillaCotizacion(ctx, db, cotizacionID, version)
+	if err != nil {
+		return nil, err
+	}
+	doc.Plantilla = plantilla
+
+	return doc, nil
+}
+
+// resolverVersionCotizacion devuelve version_actual de una cotización.
+// Compartida por GenerarEnlace y construirDocumentoOferta para el mismo
+// caso: "no me dieron una versión puntual, use la vigente". Propaga
+// pgx.ErrNoRows tal cual cuando la cotización no existe.
+func resolverVersionCotizacion(ctx context.Context, db *pgxpool.Pool, cotizacionID string) (int, error) {
+	var version int
+	err := db.QueryRow(ctx, `SELECT version_actual FROM cotizaciones WHERE cotizacion_id = $1`, cotizacionID).Scan(&version)
+	return version, err
 }
 
 // marcarVistaPorElCliente cambia la versión a "Vista por el Cliente"

@@ -384,4 +384,61 @@
     </div>
   </div>
 
+<!-- Vista Previa de la Oferta (Ronda C, CTZ-TEC-004). El JSON que rellena
+     esto viene de GET /api/cotizaciones/{id}/vista-previa-oferta, la MISMA
+     cadena de resolución que arma el enlace público real (ver
+     construirDocumentoOferta en enlaces_publicos.go) — nunca una copia. La
+     lógica de este modal vive en cotiza_script_vista_previa_oferta.html. -->
+<div id="modalVistaPreviaOferta" class="modal">
+  <div class="modal-card vpo-modal-card">
+    <style id="vpoEstilos">
+      .vpo-modal-card{max-width:960px;width:min(960px, calc(100vw - 32px));}
+      .vpo-watermark-banner{margin:0 0 14px;padding:10px 14px;border-radius:10px;border:1px solid #f59e0b;background:repeating-linear-gradient(135deg,#fef3c7,#fef3c7 10px,#fde68a 10px,#fde68a 20px);color:#7c2d12;font-weight:900;font-size:12.5px;letter-spacing:.4px;text-align:center;text-transform:uppercase;}
+      .vpo-contenido{max-height:calc(100vh - 260px);overflow:auto;padding-right:4px;}
+      .vpo-hero{overflow:hidden;border-radius:14px;background:linear-gradient(135deg,#0d2b52,#174f91);color:#fff;}
+      .vpo-hero-body{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:end;padding:20px 22px;}
+      .vpo-eyebrow{margin:0 0 6px;color:#9ec5ff;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
+      .vpo-hero h1{margin:0;font-size:24px;letter-spacing:-.02em;color:#fff;}
+      .vpo-client{margin:8px 0 0;color:#dceafe;font-size:13.5px;}
+      .vpo-total{text-align:right;}
+      .vpo-total span{display:block;color:#bcd5f7;font-size:11px;font-weight:700;text-transform:uppercase;}
+      .vpo-total strong{display:block;margin-top:2px;font-size:22px;white-space:nowrap;color:#fff;}
+      .vpo-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0;}
+      .vpo-meta div{border:1px solid #e5edf8;background:#f8fbff;border-radius:10px;padding:10px 12px;}
+      .vpo-meta span{display:block;color:#64748b;font-size:10.5px;font-weight:700;text-transform:uppercase;}
+      .vpo-meta strong{display:block;margin-top:2px;font-size:13px;color:#0b2450;}
+      .vpo-sections{display:grid;gap:12px;}
+      .vpo-section{overflow:hidden;border:1px solid #e5edf8;border-radius:12px;background:#fff;}
+      .vpo-section h2{margin:0;padding:12px 16px;border-bottom:1px solid #e5edf8;font-size:14px;color:#0b2450;}
+      .vpo-fields{margin:0;}
+      .vpo-field-row{display:grid;grid-template-columns:minmax(160px,.8fr) minmax(0,1.4fr);gap:20px;padding:10px 16px;border-top:1px solid #edf2f7;}
+      .vpo-field-row:first-child{border-top:0;}
+      .vpo-field-row dt{color:#64748b;font-size:12px;font-weight:700;margin:0;}
+      .vpo-field-row dd{margin:0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;}
+      .vpo-table{width:100%;border-collapse:collapse;}
+      .vpo-table th{text-align:left;padding:8px 12px;border-bottom:2px solid #e5edf8;font-size:11.5px;color:#475467;}
+      .vpo-table td{padding:8px 12px;border-bottom:1px solid #edf2f7;font-size:12.5px;}
+      .vpo-empty{padding:14px 16px;color:#64748b;font-size:12.5px;}
+      @media(max-width:640px){.vpo-hero-body{grid-template-columns:1fr;}.vpo-total{text-align:left;}.vpo-meta{grid-template-columns:1fr;}.vpo-field-row{grid-template-columns:1fr;gap:4px;}}
+    </style>
+
+    <div class="modal-head">
+      <div>
+        <h2>Vista previa de la oferta</h2>
+        <p>Documento que vería el cliente si se enviara ahora mismo. No genera ningún enlace ni cambia el estado de la cotización.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="btnActualizarVistaPreviaOferta" class="btn btn-ghost" type="button">Actualizar</button>
+        <button id="btnCerrarModalVistaPreviaOferta" class="modal-close" type="button">×</button>
+      </div>
+    </div>
+
+    <div class="vpo-watermark-banner">Vista previa — este documento no se ha enviado al cliente</div>
+
+    <div id="vpoContenido" class="vpo-contenido">
+      <div class="vpo-empty">Cargando vista previa...</div>
+    </div>
+  </div>
+</div>
+
   <div id="toast" class="toast"></div>

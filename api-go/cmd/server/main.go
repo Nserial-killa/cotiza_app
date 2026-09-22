@@ -67,6 +67,7 @@ func main() {
 	listaPreciosItems := &handlers.ListaPreciosItemsHandler{DB: pool}
 	tablaColumnas := &handlers.TablaColumnasHandler{DB: pool}
 	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool}
+	vistaPreviaOferta := &handlers.VistaPreviaOfertaHandler{DB: pool}
 	plantillas := &handlers.PlantillasHandler{DB: pool}
 	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
 	plantillaVinculaciones := &handlers.PlantillaVinculacionesHandler{DB: pool}
@@ -197,6 +198,7 @@ func main() {
 				r.Post("/{id}/version", cotizaciones.CrearVersion)
 				r.Post("/{id}/estado", cotizaciones.CambiarEstado)
 				r.Post("/{id}/enlace", enlacesPublicos.GenerarEnlace)
+				r.Get("/{id}/vista-previa-oferta", vistaPreviaOferta.Ver)
 			})
 			r.Route("/integraciones", func(r chi.Router) {
 				r.Get("/", integraciones.Listar)

@@ -1,0 +1,191 @@
+<script>
+/* ============================================================
+   COTIZA — Vista Previa de la Oferta (Ronda C, VPO-001…007, CP-12)
+   Modal en cotiza_modals.html (#modalVistaPreviaOferta). Contra
+   GET /api/cotizaciones/{id}/vista-previa-oferta.
+
+   CTZ-TEC-004: preview y publicación deben resolver el MISMO valor.
+   El backend ya lo garantiza (construirDocumentoOferta, compartida
+   con el enlace público real). Este renderer es un puerto fiel del
+   de frontend/legacy-gas/publico.html (misma función texto/dinero,
+   mismo orden plantilla→tabs crudas) para que el documento se vea
+   igual — solo cambia el envoltorio (modal de la SPA en vez de
+   página standalone) y la fuente (sesión en vez de token).
+   ============================================================ */
+(function(core){
+  core = core || {};
+  const state = core.state || (window.state || {});
+  const byId = core.byId || function(id){ return document.getElementById(id); };
+  const bind = core.bind || function(id, ev, fn){ const el = byId(id); if(el) el.addEventListener(ev, fn); };
+  const mostrarToast = core.mostrarToast || function(texto){ console.log(texto || ""); };
+  const escapeHtml = core.escapeHtml || function(value){
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  };
+  const fetchAutenticado = core.fetchAutenticado || fetch;
+
+  function getVistaPreviaState_(){
+    state.vistaPreviaOferta = state.vistaPreviaOferta || {cotizacionId:"", version:"", cargando:false};
+    return state.vistaPreviaOferta;
+  }
+
+  function texto_(valor){
+    if(valor === null || valor === undefined || valor === "") return "—";
+    if(typeof valor === "boolean") return valor ? "Sí" : "No";
+    if(Array.isArray(valor)) return valor.map(texto_).join(", ");
+    if(typeof valor === "object") return Object.keys(valor).map(function(k){ return k + ": " + texto_(valor[k]); }).join(" · ");
+    return String(valor);
+  }
+
+  function dinero_(valor, moneda){
+    const numero = Number(valor || 0);
+    const simbolo = texto_(moneda || "US$");
+    return simbolo + " " + numero.toLocaleString("es-CR", {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function renderBloque_(bloque){
+    const tipo = bloque.tipo_bloque;
+    if(tipo === "CAMPO_VINCULADO"){
+      return '<dl class="vpo-fields"><div class="vpo-field-row"><dt>' + escapeHtml(texto_(bloque.titulo || "Dato")) + '</dt><dd>' + escapeHtml(texto_(bloque.valor)) + '</dd></div></dl>';
+    }
+    if(tipo === "TABLA_INVERSION"){
+      const columnas = Array.isArray(bloque.columnas) ? bloque.columnas : [];
+      const filas = Array.isArray(bloque.filas) ? bloque.filas : [];
+      if(!filas.length) return '<p class="vpo-empty">Sin datos para mostrar en esta tabla.</p>';
+      let html = '<table class="vpo-table"><thead><tr>' + columnas.map(function(c){ return '<th>' + escapeHtml(texto_(c)) + '</th>'; }).join("") + '</tr></thead><tbody>';
+      filas.forEach(function(fila){
+        html += '<tr>' + (Array.isArray(fila) ? fila : []).map(function(v){ return '<td>' + escapeHtml(texto_(v)) + '</td>'; }).join("") + '</tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+    return '<p style="margin:0;padding:12px 16px;white-space:pre-wrap;">' + escapeHtml(texto_(bloque.contenido)) + '</p>';
+  }
+
+  function renderPlantilla_(plantilla){
+    const secciones = Array.isArray(plantilla.secciones) ? plantilla.secciones : [];
+    let html = "";
+    secciones.forEach(function(seccion){
+      const bloques = Array.isArray(seccion.bloques) ? seccion.bloques : [];
+      if(!bloques.length) return; // Sección vacía (todos sus bloques quedaron ocultos por condición) no se muestra.
+      html += '<section class="vpo-section"><h2>' + escapeHtml(texto_(seccion.titulo || "Sección")) + '</h2>' + bloques.map(renderBloque_).join("") + '</section>';
+    });
+    if(!html) html = '<section class="vpo-section vpo-empty">Esta propuesta todavía no contiene secciones para mostrar.</section>';
+    return html;
+  }
+
+  function renderTabsCrudas_(tabs){
+    if(!tabs.length) return '<section class="vpo-section vpo-empty">Esta propuesta todavía no contiene secciones para mostrar.</section>';
+    return tabs.map(function(tab){
+      const elementos = Array.isArray(tab.elementos) ? tab.elementos : [];
+      const cuerpo = elementos.length
+        ? '<dl class="vpo-fields">' + elementos.map(function(el){
+            return '<div class="vpo-field-row"><dt>' + escapeHtml(texto_(el.etiqueta || "Información")) + '</dt><dd>' + escapeHtml(texto_(el.valor)) + '</dd></div>';
+          }).join("") + '</dl>'
+        : '<p class="vpo-empty">No hay información registrada en esta sección.</p>';
+      return '<section class="vpo-section"><h2>' + escapeHtml(texto_(tab.nombre || "Sección")) + '</h2>' + cuerpo + '</section>';
+    }).join("");
+  }
+
+  function renderDocumento_(data){
+    const contenedor = byId("vpoContenido");
+    if(!contenedor) return;
+    // Mismo orden que publico.html: plantilla vinculada si existe, si no
+    // las tabs crudas del cotizador — nunca los dos a la vez.
+    const secciones = (data.plantilla && typeof data.plantilla === "object")
+      ? renderPlantilla_(data.plantilla)
+      : renderTabsCrudas_(Array.isArray(data.tabs) ? data.tabs : []);
+    contenedor.innerHTML = '' +
+      '<div class="vpo-hero"><div class="vpo-hero-body">' +
+        '<div><p class="vpo-eyebrow">Propuesta comercial</p><h1>' + escapeHtml(texto_(data.codigo_oferta || "Propuesta")) + '</h1><p class="vpo-client">' + escapeHtml(texto_(data.cliente)) + '</p></div>' +
+        '<div class="vpo-total"><span>Precio total</span><strong>' + escapeHtml(dinero_(data.total_precio, data.moneda)) + '</strong></div>' +
+      '</div></div>' +
+      '<div class="vpo-meta">' +
+        '<div><span>Empresa</span><strong>' + escapeHtml(texto_(data.empresa || data.cliente)) + '</strong></div>' +
+        '<div><span>Cotizador</span><strong>' + escapeHtml(texto_(data.cotizador_nombre)) + '</strong></div>' +
+        '<div><span>Tipo de propuesta</span><strong>' + escapeHtml(texto_(data.tipo_propuesta)) + '</strong></div>' +
+      '</div>' +
+      '<div class="vpo-sections">' + secciones + '</div>';
+  }
+
+  function cargarVistaPreviaOferta(){
+    const st = getVistaPreviaState_();
+    if(!st.cotizacionId) return;
+    const contenedor = byId("vpoContenido");
+    if(contenedor) contenedor.innerHTML = '<div class="vpo-empty">Cargando vista previa...</div>';
+    const params = st.version ? ("?version=" + encodeURIComponent(st.version)) : "";
+    st.cargando = true;
+    fetchAutenticado("/api/cotizaciones/" + encodeURIComponent(st.cotizacionId) + "/vista-previa-oferta" + params, {headers:{"Accept":"application/json"}})
+      .then(function(resp){
+        return resp.json().catch(function(){ return null; }).then(function(data){
+          if(!resp.ok || !data || !data.ok) throw new Error((data && data.error) || "No fue posible generar la vista previa.");
+          return data;
+        });
+      })
+      .then(function(data){
+        st.cargando = false;
+        renderDocumento_(data);
+      })
+      .catch(function(error){
+        st.cargando = false;
+        const mensaje = (error && error.message) || "No fue posible generar la vista previa.";
+        if(contenedor) contenedor.innerHTML = '<div class="vpo-empty">' + escapeHtml(mensaje) + '</div>';
+        mostrarToast(mensaje);
+      });
+  }
+
+  function abrirVistaPreviaOferta(cotizacionId, version){
+    cotizacionId = String(cotizacionId || "").trim();
+    if(!cotizacionId){
+      mostrarToast("No hay una cotización para previsualizar.");
+      return;
+    }
+    const st = getVistaPreviaState_();
+    st.cotizacionId = cotizacionId;
+    st.version = String(version || "").trim();
+    const modal = byId("modalVistaPreviaOferta");
+    if(modal) modal.classList.add("open");
+    cargarVistaPreviaOferta();
+  }
+
+  function cerrarVistaPreviaOferta(){
+    const modal = byId("modalVistaPreviaOferta");
+    if(modal) modal.classList.remove("open");
+  }
+
+  // VPO-001/006: mismo botón, dos puntos de entrada reales del Gestor —
+  // el editor del motor de ejecución (durante la edición de valores) y el
+  // detalle de la cotización (donde también vive "Link del cliente" /
+  // cambiar a "Enviada al Cliente", el paso justo antes de enviarla).
+  function abrirVistaPreviaDesdeDetalleGestor(){
+    const c = state.gestorDetalle && state.gestorDetalle.cotizacion;
+    if(!c){ mostrarToast("No hay una cotización cargada."); return; }
+    abrirVistaPreviaOferta(c.cotizacion_id, c.version);
+  }
+
+  function abrirVistaPreviaDesdeRuntimeGestor(){
+    const rt = state.cotizadorRuntime;
+    if(!rt){ mostrarToast("No hay un formulario cargado."); return; }
+    abrirVistaPreviaOferta(rt.cotizacionId, rt.version);
+  }
+
+  function bindVistaPreviaOfertaEventos_(){
+    if(window.__cotizaVistaPreviaOfertaBound) return;
+    window.__cotizaVistaPreviaOfertaBound = true;
+    bind("btnCerrarModalVistaPreviaOferta","click", cerrarVistaPreviaOferta);
+    bind("btnActualizarVistaPreviaOferta","click", cargarVistaPreviaOferta);
+    bind("btnVistaPreviaOfertaDetalle","click", abrirVistaPreviaDesdeDetalleGestor);
+    bind("btnVistaPreviaOfertaRuntime","click", abrirVistaPreviaDesdeRuntimeGestor);
+    const modal = byId("modalVistaPreviaOferta");
+    if(modal) modal.addEventListener("click", function(e){ if(e.target === modal) cerrarVistaPreviaOferta(); });
+  }
+
+  bindVistaPreviaOfertaEventos_();
+
+  window.abrirVistaPreviaOferta = abrirVistaPreviaOferta;
+})(window.__cotizaCore || {});
+</script>

@@ -38,6 +38,7 @@ FILE_MAP = {
     "Cotiza_Scripts": "cotiza_scripts.html",
     "Cotiza_Script_Mantenimiento_Reglas": "cotiza_script_mantenimiento_reglas.html",
     "Cotiza_Script_Salidas_Cotizador": "cotiza_script_salidas_cotizador.html",
+    "Cotiza_Script_Vista_Previa_Oferta": "cotiza_script_vista_previa_oferta.html",
 }
 
 # Includes que NO llegaron en la entrega original — se documentan
