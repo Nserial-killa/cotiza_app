@@ -98,16 +98,25 @@ func renderizarPlantillaCotizacion(ctx context.Context, db *pgxpool.Pool, cotiza
 	// Crea las opciones en la primera apertura igual que el Motor de
 	// Ejecución (Obtener) — un cliente puede abrir el link público antes de
 	// que nadie haya abierto el cotizador todavía.
-	if err := rt.asegurarOpcionesPropuesta(ctx, &runtime); err != nil {
-		return nil, err
-	}
-	valores, err := rt.leerValores(ctx, db, cotizacionID, runtime.Version)
-	if err != nil {
-		return nil, err
+	var valores map[string]any
+	if runtime.Snapshot != nil {
+		valores = runtime.Snapshot.Valores
+	} else {
+		if !runtime.Historica {
+			if err := rt.asegurarOpcionesPropuesta(ctx, &runtime); err != nil {
+				return nil, err
+			}
+		}
+		valores, err = rt.leerValores(ctx, db, cotizacionID, runtime.Version)
+		if err != nil {
+			return nil, err
+		}
 	}
 	elementosPorID := indexarElementosCompletoRuntime(runtime.Estructura)
-	resolverCamposCalculados(elementosPorID, valores)
-	resolverCamposCalculadosPorOpcion(elementosPorID, runtime.Elementos, valores)
+	if runtime.Snapshot == nil {
+		resolverCamposCalculados(elementosPorID, valores)
+		resolverCamposCalculadosPorOpcion(elementosPorID, runtime.Elementos, valores)
+	}
 
 	base, err := valoresBaseCotizacion(ctx, db, cotizacionID, runtime.Version)
 	if err != nil {

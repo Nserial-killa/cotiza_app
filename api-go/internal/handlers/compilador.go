@@ -67,6 +67,7 @@ type configuracionCompilada struct {
 	Version       int                       `json:"version"`
 	Tabs          []tabCompilado            `json:"tabs"`
 	Reglas        []reglaCotizadorCompilada `json:"reglas,omitempty"`
+	Salidas       []salidaCotizador         `json:"salidas"`
 }
 
 // reglaCotizadorCompilada es la forma de solo-lectura de una regla_cotizador
@@ -97,6 +98,7 @@ type resultadoValidacion struct {
 	Resumen       resumenCompilacion
 	Tabs          []tabCompilado
 	Reglas        []reglaCotizadorCompilada
+	Salidas       []salidaCotizador
 }
 
 func (h *CompiladorHandler) Validar(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +159,7 @@ func (h *CompiladorHandler) Compilar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	version := versionAnterior + 1
-	configuracion := configuracionCompilada{CalculadoraID: calculadoraID, Version: version, Tabs: resultado.Tabs, Reglas: resultado.Reglas}
+	configuracion := configuracionCompilada{CalculadoraID: calculadoraID, Version: version, Tabs: resultado.Tabs, Reglas: resultado.Reglas, Salidas: resultado.Salidas}
 	configuracionJSON, err := json.Marshal(configuracion)
 	if err == nil {
 		_, err = tx.Exec(ctx, `UPDATE cotizadores_compilados SET estado='ANTERIOR' WHERE calculadora_id=$1 AND estado='ACTIVA'`, calculadoraID)
@@ -342,6 +344,23 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	}
 	for i := range resultado.Tabs {
 		resultado.Tabs[i].Elementos = anidarHijosCompilado(resultado.Tabs[i].Elementos, &resultado)
+	}
+	mapa, err := leerMapaSalidas(ctx, h.DB, calculadoraID)
+	if err != nil {
+		return resultado, err
+	}
+	resultado.Salidas = mapa
+	// Validar contra el contenido realmente compilado, incluidas secciones asociadas.
+	raw, err := json.Marshal(configuracionCompilada{Tabs: resultado.Tabs})
+	if err != nil {
+		return resultado, err
+	}
+	var estructura map[string]any
+	if err := json.Unmarshal(raw, &estructura); err != nil {
+		return resultado, err
+	}
+	if err := validarMapaSalidas(mapa, indexarElementosCompletoRuntime(estructura), indexarElementosRuntime(estructura), false); err != nil {
+		resultado.Errores = append(resultado.Errores, err.Error())
 	}
 	if err := h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM reglas WHERE activo=true`).Scan(&resultado.Resumen.Reglas); err != nil {
 		return resultado, err

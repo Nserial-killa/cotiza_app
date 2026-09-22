@@ -290,6 +290,10 @@ func (h *EnlacesPublicosHandler) marcarVistaPorElCliente(ctx context.Context, co
 	defer tx.Rollback(ctx)
 
 	var estadoActual string
+	var versionActual int
+	if err := tx.QueryRow(ctx, `SELECT version_actual FROM cotizaciones WHERE cotizacion_id=$1 FOR UPDATE`, cotizacionID).Scan(&versionActual); err != nil {
+		return err
+	}
 	if err := tx.QueryRow(ctx, `
 		SELECT estado FROM cotizacion_versiones
 		 WHERE cotizacion_id = $1 AND numero_version = $2 FOR UPDATE`,
@@ -308,10 +312,6 @@ func (h *EnlacesPublicosHandler) marcarVistaPorElCliente(ctx context.Context, co
 		return err
 	}
 
-	var versionActual int
-	if err := tx.QueryRow(ctx, `SELECT version_actual FROM cotizaciones WHERE cotizacion_id = $1`, cotizacionID).Scan(&versionActual); err != nil {
-		return err
-	}
 	if version == versionActual {
 		if _, err := tx.Exec(ctx, `UPDATE cotizaciones SET estado = $2 WHERE cotizacion_id = $1`, cotizacionID, nuevoEstado); err != nil {
 			return err
@@ -331,6 +331,17 @@ func (h *EnlacesPublicosHandler) marcarVistaPorElCliente(ctx context.Context, co
 // texto_visible en vez del código interno). LEYENDA/TEXTO_INFORMATIVO
 // no tienen valor guardado — son texto fijo, se muestra su etiqueta.
 func (h *EnlacesPublicosHandler) consultarTabsYValores(ctx context.Context, cotizacionID string, version int) ([]*enlacePublicoTab, error) {
+	var rawSnapshot []byte
+	if err := h.DB.QueryRow(ctx, `SELECT snapshot_json FROM cotizacion_versiones WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, version).Scan(&rawSnapshot); err != nil {
+		return nil, err
+	}
+	if len(rawSnapshot) > 0 {
+		var snapshot snapshotCotizacion
+		if err := json.Unmarshal(rawSnapshot, &snapshot); err != nil {
+			return nil, err
+		}
+		return tabsPublicasSnapshot(snapshot), nil
+	}
 	var calculadoraID string
 	if err := h.DB.QueryRow(ctx, `SELECT calculadora_id FROM cotizaciones WHERE cotizacion_id = $1`, cotizacionID).Scan(&calculadoraID); err != nil {
 		return nil, err

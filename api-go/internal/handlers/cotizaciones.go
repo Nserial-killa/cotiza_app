@@ -652,9 +652,8 @@ type crearVersionRequest struct {
 }
 
 // CrearVersion responde POST /api/cotizaciones/{id}/version. La nueva
-// versión arranca como copia de los totales de la versión actual —
-// todavía no hay motor de ejecución que los recalcule; "editar" una
-// cotización de verdad es un sprint futuro.
+// versión copia valores, opciones, snapshot y salidas de la versión actual,
+// con identificadores nuevos y sin recalcular ni modificar el original.
 func (h *CotizacionesHandler) CrearVersion(w http.ResponseWriter, r *http.Request) {
 	cotizacionID := strings.TrimSpace(chi.URLParam(r, "id"))
 	if cotizacionID == "" {
@@ -724,6 +723,9 @@ func (h *CotizacionesHandler) CrearVersion(w http.ResponseWriter, r *http.Reques
 		VALUES ($1, $2, $3, NULLIF($4, ''), 'Borrador', $5, $6, $7, $8, $9)`,
 		cotizacionID, nuevaVersion, req.NombreVersion, req.ResumenCambios, moneda,
 		totalPrecio, totalCosto, totalGanancia, margenTotal)
+	if err == nil {
+		err = copiarVersionRuntime(ctx, tx, cotizacionID, versionActual, nuevaVersion)
+	}
 	if err != nil {
 		log.Printf("cotizaciones: error insertando versión %d de %s: %v", nuevaVersion, cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear la versión."})
@@ -812,6 +814,16 @@ func (h *CotizacionesHandler) CambiarEstado(w http.ResponseWriter, r *http.Reque
 	}
 	defer tx.Rollback(ctx)
 
+	// Mismo orden de bloqueo que el guardado y la creación de versiones.
+	var versionActual int
+	if err := tx.QueryRow(ctx, `SELECT version_actual FROM cotizaciones WHERE cotizacion_id=$1 FOR UPDATE`, cotizacionID).Scan(&versionActual); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			escribirJSON(w, 404, map[string]any{"ok": false, "error": "Cotización no encontrada."})
+		} else {
+			escribirJSON(w, 500, map[string]any{"ok": false, "error": "No fue posible cambiar el estado."})
+		}
+		return
+	}
 	var estadoAnterior string
 	err = tx.QueryRow(ctx, `
 		SELECT estado FROM cotizacion_versiones
@@ -824,13 +836,6 @@ func (h *CotizacionesHandler) CambiarEstado(w http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		log.Printf("cotizaciones: error leyendo versión %d de %s: %v", version, cotizacionID, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cambiar el estado."})
-		return
-	}
-
-	var versionActual int
-	if err := tx.QueryRow(ctx, `SELECT version_actual FROM cotizaciones WHERE cotizacion_id = $1`, cotizacionID).Scan(&versionActual); err != nil {
-		log.Printf("cotizaciones: error leyendo version_actual de %s: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cambiar el estado."})
 		return
 	}

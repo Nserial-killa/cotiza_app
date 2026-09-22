@@ -52,6 +52,7 @@ func main() {
 	auth := &handlers.AuthHandler{DB: pool}
 	catalogos := &handlers.CatalogosHandler{DB: pool}
 	cotizadorTabs := &handlers.CotizadorTabsHandler{DB: pool}
+	salidasCotizador := &handlers.SalidasCotizadorHandler{DB: pool}
 	seccionesAdicionales := &handlers.SeccionesAdicionalesHandler{DB: pool}
 	compilador := &handlers.CompiladorHandler{DB: pool}
 	usuarios := &handlers.UsuariosHandler{DB: pool}
@@ -108,6 +109,9 @@ func main() {
 			r.Post("/catalogos/relaciones", catalogos.GuardarRelaciones)
 			r.Delete("/catalogos/relaciones/{id}", catalogos.EliminarRelacion)
 			r.Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
+			r.Get("/cotizador/salidas", salidasCotizador.Listar)
+			r.Post("/cotizador/salidas", salidasCotizador.Guardar)
+			r.Delete("/cotizador/salidas/{clave_salida}", salidasCotizador.Eliminar)
 			r.Post("/cotizador/tabs", cotizadorTabs.GuardarTab)
 			r.Delete("/cotizador/tabs/{id}", cotizadorTabs.EliminarTab)
 			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)

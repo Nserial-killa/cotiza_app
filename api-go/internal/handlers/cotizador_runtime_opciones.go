@@ -139,6 +139,10 @@ func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *
 		h.responderError(w, "administrando opciones", cotizacionID, err)
 		return
 	}
+	if runtime.Historica {
+		h.responderError(w, "administrando opciones", cotizacionID, &errorRuntime{409, "No se pueden modificar opciones de una versión histórica o cerrada."})
+		return
+	}
 	if err := h.asegurarOpcionesPropuesta(ctx, &runtime); err != nil {
 		log.Printf("cotizador runtime: error inicializando opciones de %s: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible preparar las opciones de propuesta."})
@@ -174,6 +178,10 @@ func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *
 	}
 	defer tx.Rollback(ctx)
 	claveLock := cotizacionID + ":" + fmt.Sprint(req.Version) + ":" + req.ElementoPadreID
+	if err := bloquearVersionEditable(ctx, tx, cotizacionID, req.Version); err != nil {
+		h.responderError(w, "bloqueando versión", cotizacionID, err)
+		return
+	}
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, claveLock); err != nil {
 		h.responderError(w, "bloqueando opciones", cotizacionID, err)
 		return
@@ -266,12 +274,21 @@ func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *
 	if err == nil {
 		opciones, err = autoRecomendarUnicaOpcion(ctx, tx, opciones)
 	}
+	// Después del primer guardado, cambiar la opción efectiva es un cambio
+	// financiero: regenerar snapshot/salidas en esta misma transacción.
+	if err == nil && runtime.Snapshot != nil {
+		reglas, e := reglasCotizadorParaEvaluar(ctx, tx, runtime.CalculadoraID)
+		if e != nil {
+			err = e
+		} else {
+			err = h.persistirSalidasSnapshot(ctx, tx, &runtime, reglas)
+		}
+	}
 	if err == nil {
 		err = tx.Commit(ctx)
 	}
 	if err != nil {
-		log.Printf("cotizador runtime: error confirmando opciones de %s: %v", cotizacionID, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible actualizar las opciones de propuesta."})
+		h.responderError(w, "confirmando opciones y salidas", cotizacionID, err)
 		return
 	}
 

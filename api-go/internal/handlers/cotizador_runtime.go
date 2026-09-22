@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cotiza/api/internal/middleware"
@@ -63,6 +64,8 @@ type contextoRuntime struct {
 	CompiladoID   string
 	Estructura    map[string]any
 	Elementos     map[string]elementoRuntime
+	Snapshot      *snapshotCotizacion
+	Historica     bool
 }
 
 type errorRuntime struct {
@@ -88,15 +91,32 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		h.responderError(w, "obteniendo runtime", cotizacionID, err)
 		return
 	}
-	if err := h.incluirOpcionesCatalogo(ctx, runtime.Estructura); err != nil {
-		log.Printf("cotizador runtime: error cargando opciones de %s: %v", cotizacionID, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las opciones de catálogo."})
+	if runtime.Snapshot != nil && runtime.Historica {
+		escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": runtime.Snapshot.Valores, "version": runtime.Version, "solo_lectura": true})
 		return
 	}
-	if err := h.asegurarOpcionesPropuesta(ctx, &runtime); err != nil {
-		log.Printf("cotizador runtime: error preparando opciones de %s: %v", cotizacionID, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible preparar las opciones de propuesta."})
-		return
+	if runtime.Snapshot == nil {
+		if err := h.incluirOpcionesCatalogo(ctx, runtime.Estructura); err != nil {
+			log.Printf("cotizador runtime: error cargando opciones de %s: %v", cotizacionID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las opciones de catálogo."})
+			return
+		}
+	}
+	if !runtime.Historica {
+		if err := h.asegurarOpcionesPropuesta(ctx, &runtime); err != nil {
+			log.Printf("cotizador runtime: error preparando opciones de %s: %v", cotizacionID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible preparar las opciones de propuesta."})
+			return
+		}
+	} else {
+		for _, padre := range elementosOpcionesPropuesta(runtime.Estructura) {
+			opciones, e := listarOpcionesPropuesta(ctx, h.DB, cotizacionID, runtime.Version, fmt.Sprint(padre["elemento_id"]))
+			if e != nil {
+				h.responderError(w, "leyendo opciones históricas", cotizacionID, e)
+				return
+			}
+			padre["opciones"] = opciones
+		}
 	}
 	valores, err := h.leerValores(ctx, h.DB, cotizacionID, runtime.Version)
 	if err != nil {
@@ -134,7 +154,17 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
-	runtime, err := h.cargarContexto(ctx, cotizacionID, req.Version, true)
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		h.responderError(w, "iniciando guardado", cotizacionID, err)
+		return
+	}
+	defer tx.Rollback(ctx)
+	if err := bloquearVersionEditable(ctx, tx, cotizacionID, req.Version); err != nil {
+		h.responderError(w, "validando versión editable", cotizacionID, err)
+		return
+	}
+	runtime, err := h.cargarContextoConDB(ctx, tx, cotizacionID, req.Version, true)
 	if err != nil {
 		h.responderError(w, "guardando runtime", cotizacionID, err)
 		return
@@ -171,7 +201,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 				return
 			}
 			var opcionValida bool
-			if err := h.DB.QueryRow(ctx, `
+			if err := tx.QueryRow(ctx, `
 				SELECT EXISTS(
 					SELECT 1 FROM cotizacion_opciones
 					WHERE opcion_id=$1 AND cotizacion_id=$2 AND numero_version=$3 AND elemento_padre_id=$4
@@ -199,7 +229,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 				return
 			}
 			var permitido bool
-			if err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM catalogo_valores WHERE catalogo_id=$1 AND valor_sistema=$2 AND activo=true)`, elemento.CatalogoID, valorSistema).Scan(&permitido); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM catalogo_valores WHERE catalogo_id=$1 AND valor_sistema=$2 AND activo=true)`, elemento.CatalogoID, valorSistema).Scan(&permitido); err != nil {
 				log.Printf("cotizador runtime: error validando catálogo %s: %v", elemento.CatalogoID, err)
 				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el valor de catálogo."})
 				return
@@ -222,7 +252,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 			}
 			for _, itemID := range itemIDs {
 				var perteneceYActivo bool
-				if err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM lista_precios_items WHERE item_id::text=$1 AND elemento_id=$2 AND activo=true)`, itemID, elementoID).Scan(&perteneceYActivo); err != nil {
+				if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM lista_precios_items WHERE item_id::text=$1 AND elemento_id=$2 AND activo=true)`, itemID, elementoID).Scan(&perteneceYActivo); err != nil {
 					log.Printf("cotizador runtime: error validando ítem %s de %s: %v", itemID, elementoID, err)
 					escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los ítems de la lista de precios."})
 					return
@@ -253,7 +283,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 				}
 			}
 			var previoRaw []byte
-			errPrevio := h.DB.QueryRow(ctx, `
+			errPrevio := tx.QueryRow(ctx, `
 				SELECT valor FROM cotizacion_valores
 				WHERE cotizacion_id=$1 AND version=$2 AND elemento_id=$3
 				  AND opcion_id IS NOT DISTINCT FROM NULLIF($4, '')`, cotizacionID, req.Version, elementoID, pendiente.OpcionID).Scan(&previoRaw)
@@ -290,14 +320,14 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 	// ese campo — sección 6.1 del documento: "un valor oculto no puede
 	// seguir sumándose silenciosamente". Los campos de Opciones de
 	// Propuesta quedan fuera de esta ronda (ver reglas_evaluacion.go).
-	reglas, err := reglasCotizadorParaEvaluar(ctx, h.DB, runtime.CalculadoraID)
+	reglas, err := reglasCotizadorParaEvaluar(ctx, tx, runtime.CalculadoraID)
 	if err != nil {
 		log.Printf("cotizador runtime: error cargando reglas de %s: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las reglas del cotizador."})
 		return
 	}
 	if len(reglas) > 0 {
-		valoresActuales, err := h.leerValores(ctx, h.DB, cotizacionID, req.Version)
+		valoresActuales, err := h.leerValores(ctx, tx, cotizacionID, req.Version)
 		if err != nil {
 			log.Printf("cotizador runtime: error leyendo valores actuales de %s: %v", cotizacionID, err)
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar las reglas del cotizador."})
@@ -352,12 +382,6 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		}
 	}
 
-	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible iniciar el guardado."})
-		return
-	}
-	defer tx.Rollback(ctx)
 	for _, pendiente := range pendientes {
 		if pendiente.OpcionID == "" {
 			_, err = tx.Exec(ctx, `
@@ -381,23 +405,32 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
 	comentario := fmt.Sprintf("Se actualizaron %d valor(es) del cotizador.", len(pendientes))
 	if err == nil {
-		err = insertarHistorial(ctx, tx, cotizacionID, &req.Version, "valores_actualizados", nil, nil, comentario, usuarioID)
+		err = h.persistirSalidasSnapshot(ctx, tx, &runtime, reglas)
 	}
 	if err == nil {
-		err = h.actualizarTotalesCotizacionVersion(ctx, tx, runtime.Estructura, runtime.Elementos, cotizacionID, req.Version)
+		err = insertarHistorial(ctx, tx, cotizacionID, &req.Version, "valores_actualizados", nil, nil, comentario, usuarioID)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
 	}
 	if err != nil {
-		log.Printf("cotizador runtime: error guardando valores de %s: %v", cotizacionID, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible guardar los valores de la cotización."})
+		h.responderError(w, "guardando valores y salidas", cotizacionID, err)
 		return
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "version": req.Version, "valores_guardados": len(pendientes)})
 }
 
 func (h *CotizadorRuntimeHandler) cargarContexto(ctx context.Context, cotizacionID string, versionSolicitada int, fijar bool) (contextoRuntime, error) {
+	return h.cargarContextoConDB(ctx, h.DB, cotizacionID, versionSolicitada, fijar)
+}
+
+type consultadorContextoRuntime interface {
+	consultadorRuntime
+	QueryRow(context.Context, string, ...any) pgx.Row
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func (h *CotizadorRuntimeHandler) cargarContextoConDB(ctx context.Context, q consultadorContextoRuntime, cotizacionID string, versionSolicitada int, fijar bool) (contextoRuntime, error) {
 	resultado := contextoRuntime{CotizacionID: cotizacionID, Elementos: make(map[string]elementoRuntime)}
 	if cotizacionID == "" {
 		return resultado, &errorRuntime{status: http.StatusBadRequest, mensaje: "Debe indicar cotizacion_id."}
@@ -405,7 +438,7 @@ func (h *CotizadorRuntimeHandler) cargarContexto(ctx context.Context, cotizacion
 	var calculadoraID string
 	var versionActual int
 	var compiladoID *string
-	err := h.DB.QueryRow(ctx, `SELECT calculadora_id, version_actual, compilado_id_usado::text FROM cotizaciones WHERE cotizacion_id=$1`, cotizacionID).Scan(&calculadoraID, &versionActual, &compiladoID)
+	err := q.QueryRow(ctx, `SELECT calculadora_id, version_actual, compilado_id_usado::text FROM cotizaciones WHERE cotizacion_id=$1`, cotizacionID).Scan(&calculadoraID, &versionActual, &compiladoID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return resultado, &errorRuntime{status: http.StatusNotFound, mensaje: "La cotización indicada no existe."}
 	}
@@ -417,16 +450,30 @@ func (h *CotizadorRuntimeHandler) cargarContexto(ctx context.Context, cotizacion
 	if resultado.Version == 0 {
 		resultado.Version = versionActual
 	}
-	var versionExiste bool
-	if err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM cotizacion_versiones WHERE cotizacion_id=$1 AND numero_version=$2)`, cotizacionID, resultado.Version).Scan(&versionExiste); err != nil {
+	var rawSnapshot []byte
+	var estadoVersion string
+	err = q.QueryRow(ctx, `SELECT snapshot_json,estado FROM cotizacion_versiones WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, resultado.Version).Scan(&rawSnapshot, &estadoVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return resultado, &errorRuntime{status: http.StatusNotFound, mensaje: "La versión indicada de la cotización no existe."}
+	}
+	if err != nil {
 		return resultado, err
 	}
-	if !versionExiste {
-		return resultado, &errorRuntime{status: http.StatusNotFound, mensaje: "La versión indicada de la cotización no existe."}
+	resultado.Historica = resultado.Version != versionActual || !estadoVersionEditable(estadoVersion)
+	if len(rawSnapshot) > 0 {
+		var snapshot snapshotCotizacion
+		if err := json.Unmarshal(rawSnapshot, &snapshot); err != nil {
+			return resultado, err
+		}
+		resultado.Snapshot = &snapshot
+		resultado.Estructura = snapshot.Estructura
+		resultado.CompiladoID = snapshot.CompiladoID
+		resultado.Elementos = indexarElementosRuntime(resultado.Estructura)
+		return resultado, nil
 	}
 	if compiladoID == nil || strings.TrimSpace(*compiladoID) == "" {
 		var activo string
-		err := h.DB.QueryRow(ctx, `SELECT compilado_id::text FROM cotizadores_compilados WHERE calculadora_id=$1 AND estado='ACTIVA'`, calculadoraID).Scan(&activo)
+		err := q.QueryRow(ctx, `SELECT compilado_id::text FROM cotizadores_compilados WHERE calculadora_id=$1 AND estado='ACTIVA'`, calculadoraID).Scan(&activo)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return resultado, &errorRuntime{status: http.StatusConflict, mensaje: "El cotizador no tiene una versión compilada activa."}
 		}
@@ -434,15 +481,15 @@ func (h *CotizadorRuntimeHandler) cargarContexto(ctx context.Context, cotizacion
 			return resultado, err
 		}
 		compiladoID = &activo
-		if fijar {
-			if _, err := h.DB.Exec(ctx, `UPDATE cotizaciones SET compilado_id_usado=$2::uuid WHERE cotizacion_id=$1 AND compilado_id_usado IS NULL`, cotizacionID, activo); err != nil {
+		if fijar && !resultado.Historica {
+			if _, err := q.Exec(ctx, `UPDATE cotizaciones SET compilado_id_usado=$2::uuid WHERE cotizacion_id=$1 AND compilado_id_usado IS NULL`, cotizacionID, activo); err != nil {
 				return resultado, err
 			}
 		}
 	}
 	resultado.CompiladoID = *compiladoID
 	var estructuraJSON []byte
-	err = h.DB.QueryRow(ctx, `SELECT configuracion FROM cotizadores_compilados WHERE compilado_id=$1::uuid AND calculadora_id=$2`, resultado.CompiladoID, calculadoraID).Scan(&estructuraJSON)
+	err = q.QueryRow(ctx, `SELECT configuracion FROM cotizadores_compilados WHERE compilado_id=$1::uuid AND calculadora_id=$2`, resultado.CompiladoID, calculadoraID).Scan(&estructuraJSON)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return resultado, &errorRuntime{status: http.StatusConflict, mensaje: "La versión compilada fijada ya no está disponible para este cotizador."}
 	}
