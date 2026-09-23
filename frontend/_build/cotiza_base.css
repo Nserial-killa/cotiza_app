@@ -110,11 +110,11 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .card-sub { font-size: 13px; color: #8993A3; margin-bottom: 12px; }
 
 .dashboard-page .card { border:1px solid var(--dash-border); box-shadow:0 2px 5px rgba(20,48,84,.05); }
-.dashboard-filter-card { display:grid; grid-template-columns:repeat(3,minmax(150px,1fr)) minmax(260px,1.18fr); gap:14px; align-items:end; padding:13px 15px; margin-bottom:12px; }
+.dashboard-filter-card { display:grid; grid-template-columns:repeat(3,minmax(145px,1fr)) repeat(2,minmax(130px,.8fr)) minmax(150px,1fr); gap:12px; align-items:end; padding:13px 15px; margin-bottom:12px; }
 .dashboard-filter-card .field { min-width:0; margin-bottom:0; }
 .dashboard-filter-card label { color:#172f52; font-size:10px; margin-bottom:6px; }
-.dashboard-filter-card select { height:38px; padding:7px 12px; border-color:#ccd7e6; border-radius:7px; color:#243a5a; font-size:11px; }
-.dashboard-filter-note { font-size:10px; line-height:1.45; color:#7b899e; margin:0 0 9px; }
+.dashboard-filter-card select,.dashboard-filter-card input { height:38px; padding:7px 12px; border:1px solid #ccd7e6; border-radius:7px; color:#243a5a; background:#fff; font-size:11px; }
+.dashboard-filter-note { grid-column:1/-1; font-size:10px; line-height:1.45; color:#7b899e; margin:0; }
 
 .dash-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:10px; }
 .dash-kpi-card {

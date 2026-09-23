@@ -73,6 +73,9 @@ window.CotizaApp = (function(){
         bind("filtroDashboardCalculadora","change",cargarDashboard);
         bind("dashboardVendedor","change",cargarDashboard);
         bind("dashboardTipoCliente","change",cargarDashboard);
+        bind("dashboardFechaDesde","change",cargarDashboard);
+        bind("dashboardFechaHasta","change",cargarDashboard);
+        bind("dashboardMoneda","change",function(){ if(state.dashboard) renderDashboard(state.dashboard); });
         bind("btnAplicarFiltrosReporte","click",cargarReportesCotizaciones);
         bind("btnLimpiarFiltrosReporte","click",limpiarFiltrosReporteCotizaciones);
         bind("btnExportarReporteCotizaciones","click",exportarReporteCotizaciones);
@@ -630,50 +633,126 @@ window.CotizaApp = (function(){
         const params = new URLSearchParams({
           calculadora_id:byId("filtroDashboardCalculadora") ? byId("filtroDashboardCalculadora").value || "" : "",
           vendedor_id:byId("dashboardVendedor") ? byId("dashboardVendedor").value || "" : "",
-          tipo_cliente:byId("dashboardTipoCliente") ? byId("dashboardTipoCliente").value || "" : ""
+          tipo_cliente:byId("dashboardTipoCliente") ? byId("dashboardTipoCliente").value || "" : "",
+          fecha_desde:byId("dashboardFechaDesde") ? byId("dashboardFechaDesde").value || "" : "",
+          fecha_hasta:byId("dashboardFechaHasta") ? byId("dashboardFechaHasta").value || "" : ""
         });
         try{
-          const resp=await fetchAutenticado("/api/dashboard?"+params.toString());
-          let res=null;try{res=await resp.json();}catch(e){res=null;}
-          if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible cargar el dashboard.");
-          state.dashboard=res;renderDashboard(res);
+          const rutas=["resumen","tendencia","estados","segmentacion-clientes","cotizadores"];
+          const respuestas=await Promise.all(rutas.map(async function(ruta){
+            const resp=await fetchAutenticado("/api/dashboard/"+ruta+"?"+params.toString());
+            let res=null;try{res=await resp.json();}catch(e){res=null;}
+            if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible cargar "+ruta+".");
+            return res;
+          }));
+          const data={
+            resumen:respuestas[0].resumen||{},
+            tendencia:respuestas[1].tendencia||[],
+            estados:respuestas[2].estados||[],
+            segmentos:respuestas[3].segmentos||[],
+            cotizadores:respuestas[4].cotizadores||[],
+            monedas:[]
+          };
+          respuestas.forEach(function(res){
+            (res.monedas||[]).forEach(function(moneda){ if(data.monedas.indexOf(moneda)<0) data.monedas.push(moneda); });
+          });
+          data.monedas.sort();
+          state.dashboard=data;
+          actualizarMonedasDashboard(data.monedas);
+          renderDashboard(data);
         }catch(error){mostrarToast(error&&error.message?error.message:"Error cargando dashboard.");}
         finally{setLoading("section-dashboard",false);}
       }
 
       function renderDashboard(data){
-        const k = data.kpis || {};
-        const rows = obtenerCotizacionesDashboard(data);
-        const resumen = calcularResumenDashboard(rows, k);
+        const resumen=data.resumen||{};
+        const moneda=byId("dashboardMoneda") ? byId("dashboardMoneda").value||"" : "";
+        setText("kpiCotizacionesVigentes",formatoNumero(resumen.cotizaciones_vigentes));
+        setText("kpiMontoCotizadoDash",formatoMontosDashboard(resumen.montos_cotizados,moneda));
+        setText("kpiAceptadas",formatoNumero(resumen.aceptadas));
+        setText("kpiMontoAceptado",formatoMontosDashboard(resumen.montos_aceptados,moneda));
+        setText("kpiGanadasDash",formatoNumero(resumen.ganadas));
+        setText("kpiMontoGanado",formatoMontosDashboard(resumen.montos_ganados,moneda));
+        setText("kpiPerdidas",formatoNumero(resumen.perdidas));
+        setText("kpiVencidasCanceladas",formatoNumero(resumen.vencidas_canceladas));
+        setText("kpiTicketPromedio",formatoMontosDashboard(resumen.tickets_promedio,moneda));
+        const puedeVerMargen=Object.prototype.hasOwnProperty.call(resumen,"margen_promedio");
+        if(byId("dashboardMetricMargen")) byId("dashboardMetricMargen").classList.toggle("hidden",!puedeVerMargen);
+        if(puedeVerMargen) setText("kpiMargenPromedio",formatoPorcentaje(resumen.margen_promedio));
+        setText("kpiTiempoCiclo",resumen.tiempo_promedio_ciclo_dias==null?"—":Number(resumen.tiempo_promedio_ciclo_dias).toFixed(1)+" días");
+        setText("kpiTasaAceptacion",formatoPorcentajeDirecto(resumen.tasa_aceptacion));
+        setText("kpiTasaGanancia",formatoPorcentajeDirecto(resumen.tasa_ganancia));
 
-        setText("kpiCotizacionesVigentes", formatoNumero(resumen.vigentes));
-        setText("kpiMontoCotizadoDash", formatoMoneda(resumen.monto_cotizado));
-        setText("kpiAceptadas", formatoNumero(resumen.aceptadas));
-        setText("kpiMontoAceptado", formatoMoneda(resumen.monto_aceptado));
-        setText("kpiGanadasDash", formatoNumero(resumen.ganadas));
-        setText("kpiMontoGanado", formatoMoneda(resumen.monto_ganado));
-        setText("kpiPerdidas", formatoNumero(resumen.perdidas));
-        setText("kpiVencidasCanceladas", formatoNumero(resumen.vencidas_canceladas));
+        renderSegmentacionDashboardAPI(data.segmentos||[],moneda);
+        renderTendenciaDashboardAPI(data.tendencia||[],moneda);
+        const cantidades={},montos={};
+        (data.estados||[]).forEach(function(item){
+          cantidades[item.etiqueta]=Number(item.cantidad||0);
+          montos[item.etiqueta]=montoDashboardPorMoneda(item.montos,moneda);
+        });
+        renderFunnel("funnelCantidad",cantidades,false);
+        renderFunnel("funnelMonto",montos,true,moneda);
+        renderCotizadoresDashboardAPI(data.cotizadores||[],moneda);
 
-        setText("kpiTicketPromedio", formatoMoneda(resumen.ticket_promedio));
-        setText("kpiMargenPromedio", formatoPorcentaje(resumen.margen_promedio));
-        setText("kpiTiempoCiclo", resumen.tiempo_ciclo || "—");
-        setText("kpiTasaAceptacion", formatoPorcentaje(resumen.tasa_aceptacion));
-        setText("kpiTasaGanancia", formatoPorcentaje(resumen.tasa_ganancia));
+        const tendencia=(data.tendencia||[]);
+        renderSpark("sparkVigentes",tendencia.map(function(x){return Number(x.cantidad||0);}));
+        renderSpark("sparkCotizado",tendencia.map(function(x){return montoDashboardPorMoneda(x.montos,moneda);}),"#12b76a");
+        renderSpark("sparkAceptadas",tendencia.map(function(x){return Number(x.cantidad||0);}),"#7a5af8");
+        renderSpark("sparkAceptadoMonto",tendencia.map(function(x){return montoDashboardPorMoneda(x.montos,moneda);}),"#fdb022");
+        renderSpark("sparkGanadas",tendencia.map(function(x){return Number(x.cantidad||0);}),"#12b76a");
+        renderSpark("sparkGanadoMonto",tendencia.map(function(x){return montoDashboardPorMoneda(x.montos,moneda);}),"#12b76a");
+        renderSpark("sparkPerdidas",tendencia.map(function(x){return Number(x.cantidad||0);}),"#f04438");
+        renderSpark("sparkCerradas",tendencia.map(function(x){return Number(x.cantidad||0);}),"#667085");
+      }
 
-        renderSegmentacionClientes(rows, resumen);
-        renderTendenciaDashboard(rows);
-        renderFunnel("funnelCantidad", resumen.estados_cantidad, false);
-        renderFunnel("funnelMonto", resumen.estados_monto, true);
+      function actualizarMonedasDashboard(monedas){
+        const select=byId("dashboardMoneda");
+        if(!select)return;
+        const actual=select.value||"";
+        const disponibles=monedas||[];
+        select.innerHTML=disponibles.length?disponibles.map(function(moneda){return '<option value="'+escapeHtml(moneda)+'">'+escapeHtml(moneda)+'</option>';}).join(""):'<option value="">Sin montos</option>';
+        select.value=actual&&disponibles.indexOf(actual)>=0?actual:(disponibles[0]||"");
+      }
 
-        renderSpark("sparkVigentes", [1,2,2,3,2,4,5]);
-        renderSpark("sparkCotizado", [8,10,9,14,12,17,21], "#12b76a");
-        renderSpark("sparkAceptadas", [0,1,1,2,1,3,3], "#7a5af8");
-        renderSpark("sparkAceptadoMonto", [2,5,4,7,6,9,12], "#fdb022");
-        renderSpark("sparkGanadas", [0,0,1,1,1,2,2], "#12b76a");
-        renderSpark("sparkGanadoMonto", [1,1,3,2,4,4,6], "#12b76a");
-        renderSpark("sparkPerdidas", [1,0,1,1,2,1,0], "#f04438");
-        renderSpark("sparkCerradas", [0,1,1,2,2,3,4], "#667085");
+      function montoDashboardPorMoneda(montos,moneda){
+        const items=Array.isArray(montos)?montos:[];
+        if(moneda){
+          const item=items.find(function(x){return String(x.moneda||"")===moneda;});
+          return item?Number(item.monto||0):0;
+        }
+        return items.length===1?Number(items[0].monto||0):0;
+      }
+
+      function formatoMontosDashboard(montos,moneda){
+        const items=(Array.isArray(montos)?montos:[]).filter(function(x){return !moneda||String(x.moneda||"")===moneda;});
+        if(!items.length)return moneda?formatoMoneda(0,moneda):"—";
+        return items.map(function(x){return formatoMonedaDashboard(x.monto,x.moneda);}).join(" · ");
+      }
+
+      function formatoMonedaDashboard(valor,moneda){
+        return moneda==="SIN_MONEDA"?formatoNumero(Number(valor||0))+" (sin moneda)":formatoMoneda(valor,moneda||"USD");
+      }
+
+      function formatoPorcentajeDirecto(valor){ return Number(valor||0).toFixed(2)+"%"; }
+
+      function renderSegmentacionDashboardAPI(segmentos,moneda){
+        const box=byId("segmentacionClientes");if(!box)return;
+        const total=(segmentos||[]).reduce(function(acc,x){return acc+Number(x.cantidad||0);},0)||1;
+        box.innerHTML=(segmentos||[]).map(function(item,i){
+          return renderSegmentItem(i?"▦":"☷",item.etiqueta,Number(item.cantidad||0),Number(item.cantidad||0)/total*100,montoDashboardPorMoneda(item.montos,moneda),i?"dash-green":"dash-blue",moneda);
+        }).join("")||'<p class="card-sub">No hay cotizaciones para los filtros seleccionados.</p>';
+      }
+
+      function renderCotizadoresDashboardAPI(cotizadores,moneda){
+        const box=byId("dashboardCotizadores");if(!box)return;
+        box.innerHTML=(cotizadores||[]).map(function(item){
+          return '<div class="segment-item"><span class="dash-kpi-icon dash-blue">▤</span><div><h3>'+formatoNumero(item.cantidad)+'</h3><p>'+escapeHtml(item.nombre_calculadora||item.calculadora_id)+'</p></div><div><strong>'+escapeHtml(formatoMontosDashboard(item.montos,moneda))+'</strong><p>Monto cotizado</p></div></div>';
+        }).join("")||'<p class="card-sub">No hay cotizadores para los filtros seleccionados.</p>';
+      }
+
+      function renderTendenciaDashboardAPI(series,moneda){
+        const rows=(series||[]).map(function(item){return {fecha_creacion:item.clave+"-01",total_precio:montoDashboardPorMoneda(item.montos,moneda),cantidad:Number(item.cantidad||0),etiqueta:item.etiqueta};});
+        renderTendenciaDashboard(rows,true);
       }
 
       function obtenerCotizacionesDashboard(data){
@@ -868,15 +947,15 @@ window.CotizaApp = (function(){
           renderSegmentItem("▦", "Clientes existentes", existentes.count, existentes.count / total * 100, existentes.monto, "dash-green");
       }
 
-      function renderSegmentItem(icon,label,count,pct,monto,clase){
+      function renderSegmentItem(icon,label,count,pct,monto,clase,moneda){
         return '<div class="segment-item">' +
           '<span class="dash-kpi-icon ' + clase + '">' + icon + '</span>' +
           '<div><h3>' + formatoNumero(count) + '</h3><p>' + escapeHtml(label) + '<br>' + pct.toFixed(2) + '% del total</p></div>' +
-          '<div><strong>' + formatoMoneda(monto) + '</strong><p>Monto cotizado</p></div>' +
+          '<div><strong>' + formatoMonedaDashboard(monto,moneda||"USD") + '</strong><p>Monto cotizado</p></div>' +
         '</div>';
       }
 
-      function renderTendenciaDashboard(rows){
+      function renderTendenciaDashboard(rows,preagregado){
         const box = byId("trendChart");
         if(!box) return;
 
@@ -885,8 +964,8 @@ window.CotizaApp = (function(){
           const fecha = new Date(c.fecha_creacion || c.fecha_actualizacion || "");
           if(isNaN(fecha.getTime())) return;
           const key = fecha.getFullYear() + "-" + String(fecha.getMonth()+1).padStart(2,"0");
-          if(!meses[key]) meses[key] = {count:0,monto:0,label:fecha.toLocaleDateString("es-CR",{month:"short",year:"numeric"})};
-          meses[key].count++;
+          if(!meses[key]) meses[key] = {count:0,monto:0,label:c.etiqueta||fecha.toLocaleDateString("es-CR",{month:"short",year:"numeric"})};
+          meses[key].count += preagregado ? Number(c.cantidad||0) : 1;
           meses[key].monto += numero(c.total_precio);
         });
 
@@ -954,7 +1033,7 @@ window.CotizaApp = (function(){
           '</svg>';
       }
 
-      function renderFunnel(containerId, data, esMonto){
+      function renderFunnel(containerId, data, esMonto, moneda){
         const box = byId(containerId);
         if(!box) return;
 
@@ -966,7 +1045,7 @@ window.CotizaApp = (function(){
 
         box.innerHTML = items.map(function(item,i){
           const width = Math.max(18, Math.round((item.value / max) * 100));
-          const value = esMonto ? formatoMoneda(item.value) : formatoNumero(item.value);
+          const value = esMonto ? formatoMonedaDashboard(item.value,moneda||"USD") : formatoNumero(item.value);
           return '<div class="funnel-row">' +
             '<div class="funnel-label" title="' + escapeHtml(item.estado) + '">' + escapeHtml(item.estado) + '</div>' +
             '<div class="funnel-track"><div class="funnel-bar" style="width:' + width + '%;background:' + colores[i % colores.length] + '"></div></div>' +

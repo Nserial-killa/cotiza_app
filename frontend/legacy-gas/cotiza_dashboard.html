@@ -32,6 +32,23 @@
             </select>
           </div>
 
+          <div class="field">
+            <label for="dashboardFechaDesde">Desde</label>
+            <input id="dashboardFechaDesde" type="date">
+          </div>
+
+          <div class="field">
+            <label for="dashboardFechaHasta">Hasta</label>
+            <input id="dashboardFechaHasta" type="date">
+          </div>
+
+          <div class="field">
+            <label for="dashboardMoneda">Moneda mostrada</label>
+            <select id="dashboardMoneda" class="select">
+              <option value="">Cargando monedas...</option>
+            </select>
+          </div>
+
           <p class="dashboard-filter-note">El filtro respeta los permisos del usuario y actualiza los indicadores del dashboard.</p>
         </div>
 
@@ -164,7 +181,7 @@
             </div>
           </div>
 
-          <div class="bottom-metric">
+          <div id="dashboardMetricMargen" class="bottom-metric">
             <span class="bottom-icon dash-green">↗</span>
             <div>
               <strong id="kpiMargenPromedio">0%</strong>
@@ -195,5 +212,15 @@
               <small>Tasa de ganancia</small>
             </div>
           </div>
+        </div>
+
+        <div class="card segment-card">
+          <div class="dash-card-head">
+            <div>
+              <h2 class="card-title">Rendimiento por cotizador</h2>
+              <p class="card-sub">Cantidad y monto normalizado, separados por moneda.</p>
+            </div>
+          </div>
+          <div id="dashboardCotizadores" class="segment-grid"></div>
         </div>
       </section>

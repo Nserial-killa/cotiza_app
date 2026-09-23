@@ -44,7 +44,7 @@ type reporteCotizacion struct {
 
 const reporteCotizacionesSQL = `
 	SELECT codigo_oferta, cliente, empresa, nombre_calculadora, estado,
-	       total_precio, moneda, vendedor, fecha_creacion,
+	       COALESCE(total_precio,0), COALESCE(moneda,''), vendedor, fecha_creacion,
 	       CASE WHEN $7 THEN margen_total ELSE NULL END
 	  FROM filtradas
 	 WHERE ($4='' OR fecha_creacion >= $4::date)

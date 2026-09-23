@@ -174,6 +174,11 @@ func main() {
 
 			// --- Carril B (Operación): cotizaciones, dashboard, reportes.
 			r.Get("/dashboard", dashboard.Obtener)
+			r.Get("/dashboard/resumen", dashboard.Resumen)
+			r.Get("/dashboard/tendencia", dashboard.Tendencia)
+			r.Get("/dashboard/estados", dashboard.Estados)
+			r.Get("/dashboard/segmentacion-clientes", dashboard.SegmentacionClientes)
+			r.Get("/dashboard/cotizadores", dashboard.Cotizadores)
 			r.Get("/reportes/cotizaciones", reportes.Listar)
 			r.Get("/reportes/cotizaciones/exportar", reportes.Exportar)
 			r.Get("/roles", usuarios.ListarRoles)
