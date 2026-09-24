@@ -308,19 +308,28 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 		for j := range tab.Elementos {
 			el := &tab.Elementos[j]
 			if el.Tipo == "CAMPO_CALCULADO" && el.Configuracion["tipo_formula"] == "AVANZADA" {
-				// Se congela el texto junto con tokens y IDs derivados del tab
-				// actual; una edición posterior no cambia versiones publicadas.
-				if err := (&CotizadorTabsHandler{DB: h.DB}).prepararFormulaAvanzada(ctx, el.ElementoID, tab.TabID, el.Configuracion); err != nil {
+				// Se congela el texto junto con tokens y IDs derivados del
+				// alcance del cotizador que publica (Ronda F2); una edición
+				// posterior no cambia versiones publicadas.
+				if err := (&CotizadorTabsHandler{DB: h.DB}).prepararFormulaAvanzada(ctx, el.ElementoID, calculadoraID, el.Configuracion); err != nil {
 					resultado.Errores = append(resultado.Errores, fmt.Sprintf("Campo Calculado %s: %s", el.ElementoID, err))
 				}
 			}
 		}
 	}
 	// Un renombrado puede reenlazar varios tokens a la vez. Comprobar
-	// también el grafo resultante, no solo las dependencias persistidas.
+	// también el grafo resultante, no solo las dependencias persistidas. El
+	// grafo abarca todas las tabs del compilado, así que un ciclo que cruza
+	// secciones se detecta igual que uno dentro de una sección.
 	if ciclo := cicloCamposCalculadosCompilados(resultado.Tabs); ciclo != "" {
 		resultado.Errores = append(resultado.Errores, fmt.Sprintf("Referencia circular entre Campos Calculados: %s.", ciclo))
 	}
+	duplicados, err := duplicadosNombreInterno(ctx, h.DB, calculadoraID)
+	if err != nil {
+		return resultado, err
+	}
+	resultado.Errores = append(resultado.Errores, duplicados...)
+	resultado.Errores = append(resultado.Errores, validarOpcionesCotizacionCompiladas(resultado.Tabs)...)
 	resultado.Resumen.Tabs = len(resultado.Tabs)
 	if resultado.Resumen.Tabs == 0 {
 		resultado.Errores = append(resultado.Errores, "El cotizador debe tener al menos una sección activa.")

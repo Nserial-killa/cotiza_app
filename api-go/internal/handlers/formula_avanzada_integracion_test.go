@@ -161,14 +161,28 @@ func TestFormulaAvanzada_IntegracionValidacionesYCiclos(t *testing.T) {
 	a := f.crear(t, "CAMPO_CALCULADO", "A", configFormulaPrueba("N + 1"), nil)
 	b := f.crear(t, "CAMPO_CALCULADO", "B", map[string]any{"tipo_formula": "SIMPLE", "operacion": "SUMA", "tipo_resultado": "NUMERO", "operandos": []string{a, n}}, nil)
 	c := f.crear(t, "CAMPO_CALCULADO", "C", configFormulaPrueba("B + 1"), nil)
-	f.crear(t, "CAMPO", "REPETIDO", map[string]any{"tipo_campo": "NUMERO"}, nil)
-	f.crear(t, "CAMPO", "REPETIDO", map[string]any{"tipo_campo": "NUMERO"}, nil)
+	repetido := f.crear(t, "CAMPO", "REPETIDO", map[string]any{"tipo_campo": "NUMERO"}, nil)
+	// Ronda F2: el API ya no deja crear el duplicado (único por cotizador)...
+	if rec := f.guardar(t, "TEST-EL-AV-"+sufijoUnico(), "CAMPO", "REPETIDO", map[string]any{"tipo_campo": "NUMERO"}, nil); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), repetido) {
+		t.Fatalf("un nombre interno repetido debe rechazarse nombrando al otro elemento: %d %s", rec.Code, rec.Body.String())
+	}
+	// ...pero datos anteriores pueden traerlo: se simula con SQL directo y la
+	// fórmula lo sigue reportando como ambiguo en vez de elegir uno al azar.
+	duplicadoLegado := "TEST-EL-AV-LEGADO-" + sufijoUnico()
+	if _, err := f.handler.DB.Exec(context.Background(), `
+		INSERT INTO elementos_tab_cotizador (elemento_id, tab_id, tipo, etiqueta, configuracion, activo)
+		VALUES ($1, $2, 'CAMPO', 'REPETIDO', '{"tipo_campo":"NUMERO","nombre_elemento":"REPETIDO"}', true)`, duplicadoLegado, f.tabID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		f.handler.DB.Exec(context.Background(), `DELETE FROM elementos_tab_cotizador WHERE elemento_id=$1`, duplicadoLegado)
+	})
 	f.crear(t, "CAMPO", "INACTIVO", map[string]any{"tipo_campo": "NUMERO"}, map[string]any{"activo": false})
 	otra := crearFixtureFormulaAvanzada(t)
-	otra.crear(t, "CAMPO", "DE_OTRA_SECCION", map[string]any{"tipo_campo": "NUMERO"}, nil)
+	otra.crear(t, "CAMPO", "DE_OTRO_COTIZADOR", map[string]any{"tipo_campo": "NUMERO"}, nil)
 	for _, caso := range []struct{ texto, errorEsperado string }{
 		{"B + 1", "circular"}, {"C + 1", "circular"}, {"A + 1", "circular"}, {"SI(B; 1; 0)", "circular"},
-		{"REPETIDO + 1", "ambiguo"}, {"X + 1", "misma sección"}, {"DE_OTRA_SECCION + 1", "misma sección"},
+		{"REPETIDO + 1", "ambiguo"}, {"X + 1", "de este cotizador"}, {"DE_OTRO_COTIZADOR + 1", "de este cotizador"},
 		{"BOOLEANO + 1", "numérico"}, {"SI(BOOLEANO; BOOLEANO + 1; 0)", "numérico"}, {"LEYENDA + 1", "operando"},
 		{"INACTIVO + 1", "inactivo"}, {"SI(N; 1; 0; 2)", "fórmula"}, {"N > 0", "carácter"}, {"N.VALOR_CALCULO", "carácter"},
 	} {

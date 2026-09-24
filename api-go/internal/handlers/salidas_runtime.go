@@ -88,7 +88,10 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 		return err
 	}
 	els := indexarElementosCompletoRuntime(rt.Estructura)
-	if fallas := evaluarValidacionReglas(valores, reglas); len(fallas) > 0 {
+	// En modo COTIZACION las reglas que leen un campo por opción se validan
+	// más abajo contra la opción efectiva (Ronda F2).
+	reglasGlobales := reglasSinCondicionPorOpcion(reglas, rt.Elementos)
+	if fallas := evaluarValidacionReglas(valores, reglasGlobales); len(fallas) > 0 {
 		mensajes := []string{}
 		for _, f := range fallas {
 			mensajes = append(mensajes, f.Mensaje)
@@ -96,7 +99,7 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 		return errorSalida(strings.Join(mensajes, " "))
 	}
 	if len(mapa) > 0 {
-		estados := evaluarEstadoCamposRegla(valores, reglas)
+		estados := evaluarEstadoCamposRegla(valores, reglasGlobales)
 		for id, el := range els {
 			requerido, _ := el["requerido"].(bool)
 			if !requerido || rt.Elementos[id].PadreOpcionesID != "" {
@@ -133,6 +136,18 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 					efectivas[padreID] = op.OpcionID
 				}
 			}
+		}
+	}
+	// Modo COTIZACION: la opción efectiva es la que alimenta las salidas, así
+	// que sus validaciones (BLOQUEAR_GUARDADO/CAMPO_REQUERIDO) tienen que
+	// pasar. Las demás opciones ya se validaron al guardarse.
+	if global := padreOpcionesCotizacion(rt.Estructura); global != "" && efectivas[global] != "" {
+		if fallas := evaluarValidacionReglas(valoresPlanosOpcion(rt.Elementos, valores, global, efectivas[global]), reglas); len(fallas) > 0 {
+			mensajes := []string{}
+			for _, f := range fallas {
+				mensajes = append(mensajes, f.Mensaje)
+			}
+			return errorSalida(strings.Join(mensajes, " ") + " (opción recomendada)")
 		}
 	}
 	for _, s := range mapa {
@@ -194,9 +209,9 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 		}
 	}
 	resolverCamposCalculados(els, valores)
-	resolverCamposCalculadosPorOpcion(els, rt.Elementos, valores)
+	resolverCamposCalculadosPorOpcionConReglas(els, rt.Elementos, valores, reglas)
 	incluirValoresCajaValor(rt.Estructura, valores)
-	incluirEstadoReglas(rt.Estructura, evaluarEstadoCamposRegla(valores, reglas))
+	incluirEstadoReglas(rt.Estructura, evaluarEstadoCamposRegla(valores, reglasGlobales))
 	salidas, err := resolverSalidas(mapa, els, rt.Elementos, valores, efectivas, externas)
 	if err != nil {
 		return err
@@ -249,7 +264,7 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 	}
 	// Cachés legadas conviven con la tabla nueva. El mapa explícito prevalece
 	// sobre funcion_campo; no se cambia ningún consumidor del Dashboard.
-	if err = h.actualizarTotalesCotizacionVersion(ctx, tx, rt.Estructura, rt.Elementos, rt.CotizacionID, rt.Version); err != nil {
+	if err = h.actualizarTotalesCotizacionVersion(ctx, tx, rt.Estructura, rt.Elementos, rt.CotizacionID, rt.Version, reglas); err != nil {
 		return err
 	}
 	columnas := map[string]string{"TOTAL_PRECIO": "total_precio", "TOTAL_COSTO": "total_costo", "TOTAL_GANANCIA": "total_ganancia", "MARGEN_TOTAL": "margen_total", "SUBTOTAL": "subtotal", "DESCUENTO": "descuento", "IMPUESTOS": "impuestos", "MONEDA": "moneda"}

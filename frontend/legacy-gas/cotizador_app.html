@@ -1683,6 +1683,7 @@
             .cotizador-component-card[data-tipo="OPCIONES_PROPUESTA"] .cotizador-component-icon{background:#eef2ff;color:#3730a3;}
             .cotizador-component-modal-form-v50o .ctz-f-checks-scenario{grid-column:1 / -1 !important;}
             .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-names{grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-scope{grid-column:1 / -1 !important;}
             .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-label{grid-column:1 / -1 !important;}
             .cotizador-design-scenario{border:1px solid #c7d2fe;background:linear-gradient(180deg,#eef2ff,#ffffff);border-radius:16px;padding:10px;margin-bottom:12px;}
             .cotizador-design-scenario.inactive{opacity:.62;border-style:dashed;}
@@ -2403,6 +2404,14 @@
                   </div>
 
                   <div id="designerCotizadorConfigEscenarios" class="cotizador-config-group" data-component-config="OPCIONES_PROPUESTA">
+                    <div class="field ctz-f-scenario-scope">
+                      <label for="designerCotizadorEscenariosAlcance">Alcance de las opciones</label>
+                      <select id="designerCotizadorEscenariosAlcance" class="select">
+                        <option value="LOCAL">Solo los campos dentro del componente</option>
+                        <option value="COTIZACION">Cotización completa (todos los campos)</option>
+                      </select>
+                      <span class="param-field-help">Con "Cotización completa" cada opción es un escenario de toda la cotización: todos los campos de todas las secciones tienen un valor por opción y el componente no lleva campos dentro. Solo puede haber uno por cotizador.</span>
+                    </div>
                     <div class="field ctz-f-scenario-initial">
                       <label for="designerCotizadorEscenariosCantidadInicial">Cantidad inicial de opciones</label>
                       <input id="designerCotizadorEscenariosCantidadInicial" class="input" type="number" min="1" max="6" placeholder="1">

@@ -1918,3 +1918,11 @@ table tr:last-child td { border-bottom: none; }
   #section-plantillas .tpl-action-bar { align-items:stretch; flex-direction:column; }
   #section-plantillas .tpl-action-bar .btn { width:100%; justify-content:center; }
 }
+
+/* Ronda F2: selector de opción activa para Opciones de Propuesta con
+   alcance COTIZACION — va arriba de la tira de secciones, no dentro de una. */
+.runtime-opciones-cotizacion { margin-bottom: 12px; }
+.runtime-opcion-panel-head-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+@media (max-width:700px) {
+  .runtime-opcion-panel-head-acciones { justify-content: flex-start; }
+}

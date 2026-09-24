@@ -114,41 +114,64 @@ func renderizarPlantillaCotizacion(ctx context.Context, db *pgxpool.Pool, cotiza
 	}
 	elementosPorID := indexarElementosCompletoRuntime(runtime.Estructura)
 	if runtime.Snapshot == nil {
+		reglas, err := reglasCotizadorParaEvaluar(ctx, db, runtime.CalculadoraID)
+		if err != nil {
+			return nil, err
+		}
 		resolverCamposCalculados(elementosPorID, valores)
-		resolverCamposCalculadosPorOpcion(elementosPorID, runtime.Elementos, valores)
+		resolverCamposCalculadosPorOpcionConReglas(elementosPorID, runtime.Elementos, valores, reglas)
+	} else if !runtime.Historica {
+		// El snapshot trae las opciones congeladas; en una versión viva se
+		// relee la recomendada actual (pudo cambiar después del guardado).
+		for _, padre := range elementosOpcionesPropuesta(runtime.Estructura) {
+			opciones, err := listarOpcionesPropuesta(ctx, db, cotizacionID, runtime.Version, fmt.Sprint(padre["elemento_id"]))
+			if err != nil {
+				return nil, err
+			}
+			padre["opciones"] = opciones
+		}
 	}
 
 	base, err := valoresBaseCotizacion(ctx, db, cotizacionID, runtime.Version)
 	if err != nil {
 		return nil, err
 	}
-	condicionValores := valoresParaCondicionPlantilla(elementosPorID, runtime.Elementos, valores, base)
+	// Modo COTIZACION (Ronda F2): fuera de la tabla de escenarios, la oferta
+	// habla de la opción recomendada (§9.5). La tabla sigue recibiendo los
+	// valores por opción originales y resuelve cada fila con los suyos.
+	valoresEfectivos, metadatosEfectivos := proyectarOpcionEfectiva(elementosPorID, runtime.Elementos, valores)
+	condicionValores := valoresParaCondicionPlantilla(elementosPorID, metadatosEfectivos, valoresEfectivos, base)
 	porNombreInterno := elementosPorNombreInterno(elementosPorID)
 
-	secciones, err := renderizarSeccionesPlantilla(ctx, db, plantillaID, elementosPorID, runtime.Elementos, valores, base, condicionValores, porNombreInterno)
+	secciones, err := renderizarSeccionesPlantilla(ctx, db, plantillaID, elementosPorID, runtime.Elementos, valores, valoresEfectivos, base, condicionValores, porNombreInterno)
 	if err != nil {
 		return nil, err
 	}
 	return &plantillaRenderizada{PlantillaID: plantillaID, Nombre: nombre, Secciones: secciones}, nil
 }
 
-// valoresBaseCotizacion arma el mapa de las 9 fuentes COTIZACION_BASE fijas
+// valoresBaseCotizacion arma el mapa de las 10 fuentes COTIZACION_BASE fijas
 // (ver fuentesCotizacionBase en plantilla_vinculaciones.go) para UNA
 // cotización+versión puntual.
 func valoresBaseCotizacion(ctx context.Context, db *pgxpool.Pool, cotizacionID string, version int) (map[string]any, error) {
-	var codigoOferta, tipoPropuesta, cliente, empresa *string
+	var codigoOferta, tipoPropuesta, cliente, empresa, contacto *string
 	var estado, moneda string
 	var totalPrecio float64
 	var fechaCreacion time.Time
 	err := db.QueryRow(ctx, `
 		SELECT c.codigo_oferta, c.tipo_propuesta, cl.nombre_comercial, COALESCE(cl.razon_social, cl.nombre_comercial),
-		       cv.estado, cv.moneda, cv.total_precio, c.fecha_creacion
+		       cv.estado, cv.moneda, cv.total_precio, c.fecha_creacion,
+		       -- Portada ISA §9: el contacto principal del cliente; si no hay
+		       -- uno marcado, el activo más antiguo.
+		       (SELECT cc.nombre FROM cliente_contactos cc
+		         WHERE cc.cliente_id = c.cliente_id AND cc.estado = 'Activo'
+		         ORDER BY cc.contacto_principal DESC, cc.fecha_creacion, cc.contacto_id LIMIT 1)
 		  FROM cotizaciones c
 		  LEFT JOIN clientes cl ON cl.cliente_id = c.cliente_id
 		  JOIN cotizacion_versiones cv ON cv.cotizacion_id = c.cotizacion_id AND cv.numero_version = $2
 		 WHERE c.cotizacion_id = $1`,
 		cotizacionID, version,
-	).Scan(&codigoOferta, &tipoPropuesta, &cliente, &empresa, &estado, &moneda, &totalPrecio, &fechaCreacion)
+	).Scan(&codigoOferta, &tipoPropuesta, &cliente, &empresa, &estado, &moneda, &totalPrecio, &fechaCreacion, &contacto)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +182,7 @@ func valoresBaseCotizacion(ctx context.Context, db *pgxpool.Pool, cotizacionID s
 	return map[string]any{
 		"cliente":        valorTexto(cliente),
 		"empresa":        valorTexto(empresa),
+		"contacto":       valorTexto(contacto),
 		"codigo_oferta":  valorTexto(codigoOferta),
 		"tipo_propuesta": valorTexto(tipoPropuesta),
 		"total_precio":   totalPrecio,
@@ -216,7 +240,10 @@ var patronTokenPlantilla = regexp.MustCompile(`\[([A-Za-z_][A-Za-z0-9_]*)\]`)
 // elemento, o cuyo valor todavía no está resuelto, se deja tal cual en vez
 // de inventar un texto — más "controlado" es un placeholder visible (que el
 // equipo de Cotiza puede notar y corregir en el diseño) que un dato falso.
-func interpolarTextoPlantilla(texto string, porNombreInterno map[string]string, condicionValores map[string]any) string {
+// mostrar traduce el valor a lo que ve el cliente (un Campo Catálogo, a su
+// texto_visible: nunca el código interno, CP-02/CP-12 del caso ISA); nil
+// deja el valor tal cual.
+func interpolarTextoPlantilla(texto string, porNombreInterno map[string]string, condicionValores map[string]any, mostrar func(id string, valor any) any) string {
 	return patronTokenPlantilla.ReplaceAllStringFunc(texto, func(coincidencia string) string {
 		nombre := coincidencia[1 : len(coincidencia)-1]
 		id, existe := porNombreInterno[nombre]
@@ -226,6 +253,9 @@ func interpolarTextoPlantilla(texto string, porNombreInterno map[string]string, 
 		valor, existeValor := condicionValores[id]
 		if !existeValor || valor == nil {
 			return coincidencia
+		}
+		if mostrar != nil {
+			valor = mostrar(id, valor)
 		}
 		return valorComoTextoRegla(valor)
 	})
@@ -237,7 +267,7 @@ type seccionPlantillaCruda struct {
 }
 
 func renderizarSeccionesPlantilla(ctx context.Context, db *pgxpool.Pool, plantillaID string,
-	elementosPorID map[string]map[string]any, metadatos map[string]elementoRuntime, valores map[string]any,
+	elementosPorID map[string]map[string]any, metadatos map[string]elementoRuntime, valores, valoresEfectivos map[string]any,
 	base map[string]any, condicionValores map[string]any, porNombreInterno map[string]string,
 ) ([]seccionRenderizada, error) {
 	rows, err := db.Query(ctx, `
@@ -263,7 +293,7 @@ func renderizarSeccionesPlantilla(ctx context.Context, db *pgxpool.Pool, plantil
 
 	secciones := make([]seccionRenderizada, 0, len(crudas))
 	for _, s := range crudas {
-		bloques, err := renderizarBloquesPlantilla(ctx, db, s.SeccionID, elementosPorID, metadatos, valores, base, condicionValores, porNombreInterno)
+		bloques, err := renderizarBloquesPlantilla(ctx, db, s.SeccionID, elementosPorID, metadatos, valores, valoresEfectivos, base, condicionValores, porNombreInterno)
 		if err != nil {
 			return nil, err
 		}
@@ -281,7 +311,7 @@ type bloquePlantillaCrudo struct {
 }
 
 func renderizarBloquesPlantilla(ctx context.Context, db *pgxpool.Pool, seccionID string,
-	elementosPorID map[string]map[string]any, metadatos map[string]elementoRuntime, valores map[string]any,
+	elementosPorID map[string]map[string]any, metadatos map[string]elementoRuntime, valores, valoresEfectivos map[string]any,
 	base map[string]any, condicionValores map[string]any, porNombreInterno map[string]string,
 ) ([]bloqueRenderizado, error) {
 	rows, err := db.Query(ctx, `
@@ -317,7 +347,7 @@ func renderizarBloquesPlantilla(ctx context.Context, db *pgxpool.Pool, seccionID
 		renderizado := bloqueRenderizado{BloqueID: b.BloqueID, TipoBloque: b.TipoBloque, Titulo: b.Titulo}
 		switch b.TipoBloque {
 		case "CAMPO_VINCULADO":
-			valor, err := valorVinculacionPlantilla(ctx, db, b.BloqueID, elementosPorID, valores, base)
+			valor, err := valorVinculacionPlantilla(ctx, db, b.BloqueID, elementosPorID, valoresEfectivos, base)
 			if err != nil {
 				return nil, err
 			}
@@ -330,7 +360,17 @@ func renderizarBloquesPlantilla(ctx context.Context, db *pgxpool.Pool, seccionID
 			renderizado.Columnas = columnas
 			renderizado.Filas = filas
 		default: // TEXTO, LISTA, CONDICIONES, IMAGEN: contenido libre, sin fuente.
-			renderizado.Contenido = interpolarTextoPlantilla(b.Contenido, porNombreInterno, condicionValores)
+			renderizado.Contenido = interpolarTextoPlantilla(b.Contenido, porNombreInterno, condicionValores, func(id string, valor any) any {
+				el := elementosPorID[id]
+				if el == nil || strings.ToUpper(strings.TrimSpace(fmt.Sprint(el["tipo"]))) != "CAMPO_CATALOGO" {
+					return valor
+				}
+				visible, err := textoVisibleCatalogo(ctx, db, strings.TrimSpace(fmt.Sprint(el["catalogo_id"])), valor)
+				if err != nil {
+					return valor
+				}
+				return visible
+			})
 		}
 		bloques = append(bloques, renderizado)
 	}
@@ -525,7 +565,13 @@ func filasTablaInversionPlantilla(ctx context.Context, db *pgxpool.Pool, bloqueI
 // unicoComponenteOpcionesPropuesta devuelve el elemento_id y las opciones ya
 // resueltas (asegurarOpcionesPropuesta las deja en padre["opciones"]) del
 // componente OPCIONES_PROPUESTA de menor "orden" de la estructura.
+//
+// Ronda F2: si existe el componente de alcance COTIZACION, es ese — es el
+// único cuyas opciones representan escenarios de la cotización completa.
 func unicoComponenteOpcionesPropuesta(elementosPorID map[string]map[string]any) (string, []cotizacionOpcion) {
+	if global := padreOpcionesCotizacionIndexado(elementosPorID); global != "" {
+		return global, opcionesComoLista(elementosPorID[global]["opciones"])
+	}
 	mejorID := ""
 	mejorOrden := 0
 	var mejorOpciones []cotizacionOpcion
@@ -534,7 +580,7 @@ func unicoComponenteOpcionesPropuesta(elementosPorID map[string]map[string]any) 
 		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["tipo"]))) != "OPCIONES_PROPUESTA" {
 			continue
 		}
-		opciones, _ := elemento["opciones"].([]cotizacionOpcion)
+		opciones := opcionesComoLista(elemento["opciones"])
 		orden, _ := enteroDesdeConfiguracion(elemento, "orden")
 		if primero || orden < mejorOrden {
 			mejorID, mejorOrden, mejorOpciones, primero = id, orden, opciones, false
@@ -571,4 +617,31 @@ func valorPorOpcionPlantilla(fuenteID, opcionID, padreID string, elementosPorID 
 		return textoVisibleCatalogo(ctx, db, catalogoID, valorSeleccionado)
 	}
 	return valorSeleccionado, nil
+}
+
+// opcionesComoLista acepta las opciones tal como las deja
+// asegurarOpcionesPropuesta ([]cotizacionOpcion) o como vuelven de un
+// snapshot deserializado ([]any de mapas) — antes un snapshot histórico
+// dejaba la tabla de escenarios vacía.
+func opcionesComoLista(raw any) []cotizacionOpcion {
+	switch opciones := raw.(type) {
+	case []cotizacionOpcion:
+		return opciones
+	case []any:
+		resultado := make([]cotizacionOpcion, 0, len(opciones))
+		for _, opcionRaw := range opciones {
+			m, _ := opcionRaw.(map[string]any)
+			if m == nil {
+				continue
+			}
+			orden, _ := numeroDesdeValor(m["orden"])
+			recomendada, _ := m["es_recomendada"].(bool)
+			resultado = append(resultado, cotizacionOpcion{
+				OpcionID: fmt.Sprint(m["opcion_id"]), ElementoPadreID: fmt.Sprint(m["elemento_padre_id"]),
+				Nombre: fmt.Sprint(m["nombre"]), EsRecomendada: recomendada, Orden: int(orden),
+			})
+		}
+		return resultado
+	}
+	return nil
 }

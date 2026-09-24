@@ -48,36 +48,27 @@ func (c *Cliente) Sembrar(ctx context.Context, d Datos, diagnostico bool) Inform
 		}
 		c.Intentar(ctx, "Distribución "+seccion, "POST", "/api/cotizador/elementos", map[string]any{"elemento_id": c.ID(seccion + "-GRID"), "tab_id": c.ID(seccion), "tipo": "CONTENEDOR", "etiqueta": seccion, "columnas_ancho": 4, "orden": 0, "activo": true, "configuracion": map[string]any{"columnas": columnas}})
 	}
-	padre := map[string]any{"elemento_id": c.ID("ESCENARIOS"), "tab_id": c.ID("01_CONFIG"), "tipo": "OPCIONES_PROPUESTA", "etiqueta": "Opciones ISA Custom", "columnas_ancho": 4, "orden": 1, "activo": true, "configuracion": map[string]any{"cantidad_inicial": 3, "nombres_sugeridos": "Recomendada, Solo Chat, Multicanal", "vista_editar": "PESTANAS", "vista_resumen": "TABLA_COMPARATIVA", "vista_oferta": "TABLA_COMPARATIVA", "permitir_duplicar": true, "permitir_eliminar": true, "permitir_renombrar": true, "permitir_recomendado": true}}
+	// Ronda F2: los escenarios del PDF varían campos de TODAS las secciones,
+	// así que el componente usa alcance_opciones=COTIZACION — no lleva hijos:
+	// cada campo se queda en su sección (y en su CONTENEDOR de distribución)
+	// y aun así tiene un valor por opción.
+	padre := map[string]any{"elemento_id": c.ID("ESCENARIOS"), "tab_id": c.ID("01_CONFIG"), "tipo": "OPCIONES_PROPUESTA", "etiqueta": "Opciones ISA Custom", "columnas_ancho": 4, "orden": 1, "activo": true, "configuracion": map[string]any{"alcance_opciones": "COTIZACION", "cantidad_inicial": len(d.Escenarios), "nombres_sugeridos": NombresEscenarios(d), "vista_editar": "PESTANAS", "vista_resumen": "TABLA_COMPARATIVA", "vista_oferta": "TABLA_COMPARATIVA", "permitir_duplicar": true, "permitir_eliminar": true, "permitir_renombrar": true, "permitir_recomendado": true}}
 	c.Intentar(ctx, "Escenarios", "POST", "/api/cotizador/elementos", padre)
-	// Primero se registra la distribución original. El segundo paso intenta
-	// incorporar esos mismos campos a las opciones, sin duplicar ni mover tabs.
 	for i, campo := range d.Entradas() {
 		body := c.Elemento(campo, i+2)
 		body["componente_padre_id"] = c.ID(campo.Seccion + "-GRID")
 		body["columnas_ancho"] = 1
 		c.Intentar(ctx, "Campo "+campo.Codigo, "POST", "/api/cotizador/elementos", body)
-		if campo.Codigo != "MONEDA" {
-			body["componente_padre_id"] = c.ID("ESCENARIOS")
-			c.Intentar(ctx, "Escenario/campo "+campo.Codigo, "POST", "/api/cotizador/elementos", body)
-		}
 	}
 	formulas := append(append([]Formula{}, d.Formulas...), d.Derivados...)
 	for i, f := range formulas {
-		body := c.ElementoFormula(f, 100+i)
-		s := c.Intentar(ctx, "Fórmula "+f.Codigo, "POST", "/api/cotizador/elementos", body)
-		if s.OK() {
-			body["componente_padre_id"] = c.ID("ESCENARIOS")
-			c.Intentar(ctx, "Escenario/fórmula "+f.Codigo, "POST", "/api/cotizador/elementos", body)
-		}
+		c.Intentar(ctx, "Fórmula "+f.Codigo, "POST", "/api/cotizador/elementos", c.ElementoFormula(f, 100+i))
 	}
 	c.reglas(ctx)
 	for _, salida := range []struct{ clave, fuente string }{{"TOTAL_PRECIO", "TOTAL_MENSUAL"}, {"TOTAL_COSTO", "TOTAL_COSTO"}, {"TOTAL_GANANCIA", "TOTAL_GANANCIA"}, {"MARGEN_TOTAL", "MARGEN_TOTAL"}, {"MONEDA", "MONEDA"}} {
-		tipo := "ESCENARIO"
-		if salida.clave == "MONEDA" {
-			tipo = "CAMPO"
-		}
-		c.Intentar(ctx, "Salida "+salida.clave, "POST", "/api/cotizador/salidas", map[string]any{"calculadora_id": r.CalculadoraID, "clave_salida": salida.clave, "tipo_fuente": tipo, "fuente_id": c.ID(salida.fuente), "requerido": true, "activo": true})
+		// En modo COTIZACION también MONEDA es un valor por opción: todas las
+		// salidas se resuelven desde la opción recomendada (AT-06).
+		c.Intentar(ctx, "Salida "+salida.clave, "POST", "/api/cotizador/salidas", map[string]any{"calculadora_id": r.CalculadoraID, "clave_salida": salida.clave, "tipo_fuente": "ESCENARIO", "fuente_id": c.ID(salida.fuente), "requerido": true, "activo": true})
 	}
 	bodyCalc := map[string]any{"calculadora_id": r.CalculadoraID}
 	v := c.Intentar(ctx, "Validación", "POST", "/api/cotizador/validar", bodyCalc)
@@ -110,11 +101,17 @@ func (c *Cliente) Sembrar(ctx context.Context, d Datos, diagnostico bool) Inform
 		if r.CotizacionID != "" {
 			runtime := c.Intentar(ctx, "Abrir runtime", "GET", "/api/cotizador/runtime/"+r.CotizacionID, nil)
 			r.Opciones = Lista(Elementos(runtime.Datos)[c.ID("ESCENARIOS")]["opciones"])
-			if len(r.Opciones) == 3 {
-				c.AccionOpcion(ctx, r.CotizacionID, "RECOMENDAR", texto(r.Opciones[0]["opcion_id"]), "", true)
+			if len(r.Opciones) == len(d.Escenarios) {
+				for i, op := range r.Opciones {
+					if d.Escenarios[i].Recomendada {
+						c.AccionOpcion(ctx, r.CotizacionID, "RECOMENDAR", texto(op["opcion_id"]), "", true)
+					}
+				}
 				for i, op := range r.Opciones {
 					c.Intentar(ctx, "Valores completos "+d.Escenarios[i].Nombre, "POST", "/api/cotizador/runtime/"+r.CotizacionID+"/valores", c.CuerpoEscenario(d, i, texto(op["opcion_id"])))
 				}
+			} else {
+				c.Advertir("Abrir runtime", fmt.Sprintf("se esperaban %d opciones de propuesta y el runtime devolvió %d", len(d.Escenarios), len(r.Opciones)))
 			}
 		}
 	}
@@ -141,16 +138,35 @@ func (c *Cliente) NuevaCotizacion(ctx context.Context, cliente string) string {
 	return texto(r.Datos["cotizacion_id"])
 }
 
+// CuerpoEscenario arma el guardado COMPLETO de una opción: en modo
+// COTIZACION cada campo de entrada (MONEDA incluida) lleva opcion_id y no
+// hay valores globales.
 func (c *Cliente) CuerpoEscenario(d Datos, indice int, opcion string) map[string]any {
 	filas := []map[string]any{}
 	valores := d.ValoresEscenario(indice)
 	for _, campo := range d.Entradas() {
-		if campo.Codigo == "MONEDA" {
-			continue
-		}
 		filas = append(filas, map[string]any{"elemento_id": c.ID(campo.Codigo), "opcion_id": opcion, "valor": valores[campo.Codigo]})
 	}
-	return map[string]any{"version": 1, "valores": map[string]any{c.ID("MONEDA"): "USD"}, "valores_por_opcion": filas}
+	return map[string]any{"version": 1, "valores_por_opcion": filas}
+}
+
+// CuerpoValoresOpcion guarda solo algunos campos de una opción (por
+// ejemplo el cambio Telefonía Sí→No de CP-03).
+func (c *Cliente) CuerpoValoresOpcion(opcion string, valores map[string]string) map[string]any {
+	filas := []map[string]any{}
+	for codigo, valor := range valores {
+		filas = append(filas, map[string]any{"elemento_id": c.ID(codigo), "opcion_id": opcion, "valor": valor})
+	}
+	return map[string]any{"version": 1, "valores_por_opcion": filas}
+}
+
+// NombresEscenarios devuelve los nombres sugeridos en el orden de §11.
+func NombresEscenarios(d Datos) string {
+	nombres := make([]string, 0, len(d.Escenarios))
+	for _, e := range d.Escenarios {
+		nombres = append(nombres, e.Nombre)
+	}
+	return strings.Join(nombres, ", ")
 }
 
 func (c *Cliente) AccionOpcion(ctx context.Context, cot, accion, opcion, nombre string, recomendada bool) Respuesta {

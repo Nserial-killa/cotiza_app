@@ -329,7 +329,9 @@ func TestCotizadorElementos_CajaValorValidaCampoFuente(t *testing.T) {
 // TestCotizadorElementos_CampoCalculadoValidaOperandos cubre la Ronda 2 del
 // Diseñador (migración 0018): un Campo Calculado con dos operandos CAMPO
 // numéricos válidos se guarda; sin operandos suficientes, con un operando
-// inexistente, de otro tab, o no numérico (CAMPO texto), se rechaza.
+// inexistente, de otro cotizador, o no numérico (CAMPO texto), se rechaza.
+// Ronda F2: un operando de OTRA SECCIÓN del mismo cotizador sí se acepta —
+// las referencias de datos tienen alcance de cotizador.
 func TestCotizadorElementos_CampoCalculadoValidaOperandos(t *testing.T) {
 	handler, calculadoraID := crearCalculadoraTabsPrueba(t)
 	tabID := "TEST-TAB-CALC-" + sufijoUnico()
@@ -362,6 +364,17 @@ func TestCotizadorElementos_CampoCalculadoValidaOperandos(t *testing.T) {
 		"configuracion": map[string]any{"tipo_campo": "NUMERO"}, "activo": true,
 	})
 
+	otroHandler, otraCalculadoraID := crearCalculadoraTabsPrueba(t)
+	tabOtraCalcID := "TEST-TAB-CALC-OTRA-CALC-" + sufijoUnico()
+	postCatalogos(t, otroHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabOtraCalcID, "calculadora_id": otraCalculadoraID, "nombre": "Otro cotizador", "activo": true,
+	})
+	campoOtraCalcID := "TEST-EL-OTRA-CALC-" + sufijoUnico()
+	postCatalogos(t, otroHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": campoOtraCalcID, "tab_id": tabOtraCalcID, "tipo": "CAMPO", "etiqueta": "De otro cotizador",
+		"configuracion": map[string]any{"tipo_campo": "NUMERO"}, "activo": true,
+	})
+
 	casos := []struct {
 		nombre    string
 		operandos []string
@@ -372,7 +385,8 @@ func TestCotizadorElementos_CampoCalculadoValidaOperandos(t *testing.T) {
 		{"un solo operando en SUMA (mínimo 2)", []string{campoNumericoID}, "SUMA", false},
 		{"un solo operando en PROMEDIO sí alcanza", []string{campoNumericoID}, "PROMEDIO", true},
 		{"operando inexistente", []string{campoNumericoID, "NO-EXISTE-" + sufijoUnico()}, "SUMA", false},
-		{"operando de otro tab", []string{campoNumericoID, campoOtroTabID}, "SUMA", false},
+		{"operando de otra sección del mismo cotizador (Ronda F2)", []string{campoNumericoID, campoOtroTabID}, "SUMA", true},
+		{"operando de otro cotizador", []string{campoNumericoID, campoOtraCalcID}, "SUMA", false},
 		{"operando de tipo texto", []string{campoNumericoID, campoTextoID}, "SUMA", false},
 	}
 	for _, c := range casos {

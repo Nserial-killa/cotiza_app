@@ -134,19 +134,22 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		}
 	}
 	valores := valoresParaOpciones
-	resolverCamposCalculados(indexarElementosCompletoRuntime(runtime.Estructura), valores)
-	resolverCamposCalculadosPorOpcion(indexarElementosCompletoRuntime(runtime.Estructura), runtime.Elementos, valores)
-	incluirValoresCajaValor(runtime.Estructura, valores)
-
 	reglas, err := reglasCotizadorParaEvaluar(ctx, h.DB, runtime.CalculadoraID)
 	if err != nil {
 		log.Printf("cotizador runtime: error cargando reglas de %s: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cargar las reglas del cotizador."})
 		return
 	}
-	incluirEstadoReglas(runtime.Estructura, evaluarEstadoCamposRegla(valores, reglas))
+	elementosPorID := indexarElementosCompletoRuntime(runtime.Estructura)
+	resolverCamposCalculados(elementosPorID, valores)
+	// Modo COTIZACION (Ronda F2): cálculos y reglas por opción; en modo
+	// LOCAL es exactamente el cálculo por opción de siempre.
+	resolverCamposCalculadosPorOpcionConReglas(elementosPorID, runtime.Elementos, valores, reglas)
+	incluirValoresCajaValor(runtime.Estructura, valores)
+	incluirEstadoReglas(runtime.Estructura, evaluarEstadoCamposRegla(valores, reglasSinCondicionPorOpcion(reglas, runtime.Elementos)))
 
-	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": valores, "version": runtime.Version})
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": valores, "version": runtime.Version,
+		"opciones_cotizacion_id": padreOpcionesCotizacion(runtime.Estructura)})
 }
 
 // GuardarValores valida cada elemento contra el JSON compilado fijado y hace
@@ -359,7 +362,8 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 			}
 		}
 
-		if erroresValidacion := evaluarValidacionReglas(valoresPropuestos, reglas); len(erroresValidacion) > 0 {
+		reglasGlobales := reglasSinCondicionPorOpcion(reglas, runtime.Elementos)
+		if erroresValidacion := evaluarValidacionReglas(valoresPropuestos, reglasGlobales); len(erroresValidacion) > 0 {
 			mensajes := make([]string, 0, len(erroresValidacion))
 			for _, e := range erroresValidacion {
 				mensajes = append(mensajes, e.Mensaje)
@@ -370,7 +374,7 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 			return
 		}
 
-		estadoCampos := evaluarEstadoCamposRegla(valoresPropuestos, reglas)
+		estadoCampos := evaluarEstadoCamposRegla(valoresPropuestos, reglasGlobales)
 		if len(estadoCampos) > 0 {
 			elementosCompleto := indexarElementosCompletoRuntime(runtime.Estructura)
 			for campoID, estado := range estadoCampos {
@@ -389,6 +393,27 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 					pendientes = append(pendientes, valorPendienteRuntime{ElementoID: campoID, Valor: valorForzado})
 				}
 			}
+		}
+
+		// Modo COTIZACION (Ronda F2): las reglas se evalúan POR OPCIÓN,
+		// solo en las opciones que este guardado toca (una opción recién
+		// agregada y todavía vacía no bloquea el guardado de las demás).
+		var bloqueos []errorValidacionRegla
+		pendientes, bloqueos, err = h.aplicarReglasPorOpcion(ctx, tx, &runtime, req.Version, valoresActuales, pendientes, reglas)
+		if err != nil {
+			log.Printf("cotizador runtime: error evaluando reglas por opción de %s: %v", cotizacionID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar las reglas del cotizador."})
+			return
+		}
+		if len(bloqueos) > 0 {
+			mensajes := make([]string, 0, len(bloqueos))
+			for _, e := range bloqueos {
+				mensajes = append(mensajes, e.Mensaje)
+			}
+			escribirJSON(w, http.StatusBadRequest, map[string]any{
+				"ok": false, "error": strings.Join(mensajes, " "), "errores_regla": bloqueos,
+			})
+			return
 		}
 	}
 
@@ -531,6 +556,17 @@ func indexarElementosRuntime(estructura map[string]any) map[string]elementoRunti
 		tab, _ := tabRaw.(map[string]any)
 		elementos, _ := tab["elementos"].([]any)
 		indexarElementosRuntimeRecursivo(elementos, resultado, "")
+	}
+	// Ronda F2: con un OPCIONES_PROPUESTA de alcance COTIZACION, todo campo
+	// con valor propio y todo Campo Calculado que no esté ya dentro de un
+	// componente LOCAL pasa a variar por opción de ese componente global.
+	if global := padreOpcionesCotizacion(estructura); global != "" {
+		for id, meta := range resultado {
+			if meta.PadreOpcionesID == "" && tiposConValorPorOpcionCotizacion[meta.Tipo] {
+				meta.PadreOpcionesID = global
+				resultado[id] = meta
+			}
+		}
 	}
 	return resultado
 }
@@ -1241,23 +1277,18 @@ func resolverCamposCalculados(elementosPorID map[string]map[string]any, valores 
 // sigue usando su valor global; un operando de otra colección de opciones se
 // considera ambiguo y no se resuelve.
 func resolverCamposCalculadosPorOpcion(elementosPorID map[string]map[string]any, metadatos map[string]elementoRuntime, valores map[string]any) {
+	resolverCamposCalculadosPorOpcionForzados(elementosPorID, metadatos, valores, nil)
+}
+
+// resolverCamposCalculadosPorOpcionForzados recibe además, por opción, los
+// Campos Calculados que una regla dejó ocultos o en cero en esa opción
+// (modo COTIZACION, ver cotizador_runtime_escenarios.go): valen 0 ahí.
+func resolverCamposCalculadosPorOpcionForzados(elementosPorID map[string]map[string]any, metadatos map[string]elementoRuntime, valores map[string]any, forzados map[string]map[string]bool) {
 	for padreID, padre := range elementosPorID {
 		if strings.ToUpper(strings.TrimSpace(fmt.Sprint(padre["tipo"]))) != "OPCIONES_PROPUESTA" {
 			continue
 		}
-		opcionesIDs := make([]string, 0)
-		switch opciones := padre["opciones"].(type) {
-		case []cotizacionOpcion:
-			for _, opcion := range opciones {
-				opcionesIDs = append(opcionesIDs, opcion.OpcionID)
-			}
-		case []any:
-			for _, opcionRaw := range opciones {
-				opcion, _ := opcionRaw.(map[string]any)
-				opcionesIDs = append(opcionesIDs, strings.TrimSpace(fmt.Sprint(opcion["opcion_id"])))
-			}
-		}
-		for _, opcionID := range opcionesIDs {
+		for _, opcionID := range idsOpcionesPadre(padre) {
 			if opcionID == "" {
 				continue
 			}
@@ -1275,6 +1306,10 @@ func resolverCamposCalculadosPorOpcion(elementosPorID map[string]map[string]any,
 				meta := metadatos[id]
 				if meta.PadreOpcionesID != "" && meta.PadreOpcionesID != padreID {
 					return 0, false
+				}
+				if forzados[opcionID][id] {
+					resueltos[id] = 0
+					return 0, true
 				}
 				valorGuardado := valores[id]
 				if meta.PadreOpcionesID == padreID {
@@ -1419,7 +1454,7 @@ func valorColumnaFuncionCampo(columna string, valorCrudo any) (any, bool) {
 // padre["opciones"] no llega poblado acá (a diferencia de Obtener, que sí
 // llama asegurarOpcionesPropuesta antes) — se completa de una vez, de solo
 // lectura, con la misma consulta que usa esa función.
-func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context.Context, tx pgx.Tx, estructura map[string]any, metadatos map[string]elementoRuntime, cotizacionID string, version int) error {
+func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context.Context, tx pgx.Tx, estructura map[string]any, metadatos map[string]elementoRuntime, cotizacionID string, version int, reglas []reglaCotizadorEval) error {
 	valores, err := h.leerValores(ctx, tx, cotizacionID, version)
 	if err != nil {
 		return err
@@ -1437,7 +1472,7 @@ func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context
 		}
 		padre["opciones"] = opciones
 	}
-	resolverCamposCalculadosPorOpcion(elementosPorID, metadatos, valores)
+	resolverCamposCalculadosPorOpcionConReglas(elementosPorID, metadatos, valores, reglas)
 
 	for id, elemento := range elementosPorID {
 		funcion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(elemento["funcion_campo"])))

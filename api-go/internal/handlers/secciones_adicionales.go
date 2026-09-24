@@ -158,6 +158,19 @@ func (h *SeccionesAdicionalesHandler) Asociar(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
+	// Ronda F2: nombre_interno es único por cotizador, y una Sección
+	// Adicional pasa a formar parte de ese alcance. Se verifica dentro de la
+	// misma transacción, ya con las asociaciones nuevas visibles.
+	colisiones, err := duplicadosNombreInterno(ctx, tx, calculadoraID, ids...)
+	if err != nil {
+		log.Printf("secciones adicionales: error validando nombres internos de %s: %v", calculadoraID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los nombres internos de las secciones."})
+		return
+	}
+	if len(colisiones) > 0 {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "La sección adicional trae nombres internos que ya usa este cotizador. " + strings.Join(colisiones, " "), "errores": colisiones})
+		return
+	}
 	if err := tx.Commit(ctx); err != nil {
 		log.Printf("secciones adicionales: error confirmando asociaciones: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible confirmar las asociaciones."})

@@ -245,7 +245,21 @@ func fuentesSalidasDiseno(ctx context.Context, q consultadorRuntime, id string) 
 		}
 		metas[id] = meta
 	}
-	return els, metas, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	// Mismo criterio que indexarElementosRuntime (Ronda F2): con un
+	// OPCIONES_PROPUESTA de alcance COTIZACION, todo campo/cálculo fuera de
+	// un componente LOCAL es fuente ESCENARIO de ese componente global.
+	if global := padreOpcionesCotizacionIndexado(els); global != "" {
+		for id, meta := range metas {
+			if meta.PadreOpcionesID == "" && tiposConValorPorOpcionCotizacion[meta.Tipo] {
+				meta.PadreOpcionesID = global
+				metas[id] = meta
+			}
+		}
+	}
+	return els, metas, nil
 }
 
 func validarMapaSalidas(mapa []salidaCotizador, els map[string]map[string]any, metas map[string]elementoRuntime, permitirPendientes bool) error {

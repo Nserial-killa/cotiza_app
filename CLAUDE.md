@@ -149,6 +149,24 @@ alguien recompile la calculadora después. `estadosCotizacionValidos` en
 `cotiza_scripts.html` y del `CHECK` de `0007_cotizaciones_shell.sql` — los tres
 tienen que cambiar juntos.
 
+**Alcance de referencias (Ronda F2).** Las referencias de DATOS (operandos de
+Campo Calculado, tokens de Fórmula Avanzada, campo fuente de Caja de Valor)
+tienen alcance de COTIZADOR: secciones propias activas + las asociadas vía
+`tabs_cotizador_asociaciones` (`sqlTabEnAlcanceCotizador` en
+`alcance_cotizador.go`). La CONTENCIÓN (componente padre CONTENEDOR/OPCIONES
+LOCAL, columnas de Tabla) sigue siendo local a la sección. `nombre_interno` es
+único por cotizador: se rechaza al guardar y al asociar una Sección Adicional;
+los duplicados heredados salen como ERROR en Validar/Publicar.
+`OPCIONES_PROPUESTA` admite `configuracion.alcance_opciones`: `LOCAL`
+(default, solo sus hijos varían por opción) o `COTIZACION` (uno por
+cotizador, sin hijos; `indexarElementosRuntime` le cuelga como
+`PadreOpcionesID` todo CAMPO/CAMPO_CATALOGO/LISTA_PRECIOS/TABLA/CAMPO_CALCULADO,
+así que valores, cálculos, reglas y salidas van por opción — ver
+`cotizador_runtime_escenarios.go`). El caso ISA Custom se siembra con
+`echo 1234 | go run ./cmd/seed-isa-custom` y sus CP-01…CP-15 están en
+`isa_custom_integracion_test.go` (evidencia en
+`docs/EVIDENCIA_CP01_CP15_ISA_CUSTOM.md`).
+
 **Migración de datos.** `migration-python/migrate_sheets_to_postgres.py` lee
 `BD_Cotizador_Exceltec.xlsx` (organizaciones, usuarios, calculadoras, clientes) y
 `BD_Cotizador_Parametros.xlsx` (catálogos, valores). Cada tabla es una función

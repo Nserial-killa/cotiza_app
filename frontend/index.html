@@ -1927,6 +1927,14 @@ table tr:last-child td { border-bottom: none; }
   #section-plantillas .tpl-action-bar .btn { width:100%; justify-content:center; }
 }
 
+/* Ronda F2: selector de opción activa para Opciones de Propuesta con
+   alcance COTIZACION — va arriba de la tira de secciones, no dentro de una. */
+.runtime-opciones-cotizacion { margin-bottom: 12px; }
+.runtime-opcion-panel-head-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+@media (max-width:700px) {
+  .runtime-opcion-panel-head-acciones { justify-content: flex-start; }
+}
+
 </style>
 </head>
 
@@ -4574,6 +4582,7 @@ table tr:last-child td { border-bottom: none; }
             .cotizador-component-card[data-tipo="OPCIONES_PROPUESTA"] .cotizador-component-icon{background:#eef2ff;color:#3730a3;}
             .cotizador-component-modal-form-v50o .ctz-f-checks-scenario{grid-column:1 / -1 !important;}
             .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-names{grid-column:1 / -1 !important;}
+            .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-scenario-scope{grid-column:1 / -1 !important;}
             .cotizador-component-modal-form-v50o[data-componente-tipo="OPCIONES_PROPUESTA"] .ctz-f-label{grid-column:1 / -1 !important;}
             .cotizador-design-scenario{border:1px solid #c7d2fe;background:linear-gradient(180deg,#eef2ff,#ffffff);border-radius:16px;padding:10px;margin-bottom:12px;}
             .cotizador-design-scenario.inactive{opacity:.62;border-style:dashed;}
@@ -5294,6 +5303,14 @@ table tr:last-child td { border-bottom: none; }
                   </div>
 
                   <div id="designerCotizadorConfigEscenarios" class="cotizador-config-group" data-component-config="OPCIONES_PROPUESTA">
+                    <div class="field ctz-f-scenario-scope">
+                      <label for="designerCotizadorEscenariosAlcance">Alcance de las opciones</label>
+                      <select id="designerCotizadorEscenariosAlcance" class="select">
+                        <option value="LOCAL">Solo los campos dentro del componente</option>
+                        <option value="COTIZACION">Cotización completa (todos los campos)</option>
+                      </select>
+                      <span class="param-field-help">Con "Cotización completa" cada opción es un escenario de toda la cotización: todos los campos de todas las secciones tienen un valor por opción y el componente no lleva campos dentro. Solo puede haber uno por cotizador.</span>
+                    </div>
                     <div class="field ctz-f-scenario-initial">
                       <label for="designerCotizadorEscenariosCantidadInicial">Cantidad inicial de opciones</label>
                       <input id="designerCotizadorEscenariosCantidadInicial" class="input" type="number" min="1" max="6" placeholder="1">
@@ -10618,6 +10635,7 @@ window.CotizaApp = (function(){
             valores: res.valores || {},
             tabActivoId: tabs.length ? tabs[0].tab_id : "",
             opcionActivaPorPadre: {},
+            opcionesCotizacionId: res.opciones_cotizacion_id || "",
             erroresRegla: []
           };
           inicializarOpcionesActivasRuntime_();
@@ -10684,6 +10702,7 @@ window.CotizaApp = (function(){
         if(!resp.ok || !res || !res.ok) throw new Error((res && res.error) || "No fue posible actualizar el formulario.");
         rt.estructura = res.estructura || {tabs:[]};
         rt.valores = res.valores || {};
+        rt.opcionesCotizacionId = res.opciones_cotizacion_id || "";
         rt.tabActivoId = tabActivo;
         rt.opcionActivaPorPadre = opcionesActivas;
         inicializarOpcionesActivasRuntime_();
@@ -10713,9 +10732,15 @@ window.CotizaApp = (function(){
 
         const tabActivo = tabs.find(function(t){ return t.tab_id === rt.tabActivoId; });
         const elementos = ((tabActivo && tabActivo.elementos) || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
-        const campos = elementos.map(function(el){ return renderRuntimeElemento(el, rt.valores); }).join("");
+        // Ronda F2: con Opciones de Propuesta de alcance COTIZACION, todos
+        // los campos de todas las secciones se dibujan con la opción activa
+        // del selector superior, y lo que se edita afecta solo a esa opción.
+        const padreCotizacion = padreOpcionesCotizacionRuntime_();
+        const opcionGlobal = padreCotizacion ? opcionActivaCotizacionRuntime_(padreCotizacion) : "";
+        const campos = elementos.map(function(el){ return renderRuntimeElemento(el, rt.valores, opcionGlobal); }).join("");
 
         contenido.innerHTML =
+          (padreCotizacion ? renderSelectorOpcionesCotizacion_(padreCotizacion, opcionGlobal) : '') +
           '<div class="runtime-tabs">' + tiraTabs + '</div>' +
           renderMensajesReglaRuntime_(rt.erroresRegla) +
           '<div class="card runtime-grid">' + (campos || '<p>Esta sección no tiene elementos.</p>') + '</div>';
@@ -10841,6 +10866,51 @@ window.CotizaApp = (function(){
         return '<div class="runtime-mensajes-regla">No se guardaron los últimos cambios:<ul>' + items + '</ul></div>';
       }
 
+      // Ronda F2: componente Opciones de Propuesta con alcance COTIZACION (a
+      // lo sumo uno por cotizador; el backend lo informa en
+      // opciones_cotizacion_id). Sus opciones son escenarios de la
+      // cotización completa y se eligen en un selector arriba del
+      // formulario, no dentro de una sección.
+      function padreOpcionesCotizacionRuntime_(){
+        const rt = state.cotizadorRuntime;
+        if(!rt || !rt.opcionesCotizacionId) return null;
+        return buscarElementoRuntime_(rt.opcionesCotizacionId);
+      }
+
+      function opcionActivaCotizacionRuntime_(padre){
+        const rt = state.cotizadorRuntime;
+        const opciones = (padre && padre.opciones) || [];
+        let activa = rt && rt.opcionActivaPorPadre ? rt.opcionActivaPorPadre[padre.elemento_id] : "";
+        if(!opciones.some(function(op){ return op.opcion_id === activa; })) activa = opciones.length ? opciones[0].opcion_id : "";
+        return activa;
+      }
+
+      function renderSelectorOpcionesCotizacion_(padre, activa){
+        const cfg = padre.configuracion || {};
+        const padreID = escapeHtml(padre.elemento_id);
+        const opciones = (padre.opciones || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
+        const actual = opciones.find(function(op){ return op.opcion_id === activa; });
+        const tabs = opciones.map(function(op){
+          return '<button type="button" class="runtime-opcion-tab' + (op.opcion_id === activa ? ' active' : '') + '" data-padre-id="' + padreID + '" data-opcion-id="' + escapeHtml(op.opcion_id) + '">' +
+            escapeHtml(op.nombre || "Opción") + (op.es_recomendada ? '<span aria-label="Recomendada">★</span>' : '') + '</button>';
+        }).join("");
+        function boton(accion, texto, clase){
+          return '<button type="button" class="btn btn-ghost btn-mini' + (clase || '') + '" data-runtime-opcion-accion="' + accion + '" data-padre-id="' + padreID + '"' +
+            (accion === "AGREGAR" ? '' : ' data-opcion-id="' + escapeHtml(activa) + '"') + '>' + texto + '</button>';
+        }
+        const acciones =
+          (cfg.permitir_duplicar !== false ? boton("AGREGAR", "+ Agregar opción") : '') +
+          (actual && cfg.permitir_recomendado !== false ? boton("RECOMENDAR", actual.es_recomendada ? "Quitar recomendación" : "★ Recomendar") : '') +
+          (actual && cfg.permitir_renombrar !== false ? boton("RENOMBRAR", "Renombrar") : '') +
+          (actual && cfg.permitir_duplicar !== false ? boton("DUPLICAR", "Duplicar") : '') +
+          (actual && cfg.permitir_eliminar !== false ? boton("ELIMINAR", "Eliminar", " runtime-opcion-eliminar") : '');
+        return '<section class="runtime-opciones runtime-opciones-cotizacion">' +
+          '<div class="runtime-opciones-head"><div><strong>' + escapeHtml(padre.etiqueta || "Opciones de propuesta") + '</strong>' +
+          '<span>Editando: ' + escapeHtml(actual ? actual.nombre : "—") + (actual && actual.es_recomendada ? ' · Recomendada' : '') + '. Los cambios en cualquier sección afectan solo a esta opción.</span></div>' +
+          '<div class="runtime-opcion-panel-head-acciones">' + acciones + '</div></div>' +
+          '<div class="runtime-opcion-tabs">' + tabs + '</div></section>';
+      }
+
       function atributoOpcionRuntime_(opcionID){
         return opcionID ? ' data-opcion-id="' + escapeHtml(opcionID) + '"' : "";
       }
@@ -10949,8 +11019,10 @@ window.CotizaApp = (function(){
       // comporta igual que uno requerido desde el Diseñador. Un elemento
       // que ninguna regla toca no trae estado_regla — el default es
       // visible+habilitado, igual que si la clave no existiera.
-      function estadoReglaCampo_(el){
-        const estado = el.estado_regla || null;
+      function estadoReglaCampo_(el, opcionID){
+        // Modo COTIZACION (Ronda F2): las reglas se evalúan por opción.
+        const porOpcion = el.estado_regla_por_opcion;
+        const estado = (opcionID && porOpcion && porOpcion[opcionID]) || el.estado_regla || null;
         return {
           visible: !estado || estado.visible !== false,
           deshabilitado: !!(estado && estado.habilitado === false),
@@ -10961,7 +11033,7 @@ window.CotizaApp = (function(){
 
       function renderRuntimeElemento(el, valores, opcionID){
         const ancho = Math.min(4, Math.max(1, Number(el.columnas_ancho) || 1));
-        const estadoRegla = estadoReglaCampo_(el);
+        const estadoRegla = estadoReglaCampo_(el, opcionID);
         const requerido = estadoRegla.requerido;
         const estiloSpan = 'style="grid-column:span ' + ancho + '"';
         const valorGuardadoRaw = valorRuntimeActual_(valores, el.elemento_id, opcionID);
@@ -10985,6 +11057,8 @@ window.CotizaApp = (function(){
           return '<div class="runtime-field runtime-texto-informativo" ' + estiloSpan + '><p>' + escapeHtml(el.etiqueta || "") + '</p></div>';
         }
         if(el.tipo === "OPCIONES_PROPUESTA"){
+          // Alcance COTIZACION: se maneja desde el selector superior.
+          if(cfg.alcance_opciones === "COTIZACION") return "";
           const rt = state.cotizadorRuntime;
           const opciones = (el.opciones || []).slice().sort(function(a,b){ return (a.orden||0)-(b.orden||0); });
           if(!opciones.length) return '<div class="runtime-field runtime-opciones" ' + estiloSpan + '><p>No hay opciones disponibles.</p></div>';
@@ -11290,7 +11364,9 @@ window.CotizaApp = (function(){
 
         const idsGuardables = {};
         ((rt.estructura && rt.estructura.tabs) || []).forEach(function(tab){
-          recolectarElementosGuardablesRuntimeCotizador_(tab.elementos, idsGuardables, "");
+          // Modo COTIZACION: todo campo guardable fuera de un componente
+          // LOCAL se guarda por opción del componente global.
+          recolectarElementosGuardablesRuntimeCotizador_(tab.elementos, idsGuardables, rt.opcionesCotizacionId || "");
         });
         const valoresAEnviar = {};
         const valoresPorOpcion = [];
@@ -19558,6 +19634,7 @@ window.CotizaApp = (function(){
         if(byId("designerCotizadorContenedorColumnas")) byId("designerCotizadorContenedorColumnas").value = String(cfg.columnas || 2);
         if(byId("designerCotizadorContenedorEstilo")) byId("designerCotizadorContenedorEstilo").value = cfg.estilo || "card";
 
+        if(byId("designerCotizadorEscenariosAlcance")) byId("designerCotizadorEscenariosAlcance").value = cfg.alcance_opciones === "COTIZACION" ? "COTIZACION" : "LOCAL";
         if(byId("designerCotizadorEscenariosCantidadInicial")) byId("designerCotizadorEscenariosCantidadInicial").value = cfg.cantidad_inicial || 1;
         if(byId("designerCotizadorEscenariosNombresSugeridos")) byId("designerCotizadorEscenariosNombresSugeridos").value = cfg.nombres_sugeridos || "";
         if(byId("designerCotizadorEscenariosVistaEdicion")) byId("designerCotizadorEscenariosVistaEdicion").value = cfg.vista_editar || "PESTANAS";
@@ -19666,6 +19743,7 @@ window.CotizaApp = (function(){
           cfg.estilo = byId("designerCotizadorContenedorEstilo") ? byId("designerCotizadorContenedorEstilo").value : "card";
         }
         if(tipo === "OPCIONES_PROPUESTA"){
+          cfg.alcance_opciones = byId("designerCotizadorEscenariosAlcance") ? byId("designerCotizadorEscenariosAlcance").value : "LOCAL";
           cfg.cantidad_inicial = Number(byId("designerCotizadorEscenariosCantidadInicial") ? byId("designerCotizadorEscenariosCantidadInicial").value : 1) || 1;
           cfg.nombres_sugeridos = byId("designerCotizadorEscenariosNombresSugeridos") ? byId("designerCotizadorEscenariosNombresSugeridos").value : "";
           cfg.vista_editar = byId("designerCotizadorEscenariosVistaEdicion") ? byId("designerCotizadorEscenariosVistaEdicion").value : "PESTANAS";

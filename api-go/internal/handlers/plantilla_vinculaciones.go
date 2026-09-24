@@ -37,6 +37,7 @@ type guardarVinculacionRequest struct {
 var fuentesCotizacionBase = []fuentePlantilla{
 	{FuenteID: "cliente", FuenteTipo: "COTIZACION_BASE", Nombre: "Cliente"},
 	{FuenteID: "empresa", FuenteTipo: "COTIZACION_BASE", Nombre: "Empresa"},
+	{FuenteID: "contacto", FuenteTipo: "COTIZACION_BASE", Nombre: "Contacto"},
 	{FuenteID: "codigo_oferta", FuenteTipo: "COTIZACION_BASE", Nombre: "Código de oferta"},
 	{FuenteID: "tipo_propuesta", FuenteTipo: "COTIZACION_BASE", Nombre: "Tipo de propuesta"},
 	{FuenteID: "total_precio", FuenteTipo: "COTIZACION_BASE", Nombre: "Precio total"},

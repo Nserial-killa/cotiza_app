@@ -24,3 +24,9 @@ migration-python/data/*.csv
 # se versionan.
 scripts/demo_api_key.txt
 scripts/demo_resumen.txt
+
+# Binario del sembrador ISA Custom (go build ./cmd/seed-isa-custom) y
+# páginas del PDF de definición rasterizadas para consulta — artefactos
+# locales, nunca se versionan.
+api-go/seed-isa-custom
+tmp/pdfs/

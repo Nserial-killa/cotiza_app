@@ -2168,6 +2168,7 @@
         if(byId("designerCotizadorContenedorColumnas")) byId("designerCotizadorContenedorColumnas").value = String(cfg.columnas || 2);
         if(byId("designerCotizadorContenedorEstilo")) byId("designerCotizadorContenedorEstilo").value = cfg.estilo || "card";
 
+        if(byId("designerCotizadorEscenariosAlcance")) byId("designerCotizadorEscenariosAlcance").value = cfg.alcance_opciones === "COTIZACION" ? "COTIZACION" : "LOCAL";
         if(byId("designerCotizadorEscenariosCantidadInicial")) byId("designerCotizadorEscenariosCantidadInicial").value = cfg.cantidad_inicial || 1;
         if(byId("designerCotizadorEscenariosNombresSugeridos")) byId("designerCotizadorEscenariosNombresSugeridos").value = cfg.nombres_sugeridos || "";
         if(byId("designerCotizadorEscenariosVistaEdicion")) byId("designerCotizadorEscenariosVistaEdicion").value = cfg.vista_editar || "PESTANAS";
@@ -2276,6 +2277,7 @@
           cfg.estilo = byId("designerCotizadorContenedorEstilo") ? byId("designerCotizadorContenedorEstilo").value : "card";
         }
         if(tipo === "OPCIONES_PROPUESTA"){
+          cfg.alcance_opciones = byId("designerCotizadorEscenariosAlcance") ? byId("designerCotizadorEscenariosAlcance").value : "LOCAL";
           cfg.cantidad_inicial = Number(byId("designerCotizadorEscenariosCantidadInicial") ? byId("designerCotizadorEscenariosCantidadInicial").value : 1) || 1;
           cfg.nombres_sugeridos = byId("designerCotizadorEscenariosNombresSugeridos") ? byId("designerCotizadorEscenariosNombresSugeridos").value : "";
           cfg.vista_editar = byId("designerCotizadorEscenariosVistaEdicion") ? byId("designerCotizadorEscenariosVistaEdicion").value : "PESTANAS";

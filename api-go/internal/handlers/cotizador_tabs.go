@@ -496,6 +496,18 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		configuracion["permitir_recomendado"] = boolDesdeConfiguracion(configuracion, "permitir_recomendado", true)
 		configuracion["visible_calculadora"] = boolDesdeConfiguracion(configuracion, "visible_calculadora", true)
 		configuracion["visible_oferta"] = boolDesdeConfiguracion(configuracion, "visible_oferta", true)
+
+		// Ronda F2: LOCAL (default, solo los hijos varían por opción) o
+		// COTIZACION (cada opción es un escenario de la cotización completa).
+		alcance := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["alcance_opciones"])))
+		if alcance == "" || alcance == "<NIL>" {
+			alcance = "LOCAL"
+		}
+		if alcance != "LOCAL" && alcance != "COTIZACION" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "alcance_opciones debe ser LOCAL o COTIZACION."})
+			return
+		}
+		configuracion["alcance_opciones"] = alcance
 	}
 	if req.Tipo == "SECCIONES_ADICIONALES" {
 		presentacion := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["presentacion"])))
@@ -556,7 +568,77 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
+	// calculadoraDeLaSeccion se resuelve una sola vez y solo cuando alguna
+	// validación de alcance de cotizador la necesita (Ronda F2).
+	calculadoraSeccion := ""
+	calculadoraDeLaSeccion := func() (string, bool) {
+		if calculadoraSeccion != "" {
+			return calculadoraSeccion, true
+		}
+		id, err := calculadoraDeTab(ctx, h.DB, req.TabID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "La sección indicada no existe."})
+			return "", false
+		}
+		if err != nil {
+			log.Printf("cotizador elementos: error resolviendo calculadora de %s: %v", req.TabID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar la sección."})
+			return "", false
+		}
+		calculadoraSeccion = id
+		return id, true
+	}
+
+	// §2.1 del documento ISA: nombre_interno es un código técnico estable y
+	// único POR COTIZADOR (las fórmulas y la plantilla lo resuelven en todo
+	// el alcance, no solo en la sección).
+	if nombre := nombreInternoElemento(configuracion); nombre != "" && req.Activo {
+		calculadoraID, ok := calculadoraDeLaSeccion()
+		if !ok {
+			return
+		}
+		otroID, otraSeccion, err := elementoConNombreInterno(ctx, h.DB, calculadoraID, req.ElementoID, nombre)
+		if err != nil {
+			log.Printf("cotizador elementos: error validando nombre interno %s: %v", nombre, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el nombre interno."})
+			return
+		}
+		if otroID != "" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El nombre interno %s ya lo usa el elemento %s (sección %s) en este cotizador; debe ser único por cotizador.", nombre, otroID, otraSeccion)})
+			return
+		}
+	}
+
 	if req.Tipo == "OPCIONES_PROPUESTA" {
+		esCotizacion := configuracion["alcance_opciones"] == "COTIZACION"
+		if esCotizacion {
+			calculadoraID, ok := calculadoraDeLaSeccion()
+			if !ok {
+				return
+			}
+			if req.Activo {
+				otroID, err := otroOpcionesCotizacion(ctx, h.DB, calculadoraID, req.ElementoID)
+				if err != nil {
+					log.Printf("cotizador elementos: error validando alcance de opciones de %s: %v", req.ElementoID, err)
+					escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar alcance_opciones."})
+					return
+				}
+				if otroID != "" {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("Solo puede haber una Opciones de Propuesta con alcance COTIZACION por cotizador; ya existe %s.", otroID)})
+					return
+				}
+			}
+			var tieneHijos bool
+			if err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM elementos_tab_cotizador WHERE componente_padre_id=$1 AND activo)`, req.ElementoID).Scan(&tieneHijos); err != nil {
+				log.Printf("cotizador elementos: error revisando hijos de %s: %v", req.ElementoID, err)
+				escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar alcance_opciones."})
+				return
+			}
+			if tieneHijos {
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Con alcance COTIZACION el componente no admite hijos: saque primero sus campos del componente (todos los campos del cotizador pasarán a variar por opción)."})
+				return
+			}
+		}
 		campoPrincipalID := strings.TrimSpace(fmt.Sprint(configuracion["campo_principal_id"]))
 		if campoPrincipalID != "" {
 			if campoPrincipalID == req.ElementoID {
@@ -566,8 +648,22 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			var tabCampo string
 			var activoCampo bool
 			err := h.DB.QueryRow(ctx, `SELECT tab_id, activo FROM elementos_tab_cotizador WHERE elemento_id=$1`, campoPrincipalID).Scan(&tabCampo, &activoCampo)
+			if err == nil && esCotizacion {
+				// En modo COTIZACION el campo principal puede vivir en
+				// cualquier sección: es una referencia de datos, no contención.
+				var existe bool
+				existe, activoCampo, err = elementoEnAlcanceCotizador(ctx, h.DB, calculadoraSeccion, campoPrincipalID)
+				if err == nil && !existe {
+					err = pgx.ErrNoRows
+				}
+				tabCampo = req.TabID
+			}
 			if errors.Is(err, pgx.ErrNoRows) || (err == nil && (tabCampo != req.TabID || !activoCampo)) {
-				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "campo_principal_id debe ser otro elemento activo del mismo tab."})
+				mensaje := "campo_principal_id debe ser otro elemento activo del mismo tab."
+				if esCotizacion {
+					mensaje = "campo_principal_id debe ser otro elemento activo de este cotizador."
+				}
+				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": mensaje})
 				return
 			}
 			if err != nil {
@@ -636,7 +732,11 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		configuracion["decimales"] = decimales
 
 		if tipoFormula == "AVANZADA" {
-			if err := h.prepararFormulaAvanzada(ctx, req.ElementoID, req.TabID, configuracion); err != nil {
+			calculadoraID, ok := calculadoraDeLaSeccion()
+			if !ok {
+				return
+			}
+			if err := h.prepararFormulaAvanzada(ctx, req.ElementoID, calculadoraID, configuracion); err != nil {
 				escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
 				return
 			}
@@ -665,11 +765,11 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Un Campo Calculado no puede tener a sí mismo como operando."})
 					return
 				}
-				var tipoOp, tabOp string
+				var tipoOp string
 				var activoOp bool
 				var configOp map[string]any
 				var catalogoOpID *string
-				err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo, configuracion, catalogo_id FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &tabOp, &activoOp, &configOp, &catalogoOpID)
+				err := h.DB.QueryRow(ctx, `SELECT tipo, activo, configuracion, catalogo_id FROM elementos_tab_cotizador WHERE elemento_id=$1`, opID).Scan(&tipoOp, &activoOp, &configOp, &catalogoOpID)
 				if errors.Is(err, pgx.ErrNoRows) {
 					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s no existe.", opID)})
 					return
@@ -683,8 +783,20 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s está inactivo.", opID)})
 					return
 				}
-				if tabOp != req.TabID {
-					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe pertenecer a la misma sección (tab_id).", opID)})
+				// Ronda F2: un operando es una referencia de datos, con
+				// alcance de cotizador (cualquier sección propia o asociada).
+				calculadoraID, ok := calculadoraDeLaSeccion()
+				if !ok {
+					return
+				}
+				enAlcance, _, err := elementoEnAlcanceCotizador(ctx, h.DB, calculadoraID, opID)
+				if err != nil {
+					log.Printf("cotizador elementos: error validando alcance del operando %s: %v", opID, err)
+					escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los operandos."})
+					return
+				}
+				if !enAlcance {
+					escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": fmt.Sprintf("El operando %s debe pertenecer a una sección de este cotizador (propia o asociada).", opID)})
 					return
 				}
 				if tipoOp == "CAMPO" {
@@ -821,7 +933,8 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		}
 		var tipoPadre, tabPadre string
 		var activoPadre bool
-		err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo FROM elementos_tab_cotizador WHERE elemento_id=$1`, padreID).Scan(&tipoPadre, &tabPadre, &activoPadre)
+		var configPadre map[string]any
+		err := h.DB.QueryRow(ctx, `SELECT tipo, tab_id, activo, configuracion FROM elementos_tab_cotizador WHERE elemento_id=$1`, padreID).Scan(&tipoPadre, &tabPadre, &activoPadre, &configPadre)
 		if errors.Is(err, pgx.ErrNoRows) {
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El componente padre indicado no existe."})
 			return
@@ -839,8 +952,13 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El componente padre indicado está inactivo."})
 			return
 		}
+		// Contención estructural: sigue siendo local a la sección (Ronda F2).
 		if tabPadre != req.TabID {
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El componente padre debe pertenecer a la misma sección (tab_id)."})
+			return
+		}
+		if tipoPadre == "OPCIONES_PROPUESTA" && alcanceOpcionesPropuesta(configPadre) == "COTIZACION" {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Esa Opciones de Propuesta tiene alcance COTIZACION y no admite hijos: todos los campos del cotizador ya varían por opción."})
 			return
 		}
 	}
@@ -850,9 +968,8 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "campo_fuente_id no puede ser el propio elemento."})
 			return
 		}
-		var tabFuente string
 		var activoFuente bool
-		err := h.DB.QueryRow(ctx, `SELECT tab_id, activo FROM elementos_tab_cotizador WHERE elemento_id=$1`, fuenteID).Scan(&tabFuente, &activoFuente)
+		err := h.DB.QueryRow(ctx, `SELECT activo FROM elementos_tab_cotizador WHERE elemento_id=$1`, fuenteID).Scan(&activoFuente)
 		if errors.Is(err, pgx.ErrNoRows) {
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El campo fuente indicado no existe."})
 			return
@@ -866,8 +983,20 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El campo fuente indicado está inactivo."})
 			return
 		}
-		if tabFuente != req.TabID {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El campo fuente debe pertenecer a la misma sección (tab_id)."})
+		// Ronda F2: el campo fuente es una referencia de datos, con alcance
+		// de cotizador.
+		calculadoraID, ok := calculadoraDeLaSeccion()
+		if !ok {
+			return
+		}
+		enAlcance, _, err := elementoEnAlcanceCotizador(ctx, h.DB, calculadoraID, fuenteID)
+		if err != nil {
+			log.Printf("cotizador elementos: error validando alcance del campo fuente %s: %v", fuenteID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el campo fuente."})
+			return
+		}
+		if !enAlcance {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El campo fuente debe pertenecer a una sección de este cotizador (propia o asociada)."})
 			return
 		}
 	}

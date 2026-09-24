@@ -19,7 +19,13 @@ func nombreInternoElemento(cfg map[string]any) string {
 // prepararFormulaAvanzada deriva las dependencias desde el texto: nunca
 // confía en tokens/operandos enviados por el cliente. Se reutiliza al
 // publicar para detectar nombres cambiados, ambiguos o campos desactivados.
-func (h *CotizadorTabsHandler) prepararFormulaAvanzada(ctx context.Context, elementoID, tabID string, cfg map[string]any) error {
+//
+// Ronda F2: los tokens se enlazan en el alcance del COTIZADOR (todas sus
+// secciones activas más las asociadas como Secciones Adicionales), no solo
+// en la sección del Campo Calculado: el documento ISA exige fórmulas como
+// COSTO_CHAT que combinan 03_CHAT con 06_COMERCIAL. calculadoraID es el
+// dueño de la sección al guardar, y el cotizador que publica al compilar.
+func (h *CotizadorTabsHandler) prepararFormulaAvanzada(ctx context.Context, elementoID, calculadoraID string, cfg map[string]any) error {
 	texto, ok := cfg["formula_texto"].(string)
 	if !ok || strings.TrimSpace(texto) == "" {
 		return fmt.Errorf("formula_texto es obligatorio para una fórmula AVANZADA")
@@ -37,8 +43,9 @@ func (h *CotizadorTabsHandler) prepararFormulaAvanzada(ctx context.Context, elem
 	rows, err := h.DB.Query(ctx, `
 		SELECT e.elemento_id, e.tipo, e.activo, e.configuracion, COALESCE(c.tipo_calculo,'SIN_VALOR')
 		FROM elementos_tab_cotizador e
+		JOIN tabs_cotizador t ON t.tab_id=e.tab_id
 		LEFT JOIN catalogos c ON c.catalogo_id=e.catalogo_id
-		WHERE e.tab_id=$1 AND e.elemento_id<>$2`, tabID, elementoID)
+		WHERE e.elemento_id<>$2 AND `+sqlTabEnAlcanceCotizador, calculadoraID, elementoID)
 	if err != nil {
 		return fmt.Errorf("no fue posible consultar los campos de la fórmula: %w", err)
 	}
@@ -64,10 +71,25 @@ func (h *CotizadorTabsHandler) prepararFormulaAvanzada(ctx context.Context, elem
 		}
 		candidatos := porNombre[token]
 		if len(candidatos) == 0 {
-			return fmt.Errorf("el token %s no coincide con el nombre interno de otro elemento de la misma sección", token)
+			return fmt.Errorf("el token %s no coincide con el nombre interno de otro elemento de este cotizador", token)
+		}
+		// Un duplicado inactivo (elemento eliminado) no vuelve ambigua la
+		// fórmula; solo lo hacen dos elementos activos con el mismo nombre.
+		activos := make([]candidato, 0, len(candidatos))
+		for _, c := range candidatos {
+			if c.activo {
+				activos = append(activos, c)
+			}
+		}
+		if len(activos) > 0 {
+			candidatos = activos
 		}
 		if len(candidatos) > 1 {
-			return fmt.Errorf("el token %s es ambiguo: hay %d elementos con el mismo nombre interno en la sección", token, len(candidatos))
+			ids := make([]string, 0, len(candidatos))
+			for _, c := range candidatos {
+				ids = append(ids, c.id)
+			}
+			return fmt.Errorf("el token %s es ambiguo: hay %d elementos con el mismo nombre interno en el cotizador (%s)", token, len(candidatos), strings.Join(ids, ", "))
 		}
 		c := candidatos[0]
 		if !c.activo {
