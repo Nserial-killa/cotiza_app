@@ -1,0 +1,65 @@
+{
+  "secciones": ["01_CONFIG", "02_CANALES", "03_CHAT", "04_VOZ", "05_IMPL", "06_COMERCIAL"],
+  "catalogos": [
+    {"codigo":"CAT_TIPO_AGENTE","tipo_calculo":"SIN_VALOR","valores":[["VENTAS","Ventas",null],["SERVICIO","Servicio al Cliente",null],["SOPORTE","Soporte",null],["CUSTOM","Personalizado",null]]},
+    {"codigo":"CAT_IDIOMA","tipo_calculo":"SIN_VALOR","valores":[["ES","Español",null],["EN","Inglés",null],["MULTI","Multilingüe",null]]},
+    {"codigo":"CAT_CONVERSACIONES","tipo_calculo":"NUMERO","valores":[["CONV_300","300",300],["CONV_500","500",500],["CONV_1000","1.000",1000],["CONV_2500","2.500",2500],["CONV_5000","5.000",5000],["CONV_10000","10.000",10000]]},
+    {"codigo":"CAT_MINUTOS_VOZ","tipo_calculo":"NUMERO","valores":[["MIN_150","150",150],["MIN_300","300",300],["MIN_1000","1.000",1000],["MIN_2500","2.500",2500],["MIN_5000","5.000",5000],["MIN_10000","10.000",10000]]},
+    {"codigo":"CAT_MARGEN","tipo_calculo":"PORCENTAJE","valores":[["M20","20%",0.20],["M30","30%",0.30],["M40","40%",0.40]]},
+    {"codigo":"CAT_COMPLEJIDAD","tipo_calculo":"NUMERO","valores":[["BASICA","Básica",250],["MEDIA","Media",500],["AVANZADA","Avanzada",1000]]},
+    {"codigo":"CAT_SI_NO","tipo_calculo":"SIN_VALOR","valores":[["SI","Sí",null],["NO","No",null]]}
+  ],
+  "campos": [
+    {"seccion":"01_CONFIG","codigo":"NOMBRE_SOLUCION","etiqueta":"Nombre de la solución","tipo":"TEXTO","valor":"Agente IA Servicio al Cliente"},
+    {"seccion":"01_CONFIG","codigo":"TIPO_AGENTE","etiqueta":"Tipo de agente","catalogo":"CAT_TIPO_AGENTE","valor":"SERVICIO"},
+    {"seccion":"01_CONFIG","codigo":"CANTIDAD_AGENTES","etiqueta":"Cantidad de agentes IA","tipo":"NUMERO","valor":"1"},
+    {"seccion":"01_CONFIG","codigo":"IDIOMA","etiqueta":"Idioma","catalogo":"CAT_IDIOMA","valor":"ES"},
+    {"seccion":"02_CANALES","codigo":"USA_WHATSAPP","etiqueta":"WhatsApp","catalogo":"CAT_SI_NO","valor":"SI"},
+    {"seccion":"02_CANALES","codigo":"USA_CHATWEB","etiqueta":"Chat Web","catalogo":"CAT_SI_NO","valor":"SI"},
+    {"seccion":"02_CANALES","codigo":"USA_TEAMS","etiqueta":"Microsoft Teams","catalogo":"CAT_SI_NO","valor":"NO"},
+    {"seccion":"02_CANALES","codigo":"USA_TELEFONIA","etiqueta":"Telefonía IA","catalogo":"CAT_SI_NO","valor":"SI"},
+    {"seccion":"03_CHAT","codigo":"CONVERSACIONES_MES","etiqueta":"Conversaciones mensuales","catalogo":"CAT_CONVERSACIONES","valor":"CONV_1000"},
+    {"seccion":"03_CHAT","codigo":"MENSAJES_PROMEDIO","etiqueta":"Mensajes promedio/conversación","tipo":"NUMERO","valor":"20"},
+    {"seccion":"03_CHAT","codigo":"CONVERSACIONES_EXTRA","etiqueta":"Conversaciones adicionales","tipo":"NUMERO","valor":"0"},
+    {"seccion":"04_VOZ","codigo":"MINUTOS_MES","etiqueta":"Minutos mensuales","catalogo":"CAT_MINUTOS_VOZ","valor":"MIN_1000"},
+    {"seccion":"04_VOZ","codigo":"MINUTOS_EXTRA","etiqueta":"Minutos adicionales","tipo":"NUMERO","valor":"0"},
+    {"seccion":"05_IMPL","codigo":"COMPLEJIDAD_IMPL","etiqueta":"Complejidad","catalogo":"CAT_COMPLEJIDAD","valor":"MEDIA"},
+    {"seccion":"05_IMPL","codigo":"INTEGRACION_API","etiqueta":"Requiere integración API","catalogo":"CAT_SI_NO","valor":"SI"},
+    {"seccion":"05_IMPL","codigo":"CANTIDAD_INTEGRACIONES","etiqueta":"Cantidad de integraciones","tipo":"NUMERO","valor":"1"},
+    {"seccion":"05_IMPL","codigo":"BASE_CONOCIMIENTO","etiqueta":"Base de conocimiento","catalogo":"CAT_SI_NO","valor":"SI"},
+    {"seccion":"05_IMPL","codigo":"ENTRENAMIENTO_PERSONAL","etiqueta":"Entrenamiento personalizado","catalogo":"CAT_SI_NO","valor":"SI"},
+    {"seccion":"06_COMERCIAL","codigo":"MARGEN_CHAT","etiqueta":"Margen Chat","catalogo":"CAT_MARGEN","valor":"M30"},
+    {"seccion":"06_COMERCIAL","codigo":"MARGEN_VOZ","etiqueta":"Margen Voz","catalogo":"CAT_MARGEN","valor":"M30"},
+    {"seccion":"06_COMERCIAL","codigo":"COSTO_CONVERSACION","etiqueta":"Costo por conversación","tipo":"MONEDA","valor":"0.10"},
+    {"seccion":"06_COMERCIAL","codigo":"COSTO_MINUTO_VOZ","etiqueta":"Costo por minuto voz","tipo":"MONEDA","valor":"0.080"}
+  ],
+  "parametros": {
+    "CARGO_WHATSAPP":"15", "CARGO_CHATWEB":"0", "CARGO_TEAMS":"10", "CARGO_TELEFONIA":"20",
+    "PRECIO_INTEGRACION_UNIT":"25", "PRECIO_EXTRA_CONVERSACION":"0.15", "PRECIO_EXTRA_MINUTO":"0.12",
+    "CARGO_IMPL_INTEGRACION":"100", "CARGO_ENTRENAMIENTO":"150", "CARGO_BASE_CONOCIMIENTO":"50"
+  },
+  "formulas": [
+    {"codigo":"COSTO_CHAT","texto":"CONVERSACIONES_MES * COSTO_CONVERSACION"},
+    {"codigo":"COSTO_VOZ","texto":"SI(USA_TELEFONIA; MINUTOS_MES * COSTO_MINUTO_VOZ; 0)"},
+    {"codigo":"PRECIO_CHAT","texto":"COSTO_CHAT / (1 - MARGEN_CHAT)"},
+    {"codigo":"PRECIO_VOZ","texto":"SI(USA_TELEFONIA; COSTO_VOZ / (1 - MARGEN_VOZ); 0)"},
+    {"codigo":"PRECIO_CANALES","texto":"SI(USA_WHATSAPP; CARGO_WHATSAPP; 0) + SI(USA_CHATWEB; CARGO_CHATWEB; 0) + SI(USA_TEAMS; CARGO_TEAMS; 0) + SI(USA_TELEFONIA; CARGO_TELEFONIA; 0)"},
+    {"codigo":"PRECIO_INTEGRACIONES","texto":"SI(INTEGRACION_API; CANTIDAD_INTEGRACIONES * PRECIO_INTEGRACION_UNIT; 0)"},
+    {"codigo":"PRECIO_IMPLEMENTACION","texto":"COMPLEJIDAD_IMPL + SI(INTEGRACION_API; CANTIDAD_INTEGRACIONES * CARGO_IMPL_INTEGRACION; 0) + SI(ENTRENAMIENTO_PERSONAL; CARGO_ENTRENAMIENTO; 0) + SI(BASE_CONOCIMIENTO; CARGO_BASE_CONOCIMIENTO; 0)"},
+    {"codigo":"CONSUMO_EXTRA_CHAT","texto":"CONVERSACIONES_EXTRA * PRECIO_EXTRA_CONVERSACION"},
+    {"codigo":"CONSUMO_EXTRA_VOZ","texto":"SI(USA_TELEFONIA; MINUTOS_EXTRA * PRECIO_EXTRA_MINUTO; 0)"},
+    {"codigo":"TOTAL_MENSUAL","operacion":"SUMA","operandos":["PRECIO_CHAT","PRECIO_VOZ","PRECIO_CANALES","PRECIO_INTEGRACIONES","CONSUMO_EXTRA_CHAT","CONSUMO_EXTRA_VOZ"]},
+    {"codigo":"TOTAL_INICIAL","texto":"PRECIO_IMPLEMENTACION"},
+    {"codigo":"TOTAL_PRIMER_MES","operacion":"SUMA","operandos":["TOTAL_INICIAL","TOTAL_MENSUAL"]}
+  ],
+  "derivados_salidas": [
+    {"codigo":"TOTAL_COSTO","operacion":"SUMA","operandos":["COSTO_CHAT","COSTO_VOZ"]},
+    {"codigo":"TOTAL_GANANCIA","operacion":"RESTA","operandos":["TOTAL_MENSUAL","TOTAL_COSTO"]},
+    {"codigo":"MARGEN_TOTAL","texto":"(1 - TOTAL_COSTO / TOTAL_MENSUAL) * 100","tipo_resultado":"PORCENTAJE"}
+  ],
+  "escenarios": [
+    {"nombre":"Recomendada","recomendada":true,"valores":{}},
+    {"nombre":"Solo Chat","recomendada":false,"valores":{"CONVERSACIONES_MES":"CONV_2500","USA_TELEFONIA":"NO"}},
+    {"nombre":"Multicanal","recomendada":false,"valores":{"CONVERSACIONES_MES":"CONV_5000","MINUTOS_MES":"MIN_2500","USA_TEAMS":"SI"}}
+  ]
+}
