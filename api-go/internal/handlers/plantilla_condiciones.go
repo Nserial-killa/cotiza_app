@@ -48,6 +48,9 @@ type guardarCondicionBloqueRequest struct {
 // PlantillaVinculacionesHandler.Guardar.
 func (h *PlantillaCondicionesHandler) Guardar(w http.ResponseWriter, r *http.Request) {
 	bloqueID := strings.TrimSpace(chi.URLParam(r, "bloque_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "bloque", bloqueID) {
+		return
+	}
 	var req guardarCondicionBloqueRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -159,6 +162,9 @@ func fuenteCondicionValida(ctx context.Context, db *pgxpool.Pool, fuenteTipo, fu
 // Eliminar responde DELETE /api/plantillas/bloques/{bloque_id}/condicion?calculadora_id=...
 func (h *PlantillaCondicionesHandler) Eliminar(w http.ResponseWriter, r *http.Request) {
 	bloqueID := strings.TrimSpace(chi.URLParam(r, "bloque_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "bloque", bloqueID) {
+		return
+	}
 	calculadoraID := strings.TrimSpace(r.URL.Query().Get("calculadora_id"))
 	if bloqueID == "" || calculadoraID == "" {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar bloque y calculadora_id."})

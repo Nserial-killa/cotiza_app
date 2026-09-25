@@ -95,6 +95,22 @@ type plantillaBloque struct {
 	Vinculaciones []plantillaVinculacion  `json:"vinculaciones"`
 	Condiciones   []plantillaCondicion    `json:"condiciones"`
 	Columnas      []plantillaTablaColumna `json:"columnas"`
+	Campos        []plantillaBloqueCampo  `json:"campos"`
+}
+
+// plantillaBloqueCampo es un par Etiqueta/Valor de un bloque PORTADA,
+// DATOS_CLIENTE, GRUPO_INFORMACION, CONDICIONES_COMERCIALES o
+// FIRMA_ACEPTACION (migración 0029). calculadora_id solo viene en una
+// fuente CAMPO; los comunes a todos los cotizadores lo traen en null.
+type plantillaBloqueCampo struct {
+	CampoID       string  `json:"campo_id"`
+	BloqueID      string  `json:"bloque_id"`
+	CalculadoraID *string `json:"calculadora_id"`
+	Etiqueta      string  `json:"etiqueta"`
+	FuenteTipo    string  `json:"fuente_tipo"`
+	FuenteID      *string `json:"fuente_id"`
+	ValorFijo     *string `json:"valor_fijo"`
+	Orden         int     `json:"orden"`
 }
 
 // plantillaCondicion es "mostrar este bloque solo si..." (migración 0025,
@@ -461,6 +477,7 @@ func (h *PlantillasHandler) consultarBloques(ctx context.Context, seccionID stri
 		bloque.Vinculaciones = make([]plantillaVinculacion, 0)
 		bloque.Condiciones = make([]plantillaCondicion, 0)
 		bloque.Columnas = make([]plantillaTablaColumna, 0)
+		bloque.Campos = make([]plantillaBloqueCampo, 0)
 		bloques = append(bloques, bloque)
 	}
 	if err := rows.Err(); err != nil {
@@ -529,6 +546,26 @@ func (h *PlantillasHandler) consultarBloques(ctx context.Context, seccionID stri
 			return nil, err
 		}
 		columnas.Close()
+
+		campos, err := h.DB.Query(ctx, `
+			SELECT campo_id::text, bloque_id::text, calculadora_id, etiqueta, fuente_tipo, fuente_id, valor_fijo, orden
+			  FROM plantilla_bloque_campos WHERE bloque_id::text=$1 ORDER BY orden, campo_id`, bloques[i].BloqueID)
+		if err != nil {
+			return nil, err
+		}
+		for campos.Next() {
+			var c plantillaBloqueCampo
+			if err := campos.Scan(&c.CampoID, &c.BloqueID, &c.CalculadoraID, &c.Etiqueta, &c.FuenteTipo, &c.FuenteID, &c.ValorFijo, &c.Orden); err != nil {
+				campos.Close()
+				return nil, err
+			}
+			bloques[i].Campos = append(bloques[i].Campos, c)
+		}
+		if err := campos.Err(); err != nil {
+			campos.Close()
+			return nil, err
+		}
+		campos.Close()
 	}
 	return bloques, nil
 }
@@ -588,7 +625,7 @@ func (h *PlantillasHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.CrearDesde != "" && req.CrearDesde != "PLANTILLA_VACIA" {
-		if err := copiarContenidoPlantilla(ctx, tx, req.CrearDesde, plantillaID); errors.Is(err, pgx.ErrNoRows) {
+		if err := copiarContenidoPlantilla(ctx, tx, req.CrearDesde, plantillaID, false); errors.Is(err, pgx.ErrNoRows) {
 			escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "La plantilla indicada como base no existe."})
 			return
 		} else if err != nil {
@@ -660,12 +697,21 @@ func (h *PlantillasHandler) Editar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(ctx)
-	var existe bool
-	if err := tx.QueryRow(ctx, `SELECT true FROM plantillas WHERE plantilla_id::text=$1 FOR UPDATE`, id).Scan(&existe); errors.Is(err, pgx.ErrNoRows) {
+	var estadoActual string
+	var versionActual int
+	if err := tx.QueryRow(ctx, `SELECT estado, version FROM plantillas WHERE plantilla_id::text=$1 FOR UPDATE`, id).Scan(&estadoActual, &versionActual); errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Plantilla no encontrada."})
 		return
 	} else if err != nil {
 		responderErrorPlantilla(w, "validar la plantilla", err)
+		return
+	}
+	// Publicación controlada (Ronda P5): en una versión publicada solo se
+	// pueden cambiar las dos banderas de disponibilidad, que no alteran el
+	// documento. Todo lo demás necesita una versión nueva.
+	if estadoActual != "Borrador" && (req.Nombre != nil || req.Descripcion != nil || req.OrganizacionID != nil ||
+		req.CalculadoraIDs != nil || req.TiposPropuesta != nil) {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": mensajePlantillaBloqueada(estadoActual, versionActual)})
 		return
 	}
 	organizacionID := ""
@@ -739,17 +785,15 @@ func (h *PlantillasHandler) Editar(w http.ResponseWriter, r *http.Request) {
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "plantilla_id": id, "mensaje": "Plantilla actualizada."})
 }
 
+// Publicar valida la plantilla completa (validarPlantilla) y, sin errores,
+// la publica: la versión anterior del mismo codigo que estuviera Publicada
+// pasa a Archivada en la misma transacción, y desde ese momento esta
+// versión queda bloqueada para edición directa (plantilla_versiones.go).
 func (h *PlantillasHandler) Publicar(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	var existe, tieneContenido bool
-	err := h.DB.QueryRow(ctx, `
-		SELECT true, EXISTS(
-			SELECT 1 FROM plantilla_secciones ps
-			JOIN plantilla_bloques pb ON pb.seccion_id=ps.seccion_id
-			WHERE ps.plantilla_id=p.plantilla_id)
-		FROM plantillas p WHERE p.plantilla_id::text=$1`, id).Scan(&existe, &tieneContenido)
+	validacion, err := validarPlantilla(ctx, h.DB, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Plantilla no encontrada."})
 		return
@@ -758,15 +802,56 @@ func (h *PlantillasHandler) Publicar(w http.ResponseWriter, r *http.Request) {
 		responderErrorPlantilla(w, "validar la publicación", err)
 		return
 	}
-	if !tieneContenido {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "La plantilla debe tener al menos una sección con al menos un bloque antes de publicarse."})
+	if validacion.Resumen.Estado != "Borrador" {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": fmt.Sprintf("La versión %d ya está %s.", validacion.Resumen.Version, validacion.Resumen.Estado)})
 		return
 	}
-	if _, err := h.DB.Exec(ctx, `UPDATE plantillas SET estado='Publicada' WHERE plantilla_id::text=$1`, id); err != nil {
+	if errores := validacion.errores(); len(errores) > 0 {
+		mensaje := errores[0].Mensaje
+		if len(errores) > 1 {
+			mensaje = fmt.Sprintf("La plantilla tiene %d errores que impiden publicarla. Primero: %s", len(errores), errores[0].Mensaje)
+		}
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": mensaje, "validacion": validacion})
+		return
+	}
+
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		responderErrorPlantilla(w, "iniciar la publicación", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+	var codigo, estado string
+	var version int
+	if err := tx.QueryRow(ctx, `SELECT codigo, estado, version FROM plantillas WHERE plantilla_id::text=$1 FOR UPDATE`, id).Scan(&codigo, &estado, &version); err != nil {
+		responderErrorPlantilla(w, "validar la publicación", err)
+		return
+	}
+	if estado != "Borrador" {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": fmt.Sprintf("La versión %d ya está %s.", version, estado)})
+		return
+	}
+	tag, err := tx.Exec(ctx, `UPDATE plantillas SET estado='Archivada' WHERE codigo=$1 AND estado='Publicada' AND plantilla_id::text<>$2`, codigo, id)
+	if err != nil {
+		responderErrorPlantilla(w, "archivar la versión anterior", err)
+		return
+	}
+	if _, err := tx.Exec(ctx, `UPDATE plantillas SET estado='Publicada' WHERE plantilla_id::text=$1`, id); err != nil {
 		responderErrorPlantilla(w, "publicar la plantilla", err)
 		return
 	}
-	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "plantilla_id": id, "estado": "Publicada", "mensaje": "Plantilla publicada."})
+	if err := tx.Commit(ctx); err != nil {
+		responderErrorPlantilla(w, "confirmar la publicación", err)
+		return
+	}
+	mensaje := fmt.Sprintf("Versión %d publicada. Quedó bloqueada: para cambiarla, cree una nueva versión.", version)
+	if tag.RowsAffected() > 0 {
+		mensaje = fmt.Sprintf("Versión %d publicada; la versión anterior quedó archivada. Esta versión quedó bloqueada: para cambiarla, cree una nueva versión.", version)
+	}
+	escribirJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "plantilla_id": id, "estado": "Publicada", "version": version,
+		"advertencias": validacion.advertencias(), "mensaje": mensaje,
+	})
 }
 
 func (h *PlantillasHandler) Eliminar(w http.ResponseWriter, r *http.Request) {
@@ -774,7 +859,8 @@ func (h *PlantillasHandler) Eliminar(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	var estado string
-	err := h.DB.QueryRow(ctx, `SELECT estado FROM plantillas WHERE plantilla_id::text=$1`, id).Scan(&estado)
+	var version int
+	err := h.DB.QueryRow(ctx, `SELECT estado, version FROM plantillas WHERE plantilla_id::text=$1`, id).Scan(&estado, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Plantilla no encontrada."})
 		return
@@ -793,15 +879,20 @@ func (h *PlantillasHandler) Eliminar(w http.ResponseWriter, r *http.Request) {
 	// un mismo cotizador elige UNA para mostrar): acá no importa cuál
 	// terminaría resolviendo esa cotización — si existe AL MENOS UNA
 	// cotización de un cotizador vinculado a esta plantilla, se bloquea.
+	// Un borrador de versión 2 en adelante nunca se mostró en ninguna oferta
+	// (el renderizador solo usa Publicadas; la versión publicada sigue siendo
+	// otra fila), así que descartarlo no requiere el chequeo de PLA-012.
 	var enUso bool
-	if err := h.DB.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM cotizaciones c
-			JOIN plantilla_calculadoras pc ON pc.calculadora_id = c.calculadora_id
-			WHERE pc.plantilla_id::text = $1
-		)`, id).Scan(&enUso); err != nil {
-		responderErrorPlantilla(w, "validar si la plantilla está en uso", err)
-		return
+	if version == 1 {
+		if err := h.DB.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM cotizaciones c
+				JOIN plantilla_calculadoras pc ON pc.calculadora_id = c.calculadora_id
+				WHERE pc.plantilla_id::text = $1
+			)`, id).Scan(&enUso); err != nil {
+			responderErrorPlantilla(w, "validar si la plantilla está en uso", err)
+			return
+		}
 	}
 	if enUso {
 		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "No se puede eliminar: existen cotizaciones de un cotizador que usa esta plantilla."})
@@ -865,7 +956,12 @@ func insertarTiposPlantilla(ctx context.Context, tx pgx.Tx, plantillaID string, 
 	return nil
 }
 
-func copiarContenidoPlantilla(ctx context.Context, tx pgx.Tx, origenID, destinoID string) error {
+// copiarContenidoPlantilla copia secciones, bloques y estilo. completo=false
+// es "crear desde otra plantilla" (puede tener otros cotizadores: solo se
+// copia lo que no depende de uno); completo=true es una versión nueva de la
+// MISMA plantilla (NuevaVersion) y copia además todo lo que va por
+// cotizador: vinculaciones, condiciones, columnas y campos CAMPO.
+func copiarContenidoPlantilla(ctx context.Context, tx pgx.Tx, origenID, destinoID string, completo bool) error {
 	var existe bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM plantillas WHERE plantilla_id::text=$1)`, origenID).Scan(&existe); err != nil {
 		return err
@@ -914,12 +1010,7 @@ func copiarContenidoPlantilla(ctx context.Context, tx pgx.Tx, origenID, destinoI
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO plantilla_bloques
-				(seccion_id,tipo_bloque,nombre_interno,titulo,contenido,columna,mostrar_web,mostrar_pdf,orden)
-			SELECT $1, tipo_bloque, nombre_interno, titulo, contenido, columna, mostrar_web, mostrar_pdf, orden
-			  FROM plantilla_bloques WHERE seccion_id::text=$2`, nuevaSeccionID, s.id)
-		if err != nil {
+		if err := copiarBloquesSeccion(ctx, tx, s.id, nuevaSeccionID, completo); err != nil {
 			return err
 		}
 	}
@@ -937,6 +1028,66 @@ func copiarContenidoPlantilla(ctx context.Context, tx pgx.Tx, origenID, destinoI
 		       numerar_paginas, marca_confidencial
 		  FROM plantilla_estilos WHERE plantilla_id::text=$2`, destinoID, origenID)
 	return err
+}
+
+// copiarBloquesSeccion copia los bloques de una sección con su origen_filas
+// y sus campos COMUNES (plantilla_bloque_campos sin calculadora_id). Igual
+// que las vinculaciones, condiciones y columnas, lo que depende de un
+// cotizador puntual no se copia: la plantilla nueva puede tener otros
+// cotizadores, y un campo de otro vocabulario quedaría apuntando a nada.
+func copiarBloquesSeccion(ctx context.Context, tx pgx.Tx, origenSeccionID, destinoSeccionID string, completo bool) error {
+	rows, err := tx.Query(ctx, `SELECT bloque_id::text FROM plantilla_bloques WHERE seccion_id::text=$1 ORDER BY orden, bloque_id`, origenSeccionID)
+	if err != nil {
+		return err
+	}
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, origenID := range ids {
+		var nuevoID string
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO plantilla_bloques
+				(seccion_id,tipo_bloque,nombre_interno,titulo,contenido,columna,mostrar_web,mostrar_pdf,orden,origen_filas)
+			SELECT $1, tipo_bloque, nombre_interno, titulo, contenido, columna, mostrar_web, mostrar_pdf, orden, origen_filas
+			  FROM plantilla_bloques WHERE bloque_id::text=$2
+			RETURNING bloque_id::text`, destinoSeccionID, origenID).Scan(&nuevoID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO plantilla_bloque_campos (bloque_id,calculadora_id,etiqueta,fuente_tipo,fuente_id,valor_fijo,orden)
+			SELECT $1::uuid, calculadora_id, etiqueta, fuente_tipo, fuente_id, valor_fijo, orden
+			  FROM plantilla_bloque_campos
+			 WHERE bloque_id::text=$2 AND ($3 OR calculadora_id IS NULL)`, nuevoID, origenID, completo); err != nil {
+			return err
+		}
+		if !completo {
+			continue
+		}
+		for _, consulta := range []string{
+			`INSERT INTO plantilla_vinculaciones (bloque_id,calculadora_id,fuente_tipo,fuente_id)
+			 SELECT $1::uuid, calculadora_id, fuente_tipo, fuente_id FROM plantilla_vinculaciones WHERE bloque_id::text=$2`,
+			`INSERT INTO plantilla_bloque_condiciones (bloque_id,calculadora_id,fuente_tipo,fuente_id,operador,valor_comparacion)
+			 SELECT $1::uuid, calculadora_id, fuente_tipo, fuente_id, operador, valor_comparacion FROM plantilla_bloque_condiciones WHERE bloque_id::text=$2`,
+			`INSERT INTO plantilla_tabla_columnas (bloque_id,calculadora_id,titulo,fuente_tipo,fuente_id,orden)
+			 SELECT $1::uuid, calculadora_id, titulo, fuente_tipo, fuente_id, orden FROM plantilla_tabla_columnas WHERE bloque_id::text=$2`,
+		} {
+			if _, err := tx.Exec(ctx, consulta, nuevoID, origenID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func boolPredeterminado(valor *bool, predeterminado bool) bool {

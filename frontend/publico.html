@@ -27,9 +27,22 @@
     .empty{padding:20px 22px;color:var(--muted)}
     .status{display:grid;min-height:66vh;place-items:center;text-align:center}.status-card{width:min(520px,100%);padding:42px 30px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 15px 42px rgba(21,44,76,.08)}
     .status-icon{display:grid;width:54px;height:54px;margin:0 auto 18px;place-items:center;border-radius:50%;background:#eaf1ff;color:var(--blue);font-size:24px;font-weight:800}.status h1{font-size:24px}.status p{margin:10px 0 0;color:var(--muted)}
+    .block-title{margin:0;padding:16px 22px 0;font-size:15px;color:var(--navy)}
+    .rich{padding:15px 22px}.rich p{margin:0 0 8px;white-space:pre-wrap}.rich p:last-child{margin-bottom:0}.rich ul{margin:0 0 8px;padding-left:22px}.rich li{margin:2px 0}
+    .heading{margin:0;padding:18px 22px 4px;font-size:20px;letter-spacing:-.01em;color:var(--navy)}
+    .summary{margin:15px 22px;padding:14px 18px;border-left:4px solid var(--blue);border-radius:8px;background:#f2f7ff}.summary .rich{padding:0}
+    .cover{padding:34px 22px 26px;text-align:center}.cover h3{margin:0;font-size:clamp(24px,4vw,34px);letter-spacing:-.03em;color:var(--navy)}.cover .rich{max-width:620px;margin:0 auto;padding:10px 0 0;color:var(--muted);text-align:left}
+    .pairs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px;margin:0;padding:15px 22px}.pairs div{min-width:0;padding-bottom:10px;border-bottom:1px solid #edf1f6}
+    .pairs dt{color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}.pairs dd{margin:3px 0 0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .data-table{width:100%;border-collapse:collapse}.data-table th{padding:10px 12px;border-bottom:2px solid var(--line);text-align:left;font-size:12px}.data-table td{padding:10px 12px;border-bottom:1px solid #edf1f6;font-size:14px;vertical-align:top}
+    .data-table .num{text-align:right;white-space:nowrap}.data-table tr.chosen td{background:#f2f7ff;font-weight:600}.table-wrap{overflow-x:auto;padding:4px 10px 10px}
+    .image{display:block;max-width:100%;height:auto;margin:15px auto;border-radius:10px}
+    .signature{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;padding:30px 22px 22px}.signature span{display:block;padding-top:8px;border-top:1px solid var(--ink);color:var(--muted);font-size:12px;text-align:center}
+    .page-break{height:0}
     footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center}
+    @media print{body{background:#fff}.page-break{break-after:page}.section{box-shadow:none;break-inside:avoid-page}}
     [hidden]{display:none!important}
-    @media(max-width:680px){.shell{margin-top:16px}.hero-top,.hero-body{padding:22px}.hero-body{grid-template-columns:1fr}.total{text-align:left}.meta{grid-template-columns:1fr}.field-row{grid-template-columns:1fr;gap:5px}}
+    @media(max-width:680px){.shell{margin-top:16px}.hero-top,.hero-body{padding:22px}.hero-body{grid-template-columns:1fr}.total{text-align:left}.meta{grid-template-columns:1fr}.field-row{grid-template-columns:1fr;gap:5px}.pairs,.signature{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -71,8 +84,55 @@
         document.getElementById("estadoTitulo").textContent="Este enlace no es válido o ya venció.";
         document.getElementById("estadoTexto").textContent="Solicite un enlace nuevo a la persona que le compartió la propuesta.";
       }
+      function nodo(etiqueta,clase,contenido){
+        var el=document.createElement(etiqueta);if(clase)el.className=clase;
+        if(contenido!==undefined)el.textContent=contenido;return el;
+      }
+      // Texto enriquecido de la plantilla: las líneas que empiezan con "• "
+      // (botón "+ Agregar viñeta" del editor) son viñetas; el resto, párrafos.
+      function textoEnriquecido(contenido){
+        var caja=nodo("div","rich"),parrafo=[],lista=null;
+        function cerrarParrafo(){if(parrafo.length){caja.appendChild(nodo("p","",parrafo.join("\n")));parrafo=[];}}
+        String(contenido||"").split("\n").forEach(function(linea){
+          var vineta=/^\s*•\s?(.*)$/.exec(linea);
+          if(vineta){cerrarParrafo();if(!lista){lista=nodo("ul");caja.appendChild(lista);}lista.appendChild(nodo("li","",vineta[1]));return;}
+          lista=null;
+          if(linea.trim()==="")cerrarParrafo();else parrafo.push(linea);
+        });
+        cerrarParrafo();
+        return caja;
+      }
+      // Pares Etiqueta/Valor (Datos del cliente, Grupo de información,
+      // Condiciones comerciales, Portada, Firma) en grilla de 2 columnas.
+      function grillaPares(campos){
+        var lista=nodo("dl","pairs");
+        (Array.isArray(campos)?campos:[]).forEach(function(campo){
+          var par=document.createElement("div");
+          par.append(nodo("dt","",texto(campo.etiqueta)),nodo("dd","",texto(campo.valor)));
+          lista.appendChild(par);
+        });
+        return lista;
+      }
+      function tabla(columnas,filas,numericas){
+        var envoltorio=nodo("div","table-wrap"),t=nodo("table","data-table"),trh=document.createElement("tr");
+        columnas.forEach(function(c,i){var th=nodo("th",numericas&&numericas[i]?"num":"",texto(c));trh.appendChild(th);});
+        var thead=document.createElement("thead");thead.appendChild(trh);t.appendChild(thead);
+        var tbody=document.createElement("tbody");
+        filas.forEach(function(fila){
+          var tr=document.createElement("tr");if(fila.clase)tr.className=fila.clase;
+          (fila.celdas||fila).forEach(function(valor,i){tr.appendChild(nodo("td",numericas&&numericas[i]?"num":"",texto(valor)));});
+          tbody.appendChild(tr);
+        });
+        t.appendChild(tbody);envoltorio.appendChild(t);return envoltorio;
+      }
+      function conTitulo(bloque,cuerpo){
+        var caja=document.createElement("div");
+        if(bloque.titulo)caja.appendChild(nodo("h3","block-title",bloque.titulo));
+        caja.appendChild(cuerpo);return caja;
+      }
       function renderBloque(bloque){
         var tipo=bloque.tipo_bloque;
+        if(tipo==="SALTO_PAGINA"){var salto=nodo("div","page-break");salto.setAttribute("aria-hidden","true");return salto;}
         if(tipo==="CAMPO_VINCULADO"){
           var lista=document.createElement("dl");lista.className="fields";
           var fila=document.createElement("div");fila.className="field-row";
@@ -81,27 +141,54 @@
           fila.append(dt,dd);lista.appendChild(fila);
           return lista;
         }
-        if(tipo==="TABLA_INVERSION"){
+        if(tipo==="PORTADA"){
+          var portada=nodo("div","cover");
+          if(bloque.titulo)portada.appendChild(nodo("h3","",bloque.titulo));
+          if(bloque.contenido)portada.appendChild(textoEnriquecido(bloque.contenido));
+          var envoltorioPortada=document.createElement("div");envoltorioPortada.appendChild(portada);
+          if(Array.isArray(bloque.campos)&&bloque.campos.length)envoltorioPortada.appendChild(grillaPares(bloque.campos));
+          return envoltorioPortada;
+        }
+        if(tipo==="ENCABEZADO")return nodo("h3","heading",texto(bloque.titulo||bloque.contenido));
+        if(tipo==="RESUMEN_EJECUTIVO"){var resumen=nodo("div","summary");resumen.appendChild(textoEnriquecido(bloque.contenido));return conTitulo(bloque,resumen);}
+        if(tipo==="IMAGEN"){
+          var url=String(bloque.contenido||"").trim();
+          if(/^https?:\/\//i.test(url)){var img=nodo("img","image");img.src=url;img.alt=bloque.titulo||"Imagen de la propuesta";img.loading="lazy";return img;}
+          return textoEnriquecido(url);
+        }
+        if(tipo==="DATOS_CLIENTE"||tipo==="GRUPO_INFORMACION"||tipo==="CONDICIONES_COMERCIALES"){
+          var pares=document.createElement("div");
+          if(bloque.contenido)pares.appendChild(textoEnriquecido(bloque.contenido));
+          pares.appendChild(grillaPares(bloque.campos));
+          return conTitulo(bloque,pares);
+        }
+        if(tipo==="FIRMA_ACEPTACION"){
+          var firma=document.createElement("div");
+          if(bloque.contenido)firma.appendChild(textoEnriquecido(bloque.contenido));
+          if(Array.isArray(bloque.campos)&&bloque.campos.length)firma.appendChild(grillaPares(bloque.campos));
+          var espacio=nodo("div","signature");espacio.append(nodo("span","","Firma"),nodo("span","","Fecha"));firma.appendChild(espacio);
+          return conTitulo(bloque,firma);
+        }
+        if(tipo==="LISTA_PRECIOS"){
+          var items=Array.isArray(bloque.items)?bloque.items:[];
+          if(!items.length)return conTitulo(bloque,nodo("p","empty","Sin precios para mostrar."));
+          var conCantidad=items.some(function(i){return i.cantidad!==undefined&&i.cantidad!==null;});
+          var columnasLista=["Código","Nombre","Descripción","Precio"].concat(conCantidad?["Cantidad"]:[]);
+          var filasLista=items.map(function(i){
+            var celdas=[i.codigo,i.nombre,i.descripcion,dinero(i.precio,i.moneda)+(i.unidad_cobro?" / "+i.unidad_cobro:"")];
+            if(conCantidad)celdas.push(i.cantidad);
+            return {celdas:celdas,clase:i.seleccionado?"chosen":""};
+          });
+          return conTitulo(bloque,tabla(columnasLista,filasLista,[false,false,false,true,true]));
+        }
+        if(tipo==="TABLA_INVERSION"||tipo==="TABLA_DATOS"||tipo==="OPCIONES_PROPUESTA"){
           var columnas=Array.isArray(bloque.columnas)?bloque.columnas:[];
           var filas=Array.isArray(bloque.filas)?bloque.filas:[];
-          var envoltorio=document.createElement("div");
-          if(!filas.length){var vacio=document.createElement("p");vacio.className="empty";vacio.textContent="Sin datos para mostrar en esta tabla.";envoltorio.appendChild(vacio);return envoltorio;}
-          var tabla=document.createElement("table");tabla.style.width="100%";tabla.style.borderCollapse="collapse";
-          var thead=document.createElement("thead");var trh=document.createElement("tr");
-          columnas.forEach(function(c){var th=document.createElement("th");th.style.textAlign="left";th.style.padding="10px 12px";th.style.borderBottom="2px solid var(--line)";th.textContent=texto(c);trh.appendChild(th);});
-          thead.appendChild(trh);tabla.appendChild(thead);
-          var tbody=document.createElement("tbody");
-          filas.forEach(function(filaValores){
-            var tr=document.createElement("tr");
-            (Array.isArray(filaValores)?filaValores:[]).forEach(function(valor){var td=document.createElement("td");td.style.padding="10px 12px";td.style.borderBottom="1px solid #edf1f6";td.textContent=texto(valor);tr.appendChild(td);});
-            tbody.appendChild(tr);
-          });
-          tabla.appendChild(tbody);envoltorio.appendChild(tabla);
-          return envoltorio;
+          if(!filas.length)return conTitulo(bloque,nodo("p","empty","Sin datos para mostrar en esta tabla."));
+          return conTitulo(bloque,tabla(columnas,filas.map(function(f){return Array.isArray(f)?f:[];})));
         }
-        var parrafo=document.createElement("p");parrafo.style.margin="0";parrafo.style.padding="15px 22px";parrafo.style.whiteSpace="pre-wrap";
-        parrafo.textContent=texto(bloque.contenido);
-        return parrafo;
+        // TEXTO y heredados (LISTA, CONDICIONES): contenido libre.
+        return textoEnriquecido(bloque.contenido);
       }
       function renderPlantilla(plantilla,contenedor){
         var secciones=Array.isArray(plantilla.secciones)?plantilla.secciones:[];

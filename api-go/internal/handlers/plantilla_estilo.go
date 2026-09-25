@@ -53,6 +53,9 @@ var colorHexEstilo = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
 func (h *PlantillaEstiloHandler) Actualizar(w http.ResponseWriter, r *http.Request) {
 	plantillaID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "plantilla", plantillaID) {
+		return
+	}
 	var req editarEstiloRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})

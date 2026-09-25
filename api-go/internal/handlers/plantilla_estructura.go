@@ -72,6 +72,48 @@ type editarBloqueRequest struct {
 // — no vale la pena una columna nullable solo para un tipo de bloque.
 var origenesFilasBloque = map[string]bool{"FIJO": true, "OPCIONES_PROPUESTA": true}
 
+// tiposBloquePlantilla son los tipos de bloque que el API acepta. La
+// columna tipo_bloque es TEXT libre (migración 0010), así que esta es la
+// única lista válida: los 14 de la paleta "Bloques disponibles"
+// (plantillas_app.html, mismo texto que la plantilla real de producción)
+// más 3 heredados que ya no aparecen en la paleta pero siguen
+// renderizándose porque hay plantillas guardadas con ellos (la de ISA
+// Custom, internal/isacustom/plantilla.go): LISTA, CAMPO_VINCULADO y
+// CONDICIONES — este último reemplazado por CONDICIONES_COMERCIALES, que ya
+// no es texto libre sino pares Concepto/Valor (plantilla_bloque_campos).
+var tiposBloquePlantilla = map[string]bool{
+	"PORTADA": true, "ENCABEZADO": true, "TEXTO": true, "IMAGEN": true,
+	"DATOS_CLIENTE": true, "RESUMEN_EJECUTIVO": true, "TABLA_INVERSION": true,
+	"TABLA_DATOS": true, "OPCIONES_PROPUESTA": true, "LISTA_PRECIOS": true,
+	"GRUPO_INFORMACION": true, "CONDICIONES_COMERCIALES": true,
+	"FIRMA_ACEPTACION": true, "SALTO_PAGINA": true,
+	"LISTA": true, "CAMPO_VINCULADO": true, "CONDICIONES": true,
+}
+
+// contenidoPredeterminadoBloque es el texto con el que nace un bloque si
+// quien lo crea no manda contenido. Solo FIRMA_ACEPTACION lo necesita: su
+// texto de aceptación es fijo y casi siempre el mismo (editable después).
+var contenidoPredeterminadoBloque = map[string]string{
+	"FIRMA_ACEPTACION": "Con la firma de este documento, el cliente acepta la presente propuesta y sus condiciones comerciales.",
+}
+
+const mensajePortadaDuplicada = "La plantilla ya tiene una portada; solo puede existir una por plantilla."
+
+// plantillaTienePortada dice si la plantilla ya tiene un bloque PORTADA
+// distinto de excluirBloqueID. Se llama con la fila de la plantilla
+// bloqueada (FOR UPDATE) para que dos altas simultáneas no terminen con
+// dos portadas.
+func plantillaTienePortada(ctx context.Context, tx pgx.Tx, plantillaID, excluirBloqueID string) (bool, error) {
+	var existe bool
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM plantilla_bloques pb
+			JOIN plantilla_secciones ps ON ps.seccion_id=pb.seccion_id
+			WHERE ps.plantilla_id::text=$1 AND pb.tipo_bloque='PORTADA'
+			  AND pb.bloque_id::text<>$2)`, plantillaID, excluirBloqueID).Scan(&existe)
+	return existe, err
+}
+
 var visibilidadesSeccion = map[string]bool{"SIEMPRE": true, "CONDICIONAL": true}
 var disenosBloquesSeccion = map[string]bool{
 	"UNA": true, "DOS_50_50": true, "DOS_30_70": true,
@@ -80,6 +122,9 @@ var disenosBloquesSeccion = map[string]bool{
 
 func (h *PlantillaEstructuraHandler) CrearSeccion(w http.ResponseWriter, r *http.Request) {
 	plantillaID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "plantilla", plantillaID) {
+		return
+	}
 	var req crearSeccionRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -139,6 +184,9 @@ func (h *PlantillaEstructuraHandler) CrearSeccion(w http.ResponseWriter, r *http
 
 func (h *PlantillaEstructuraHandler) EditarSeccion(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "seccion_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "seccion", id) {
+		return
+	}
 	var req editarSeccionRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -208,6 +256,9 @@ func (h *PlantillaEstructuraHandler) EditarSeccion(w http.ResponseWriter, r *htt
 
 func (h *PlantillaEstructuraHandler) EliminarSeccion(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "seccion_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "seccion", id) {
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	tag, err := h.DB.Exec(ctx, `DELETE FROM plantilla_secciones WHERE seccion_id::text=$1`, id)
@@ -224,6 +275,9 @@ func (h *PlantillaEstructuraHandler) EliminarSeccion(w http.ResponseWriter, r *h
 
 func (h *PlantillaEstructuraHandler) OrdenarSecciones(w http.ResponseWriter, r *http.Request) {
 	anclaID := strings.TrimSpace(chi.URLParam(r, "seccion_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "seccion", anclaID) {
+		return
+	}
 	ids, err := decodificarOrden(r, "seccion_ids")
 	if err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -259,6 +313,9 @@ func (h *PlantillaEstructuraHandler) OrdenarSecciones(w http.ResponseWriter, r *
 
 func (h *PlantillaEstructuraHandler) CrearBloque(w http.ResponseWriter, r *http.Request) {
 	seccionID := strings.TrimSpace(chi.URLParam(r, "seccion_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "seccion", seccionID) {
+		return
+	}
 	var req crearBloqueRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -276,6 +333,18 @@ func (h *PlantillaEstructuraHandler) CrearBloque(w http.ResponseWriter, r *http.
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar sección, tipo_bloque y nombre_interno."})
 		return
 	}
+	if !tiposBloquePlantilla[req.TipoBloque] {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_bloque no es un tipo de bloque válido."})
+		return
+	}
+	// Opciones de propuesta es la tabla comparativa de escenarios: siempre
+	// una fila por opción, no un origen que se elija.
+	if req.TipoBloque == "OPCIONES_PROPUESTA" {
+		req.OrigenFilas = "OPCIONES_PROPUESTA"
+	}
+	if req.Contenido == "" {
+		req.Contenido = contenidoPredeterminadoBloque[req.TipoBloque]
+	}
 	if req.Columna < 0 || req.Columna > 3 {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "columna debe estar entre 0 y 3."})
 		return
@@ -284,20 +353,61 @@ func (h *PlantillaEstructuraHandler) CrearBloque(w http.ResponseWriter, r *http.
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "origen_filas debe ser FIJO u OPCIONES_PROPUESTA."})
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	var existe bool
-	if err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM plantilla_secciones WHERE seccion_id::text=$1)`, seccionID).Scan(&existe); err != nil {
-		responderErrorEstructura(w, "validar la sección", err)
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		responderErrorEstructura(w, "iniciar la creación del bloque", err)
 		return
 	}
-	if !existe {
+	defer tx.Rollback(ctx)
+	var plantillaID string
+	err = tx.QueryRow(ctx, `
+		SELECT p.plantilla_id::text
+		  FROM plantilla_secciones ps
+		  JOIN plantillas p ON p.plantilla_id=ps.plantilla_id
+		 WHERE ps.seccion_id::text=$1
+		   FOR UPDATE OF p`, seccionID).Scan(&plantillaID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Sección no encontrada."})
 		return
 	}
+	if err != nil {
+		responderErrorEstructura(w, "validar la sección", err)
+		return
+	}
+	if req.TipoBloque == "PORTADA" {
+		duplicada, err := plantillaTienePortada(ctx, tx, plantillaID, "")
+		if err != nil {
+			responderErrorEstructura(w, "validar la portada", err)
+			return
+		}
+		if duplicada {
+			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": mensajePortadaDuplicada})
+			return
+		}
+	}
+	bloqueID, orden, err := insertarBloqueTx(ctx, tx, plantillaID, seccionID, req)
+	if err != nil {
+		responderErrorEstructura(w, "crear el bloque", err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		responderErrorEstructura(w, "confirmar la creación del bloque", err)
+		return
+	}
+	escribirJSON(w, http.StatusCreated, map[string]any{"ok": true, "bloque_id": bloqueID, "orden": orden, "mensaje": "Bloque creado."})
+}
+
+// insertarBloqueTx crea un bloque al final de su sección con todo lo que
+// ese tipo trae de fábrica (campos pre-poblados, columnas de escenarios).
+// req ya viene normalizado y validado; lo comparten CrearBloque y la
+// Estructura sugerida para que un bloque nazca igual por cualquiera de los
+// dos caminos.
+func insertarBloqueTx(ctx context.Context, tx pgx.Tx, plantillaID, seccionID string, req crearBloqueRequest) (string, int, error) {
 	var bloqueID string
 	var orden int
-	err := h.DB.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		INSERT INTO plantilla_bloques
 			(seccion_id,tipo_bloque,nombre_interno,titulo,contenido,columna,mostrar_web,mostrar_pdf,orden,origen_filas)
 		SELECT $1::uuid,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,$7,$8,COALESCE(MAX(orden),-1)+1,$9
@@ -306,14 +416,41 @@ func (h *PlantillaEstructuraHandler) CrearBloque(w http.ResponseWriter, r *http.
 		req.Titulo, req.Contenido, req.Columna, boolPredeterminado(req.MostrarWeb, true),
 		boolPredeterminado(req.MostrarPDF, true), req.OrigenFilas).Scan(&bloqueID, &orden)
 	if err != nil {
-		responderErrorEstructura(w, "crear el bloque", err)
-		return
+		return "", 0, err
 	}
-	escribirJSON(w, http.StatusCreated, map[string]any{"ok": true, "bloque_id": bloqueID, "orden": orden, "mensaje": "Bloque creado."})
+	if err := insertarCamposPredeterminados(ctx, tx, bloqueID, req.TipoBloque); err != nil {
+		return "", 0, err
+	}
+	if req.TipoBloque == "OPCIONES_PROPUESTA" {
+		if err := insertarColumnasEscenarios(ctx, tx, bloqueID, plantillaID); err != nil {
+			return "", 0, err
+		}
+	}
+	return bloqueID, orden, nil
+}
+
+// insertarColumnasEscenarios deja una tabla OPCIONES_PROPUESTA recién creada
+// con las dos columnas que toda tabla comparativa de escenarios lleva
+// (Escenario y Recomendada), para cada cotizador ya asociado a la plantilla.
+// Las columnas de montos dependen de cada cotizador y se agregan en el paso
+// 3; un cotizador asociado después arranca sin columnas, como cualquier
+// TABLA_INVERSION.
+func insertarColumnasEscenarios(ctx context.Context, tx pgx.Tx, bloqueID, plantillaID string) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO plantilla_tabla_columnas (bloque_id,calculadora_id,titulo,fuente_tipo,fuente_id,orden)
+		SELECT $1::uuid, pc.calculadora_id, v.titulo, v.fuente_tipo, NULL, v.orden
+		  FROM plantilla_calculadoras pc
+		 CROSS JOIN (VALUES ('Escenario','NOMBRE_ESCENARIO',0), ('Recomendada','ES_RECOMENDADA',1))
+		       AS v(titulo, fuente_tipo, orden)
+		 WHERE pc.plantilla_id::text=$2`, bloqueID, plantillaID)
+	return err
 }
 
 func (h *PlantillaEstructuraHandler) EditarBloque(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "bloque_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "bloque", id) {
+		return
+	}
 	var req editarBloqueRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -325,13 +462,14 @@ func (h *PlantillaEstructuraHandler) EditarBloque(w http.ResponseWriter, r *http
 		valores = append(valores, valor)
 		columnas = append(columnas, columna+"=$"+strconv.Itoa(len(valores)))
 	}
+	nuevoTipo := ""
 	if req.TipoBloque != nil {
-		v := strings.ToUpper(strings.TrimSpace(*req.TipoBloque))
-		if v == "" {
-			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_bloque no puede quedar vacío."})
+		nuevoTipo = strings.ToUpper(strings.TrimSpace(*req.TipoBloque))
+		if !tiposBloquePlantilla[nuevoTipo] {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "tipo_bloque no es un tipo de bloque válido."})
 			return
 		}
-		agregar("tipo_bloque", v)
+		agregar("tipo_bloque", nuevoTipo)
 	}
 	if req.NombreInterno != nil {
 		v := strings.TrimSpace(*req.NombreInterno)
@@ -375,7 +513,40 @@ func (h *PlantillaEstructuraHandler) EditarBloque(w http.ResponseWriter, r *http
 	valores = append(valores, id)
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
-	tag, err := h.DB.Exec(ctx, "UPDATE plantilla_bloques SET "+strings.Join(columnas, ",")+
+	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		responderErrorEstructura(w, "iniciar la edición del bloque", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+	if nuevoTipo == "PORTADA" {
+		var plantillaID string
+		err := tx.QueryRow(ctx, `
+			SELECT p.plantilla_id::text
+			  FROM plantilla_bloques pb
+			  JOIN plantilla_secciones ps ON ps.seccion_id=pb.seccion_id
+			  JOIN plantillas p ON p.plantilla_id=ps.plantilla_id
+			 WHERE pb.bloque_id::text=$1
+			   FOR UPDATE OF p`, id).Scan(&plantillaID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Bloque no encontrado."})
+			return
+		}
+		if err != nil {
+			responderErrorEstructura(w, "validar la portada", err)
+			return
+		}
+		duplicada, err := plantillaTienePortada(ctx, tx, plantillaID, id)
+		if err != nil {
+			responderErrorEstructura(w, "validar la portada", err)
+			return
+		}
+		if duplicada {
+			escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": mensajePortadaDuplicada})
+			return
+		}
+	}
+	tag, err := tx.Exec(ctx, "UPDATE plantilla_bloques SET "+strings.Join(columnas, ",")+
 		" WHERE bloque_id::text=$"+strconv.Itoa(len(valores)), valores...)
 	if err != nil {
 		responderErrorEstructura(w, "editar el bloque", err)
@@ -385,11 +556,18 @@ func (h *PlantillaEstructuraHandler) EditarBloque(w http.ResponseWriter, r *http
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Bloque no encontrado."})
 		return
 	}
+	if err := tx.Commit(ctx); err != nil {
+		responderErrorEstructura(w, "confirmar la edición del bloque", err)
+		return
+	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "bloque_id": id, "mensaje": "Bloque actualizado."})
 }
 
 func (h *PlantillaEstructuraHandler) EliminarBloque(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "bloque_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "bloque", id) {
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	tag, err := h.DB.Exec(ctx, `DELETE FROM plantilla_bloques WHERE bloque_id::text=$1`, id)
@@ -406,6 +584,9 @@ func (h *PlantillaEstructuraHandler) EliminarBloque(w http.ResponseWriter, r *ht
 
 func (h *PlantillaEstructuraHandler) OrdenarBloques(w http.ResponseWriter, r *http.Request) {
 	anclaID := strings.TrimSpace(chi.URLParam(r, "bloque_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "bloque", anclaID) {
+		return
+	}
 	ids, err := decodificarOrden(r, "bloque_ids")
 	if err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})

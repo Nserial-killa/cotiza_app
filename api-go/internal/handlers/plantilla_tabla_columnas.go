@@ -31,6 +31,13 @@ var fuentesTipoColumnaTabla = map[string]bool{
 }
 var fuentesVirtualesColumnaTabla = map[string]bool{"NOMBRE_ESCENARIO": true, "ES_RECOMENDADA": true}
 
+// tiposBloqueConColumnas son los tres bloques de tabla de la paleta: los
+// tres se renderizan con filasTablaInversionPlantilla (plantilla_
+// renderizador.go). TABLA_DATOS es la misma tabla sin suponer que sus
+// filas son montos; OPCIONES_PROPUESTA es la tabla de escenarios con
+// origen_filas fijo en OPCIONES_PROPUESTA.
+var tiposBloqueConColumnas = map[string]bool{"TABLA_INVERSION": true, "TABLA_DATOS": true, "OPCIONES_PROPUESTA": true}
+
 type crearColumnaPlantillaTablaRequest struct {
 	CalculadoraID string `json:"calculadora_id"`
 	Titulo        string `json:"titulo"`
@@ -47,6 +54,9 @@ type editarColumnaPlantillaTablaRequest struct {
 // Agregar responde POST /api/plantillas/bloques/{bloque_id}/columnas.
 func (h *PlantillaTablaColumnasHandler) Agregar(w http.ResponseWriter, r *http.Request) {
 	bloqueID := strings.TrimSpace(chi.URLParam(r, "bloque_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "bloque", bloqueID) {
+		return
+	}
 	var req crearColumnaPlantillaTablaRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -83,8 +93,8 @@ func (h *PlantillaTablaColumnasHandler) Agregar(w http.ResponseWriter, r *http.R
 		responderErrorColumna(w, "validar el bloque", err)
 		return
 	}
-	if tipoBloque != "TABLA_INVERSION" {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Solo un bloque TABLA_INVERSION puede tener columnas."})
+	if !tiposBloqueConColumnas[tipoBloque] {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Solo un bloque de tabla (Tabla de inversión, Tabla de datos u Opciones de propuesta) puede tener columnas."})
 		return
 	}
 	var asociada bool
@@ -128,6 +138,9 @@ func (h *PlantillaTablaColumnasHandler) Agregar(w http.ResponseWriter, r *http.R
 // Editar responde PATCH /api/plantillas/columnas/{columna_id}.
 func (h *PlantillaTablaColumnasHandler) Editar(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "columna_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "columna", id) {
+		return
+	}
 	var req editarColumnaPlantillaTablaRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -227,6 +240,9 @@ func (h *PlantillaTablaColumnasHandler) Editar(w http.ResponseWriter, r *http.Re
 // Eliminar responde DELETE /api/plantillas/columnas/{columna_id}.
 func (h *PlantillaTablaColumnasHandler) Eliminar(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "columna_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "columna", id) {
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	tag, err := h.DB.Exec(ctx, `DELETE FROM plantilla_tabla_columnas WHERE columna_id::text=$1`, id)
@@ -247,6 +263,9 @@ func (h *PlantillaTablaColumnasHandler) Eliminar(w http.ResponseWriter, r *http.
 // tiene su propio juego de columnas.
 func (h *PlantillaTablaColumnasHandler) Ordenar(w http.ResponseWriter, r *http.Request) {
 	bloqueID := strings.TrimSpace(chi.URLParam(r, "bloque_id"))
+	if plantillaNoEditable(w, r.Context(), h.DB, "bloque", bloqueID) {
+		return
+	}
 	calculadoraID := strings.TrimSpace(r.URL.Query().Get("calculadora_id"))
 	if calculadoraID == "" {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar calculadora_id."})

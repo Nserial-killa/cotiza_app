@@ -74,6 +74,7 @@ func main() {
 	plantillaCondiciones := &handlers.PlantillaCondicionesHandler{DB: pool}
 	plantillaTablaColumnas := &handlers.PlantillaTablaColumnasHandler{DB: pool}
 	plantillaEstilo := &handlers.PlantillaEstiloHandler{DB: pool}
+	plantillaBloqueCampos := &handlers.PlantillaBloqueCamposHandler{DB: pool}
 	integraciones := &handlers.IntegracionesHandler{DB: pool}
 	solicitudes := &handlers.SolicitudesHandler{DB: pool, Cotizaciones: cotizaciones}
 	solicitudesExternas := &handlers.SolicitudesExternasHandler{DB: pool}
@@ -151,8 +152,11 @@ func main() {
 				r.Get("/{id}", plantillas.Detalle)
 				r.Patch("/{id}", plantillas.Editar)
 				r.Post("/{id}/publicar", plantillas.Publicar)
+				r.Get("/{id}/validacion", plantillas.Validacion)
+				r.Post("/{id}/nueva-version", plantillas.NuevaVersion)
 				r.Delete("/{id}", plantillas.Eliminar)
 				r.Post("/{id}/secciones", plantillaEstructura.CrearSeccion)
+				r.Post("/{id}/estructura-sugerida", plantillaEstructura.AplicarEstructuraSugerida)
 				r.Patch("/secciones/{seccion_id}", plantillaEstructura.EditarSeccion)
 				r.Delete("/secciones/{seccion_id}", plantillaEstructura.EliminarSeccion)
 				r.Post("/secciones/{seccion_id}/orden", plantillaEstructura.OrdenarSecciones)
@@ -169,6 +173,10 @@ func main() {
 				r.Patch("/columnas/{columna_id}", plantillaTablaColumnas.Editar)
 				r.Delete("/columnas/{columna_id}", plantillaTablaColumnas.Eliminar)
 				r.Post("/bloques/{bloque_id}/columnas/orden", plantillaTablaColumnas.Ordenar)
+				r.Post("/bloques/{bloque_id}/campos", plantillaBloqueCampos.Agregar)
+				r.Patch("/campos/{campo_id}", plantillaBloqueCampos.Editar)
+				r.Delete("/campos/{campo_id}", plantillaBloqueCampos.Eliminar)
+				r.Post("/bloques/{bloque_id}/campos/orden", plantillaBloqueCampos.Ordenar)
 				r.Patch("/{id}/estilo", plantillaEstilo.Actualizar)
 			})
 

@@ -47,23 +47,87 @@
     return simbolo + " " + numero.toLocaleString("es-CR", {minimumFractionDigits:2, maximumFractionDigits:2});
   }
 
+  // Texto enriquecido: líneas "• " = viñetas (botón "+ Agregar viñeta" del
+  // editor de plantillas), el resto párrafos. Mismo criterio que publico.html.
+  function textoEnriquecido_(contenido){
+    let html = "", parrafo = [], enLista = false;
+    const cerrarParrafo = function(){ if(parrafo.length){ html += '<p>' + escapeHtml(parrafo.join("\n")) + '</p>'; parrafo = []; } };
+    const cerrarLista = function(){ if(enLista){ html += '</ul>'; enLista = false; } };
+    String(contenido || "").split("\n").forEach(function(linea){
+      const vineta = /^\s*•\s?(.*)$/.exec(linea);
+      if(vineta){ cerrarParrafo(); if(!enLista){ html += '<ul>'; enLista = true; } html += '<li>' + escapeHtml(vineta[1]) + '</li>'; return; }
+      cerrarLista();
+      if(linea.trim() === "") cerrarParrafo(); else parrafo.push(linea);
+    });
+    cerrarParrafo(); cerrarLista();
+    return '<div class="vpo-rich">' + html + '</div>';
+  }
+
+  // Pares Etiqueta/Valor en grilla de 2 columnas.
+  function grillaPares_(campos){
+    return '<dl class="vpo-pairs">' + (Array.isArray(campos) ? campos : []).map(function(c){
+      return '<div><dt>' + escapeHtml(texto_(c.etiqueta)) + '</dt><dd>' + escapeHtml(texto_(c.valor)) + '</dd></div>';
+    }).join("") + '</dl>';
+  }
+
+  function tabla_(columnas, filas, numericas){
+    const clase = function(i){ return numericas && numericas[i] ? ' class="vpo-num"' : ''; };
+    let html = '<div class="vpo-table-wrap"><table class="vpo-table"><thead><tr>' + columnas.map(function(c, i){ return '<th' + clase(i) + '>' + escapeHtml(texto_(c)) + '</th>'; }).join("") + '</tr></thead><tbody>';
+    filas.forEach(function(fila){
+      const celdas = fila.celdas || fila;
+      html += '<tr' + (fila.clase ? ' class="' + fila.clase + '"' : '') + '>' + celdas.map(function(v, i){ return '<td' + clase(i) + '>' + escapeHtml(texto_(v)) + '</td>'; }).join("") + '</tr>';
+    });
+    return html + '</tbody></table></div>';
+  }
+
+  function conTitulo_(bloque, cuerpo){
+    return (bloque.titulo ? '<h3 class="vpo-block-title">' + escapeHtml(bloque.titulo) + '</h3>' : '') + cuerpo;
+  }
+
   function renderBloque_(bloque){
     const tipo = bloque.tipo_bloque;
+    if(tipo === "SALTO_PAGINA") return '<div class="vpo-page-break" aria-hidden="true"></div>';
     if(tipo === "CAMPO_VINCULADO"){
       return '<dl class="vpo-fields"><div class="vpo-field-row"><dt>' + escapeHtml(texto_(bloque.titulo || "Dato")) + '</dt><dd>' + escapeHtml(texto_(bloque.valor)) + '</dd></div></dl>';
     }
-    if(tipo === "TABLA_INVERSION"){
+    if(tipo === "PORTADA"){
+      const campos = Array.isArray(bloque.campos) && bloque.campos.length ? grillaPares_(bloque.campos) : "";
+      return '<div class="vpo-cover">' + (bloque.titulo ? '<h3>' + escapeHtml(bloque.titulo) + '</h3>' : '') + (bloque.contenido ? textoEnriquecido_(bloque.contenido) : '') + '</div>' + campos;
+    }
+    if(tipo === "ENCABEZADO") return '<h3 class="vpo-heading">' + escapeHtml(texto_(bloque.titulo || bloque.contenido)) + '</h3>';
+    if(tipo === "RESUMEN_EJECUTIVO") return conTitulo_(bloque, '<div class="vpo-summary">' + textoEnriquecido_(bloque.contenido) + '</div>');
+    if(tipo === "IMAGEN"){
+      const url = String(bloque.contenido || "").trim();
+      if(/^https?:\/\//i.test(url)) return '<img class="vpo-image" src="' + escapeHtml(url) + '" alt="' + escapeHtml(bloque.titulo || "Imagen de la propuesta") + '" loading="lazy">';
+      return textoEnriquecido_(url);
+    }
+    if(tipo === "DATOS_CLIENTE" || tipo === "GRUPO_INFORMACION" || tipo === "CONDICIONES_COMERCIALES"){
+      return conTitulo_(bloque, (bloque.contenido ? textoEnriquecido_(bloque.contenido) : '') + grillaPares_(bloque.campos));
+    }
+    if(tipo === "FIRMA_ACEPTACION"){
+      const campos = Array.isArray(bloque.campos) && bloque.campos.length ? grillaPares_(bloque.campos) : "";
+      return conTitulo_(bloque, (bloque.contenido ? textoEnriquecido_(bloque.contenido) : '') + campos + '<div class="vpo-signature"><span>Firma</span><span>Fecha</span></div>');
+    }
+    if(tipo === "LISTA_PRECIOS"){
+      const items = Array.isArray(bloque.items) ? bloque.items : [];
+      if(!items.length) return conTitulo_(bloque, '<p class="vpo-empty">Sin precios para mostrar.</p>');
+      const conCantidad = items.some(function(i){ return i.cantidad !== undefined && i.cantidad !== null; });
+      const columnas = ["Código", "Nombre", "Descripción", "Precio"].concat(conCantidad ? ["Cantidad"] : []);
+      const filas = items.map(function(i){
+        const celdas = [i.codigo, i.nombre, i.descripcion, dinero_(i.precio, i.moneda) + (i.unidad_cobro ? " / " + i.unidad_cobro : "")];
+        if(conCantidad) celdas.push(i.cantidad);
+        return {celdas:celdas, clase:i.seleccionado ? "vpo-chosen" : ""};
+      });
+      return conTitulo_(bloque, tabla_(columnas, filas, [false, false, false, true, true]));
+    }
+    if(tipo === "TABLA_INVERSION" || tipo === "TABLA_DATOS" || tipo === "OPCIONES_PROPUESTA"){
       const columnas = Array.isArray(bloque.columnas) ? bloque.columnas : [];
       const filas = Array.isArray(bloque.filas) ? bloque.filas : [];
-      if(!filas.length) return '<p class="vpo-empty">Sin datos para mostrar en esta tabla.</p>';
-      let html = '<table class="vpo-table"><thead><tr>' + columnas.map(function(c){ return '<th>' + escapeHtml(texto_(c)) + '</th>'; }).join("") + '</tr></thead><tbody>';
-      filas.forEach(function(fila){
-        html += '<tr>' + (Array.isArray(fila) ? fila : []).map(function(v){ return '<td>' + escapeHtml(texto_(v)) + '</td>'; }).join("") + '</tr>';
-      });
-      html += '</tbody></table>';
-      return html;
+      if(!filas.length) return conTitulo_(bloque, '<p class="vpo-empty">Sin datos para mostrar en esta tabla.</p>');
+      return conTitulo_(bloque, tabla_(columnas, filas.map(function(f){ return Array.isArray(f) ? f : []; })));
     }
-    return '<p style="margin:0;padding:12px 16px;white-space:pre-wrap;">' + escapeHtml(texto_(bloque.contenido)) + '</p>';
+    // TEXTO y heredados (LISTA, CONDICIONES): contenido libre.
+    return textoEnriquecido_(bloque.contenido);
   }
 
   function renderPlantilla_(plantilla){

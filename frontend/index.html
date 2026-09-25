@@ -793,6 +793,7 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .tpl-badge-master { background:#eee9ff; color:#6045c9; }
 .tpl-badge-published { background:#dcf8e8; color:#137345; }
 .tpl-badge-draft { background:#fff0cf; color:#9a5d07; }
+.tpl-badge-archived { background:#eceff3; color:#5b6776; }
 .tpl-card-content h3 { color:var(--tpl-ink); font-size:13px; line-height:1.25; font-weight:800; margin:0 0 7px; }
 .tpl-card-content p { color:#6f7f94; font-size:9px; line-height:1.45; margin:0 0 9px; }
 .tpl-card-content ul { display:flex; flex-direction:column; gap:4px; padding:0; margin:0 0 7px; list-style:none; }
@@ -839,6 +840,13 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepTwo .tpl-structure-empty { min-height:440px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:30px; text-align:center; }
 #tplStepTwo .tpl-structure-empty strong { color:#315174; font-size:11px; }
 #tplStepTwo .tpl-structure-empty span { color:#8795a7; font-size:8px; }
+#tplStepTwo .tpl-suggested-card { max-width:360px; display:flex; flex-direction:column; align-items:center; gap:7px; margin-bottom:18px; padding:18px 20px; border:1px solid #8eb4e9; border-radius:10px; background:#f1f6ff; box-shadow:0 6px 18px rgba(23,104,222,.1); }
+#tplStepTwo .tpl-suggested-card strong { color:#0a294f; font-size:11px; }
+#tplStepTwo .tpl-suggested-card span { color:#5b6b80; font-size:8px; line-height:1.5; }
+#tplStepTwo .tpl-suggested-card .tpl-suggested-badge { padding:3px 8px; border-radius:999px; background:#1768de; color:#fff; font-size:7px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+#tplStepTwo .tpl-suggested-card .btn { width:auto; margin:4px 0 0; }
+#tplStepTwo .tpl-suggested-card.tpl-suggested-secondary { order:1; margin:18px 0 0; border-color:#dbe4ef; background:#fff; box-shadow:none; }
+#tplStepTwo .tpl-suggested-card.tpl-suggested-secondary .btn { border:1px solid #8eb4e9; background:#fff; color:#1768de; }
 #tplStepTwo .tpl-canvas-section { border:1px solid #d4deeb; border-radius:9px; background:#fff; overflow:hidden; transition:border-color .15s,box-shadow .15s; }
 #tplStepTwo .tpl-canvas-section.selected { border-color:#6ca2e9; box-shadow:0 0 0 2px rgba(23,104,222,.08); }
 #tplStepTwo .tpl-canvas-section > header { display:flex; align-items:center; gap:8px; padding:9px 10px; border-bottom:1px solid #e6ecf3; cursor:pointer; }
@@ -874,6 +882,23 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepTwo .tpl-switch-row input { width:15px; height:15px; accent-color:#1768de; }
 #tplStepTwo .tpl-switch-row i { display:none; }
 #tplStepTwo .tpl-btn-danger { width:100%; margin-top:12px; border:1px solid #f0b5b5; background:#fff6f6; color:#a52b2b; font-size:8px; }
+#tplStepTwo .tpl-bullet-button { width:auto; margin:5px 0 3px; padding:4px 8px; min-height:0; border:1px solid #cfdcec; background:#f5f9ff; color:#1768de; font-size:8px; }
+#tplStepTwo #tplPropBlockNote { margin:0 0 10px; font-size:8px; }
+#tplStepTwo .tpl-block-fields { margin:4px 0 10px; padding-top:10px; border-top:1px solid #edf1f5; }
+#tplStepTwo .tpl-block-fields h3 { margin:0 0 8px; color:#0a294f; font-size:9px; font-weight:800; }
+#tplStepTwo .tpl-block-field-list { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+#tplStepTwo .tpl-block-field-row { display:grid; grid-template-columns:18px minmax(0,1fr) 22px; gap:6px; align-items:start; padding:6px; border:1px solid #dbe4ef; border-radius:7px; background:#fff; }
+#tplStepTwo .tpl-block-field-order { display:flex; flex-direction:column; gap:2px; }
+#tplStepTwo .tpl-field-button { width:18px; height:14px; min-height:0; margin:0; padding:0; display:flex; align-items:center; justify-content:center; border:1px solid #d2deec; border-radius:4px; background:#f5f9ff; color:#31577f; font-size:8px; line-height:1; cursor:pointer; box-shadow:none; }
+#tplStepTwo .tpl-field-button:hover:not(:disabled) { border-color:#8eb4e9; background:#eaf2fd; }
+#tplStepTwo .tpl-field-button:disabled { opacity:.35; cursor:default; }
+#tplStepTwo .tpl-block-field-remove { width:22px; height:22px; border-color:#f0c4c4; background:#fff6f6; color:#a52b2b; }
+#tplStepTwo .tpl-block-field-copy { min-width:0; display:flex; flex-direction:column; gap:4px; }
+#tplStepTwo .tpl-block-field-copy .input { min-height:26px; padding:4px 6px; }
+#tplStepTwo .tpl-block-field-copy small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#tplStepTwo .tpl-block-field-empty { margin:0; color:#8491a2; font-size:8px; }
+#tplStepTwo .tpl-block-field-add { display:flex; flex-direction:column; gap:5px; padding:8px; border:1px dashed #cad7e7; border-radius:7px; background:#f8fafd; }
+#tplStepTwo .tpl-block-field-add .btn { width:auto; margin:0; align-self:flex-start; }
 
 /* ---------- Plantillas: paso 3, Vincular datos ---------- */
 #tplStepThree .tpl-mapping-toolbar { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
@@ -936,6 +961,14 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepThree .tpl-source-copy small { color:#8491a2; font-size:7px; }
 #tplStepThree .tpl-source-check { flex-shrink:0; color:#1a764b; font-size:11px; font-weight:800; }
 #tplStepThree .tpl-source-empty { padding:26px 14px; color:#7b899d; text-align:center; font-size:9px; line-height:1.5; }
+#tplStepThree .tpl-source-search { display:flex; flex-direction:column; gap:6px; }
+#tplStepThree .tpl-source-search label { color:#1c365b; font-size:8px; font-weight:700; }
+#tplStepThree .tpl-source-search .select { height:33px; padding:6px 10px; border-radius:7px; font-size:9px; }
+#tplStepThree .tpl-source-section { margin:0 0 8px; }
+#tplStepThree .tpl-source-section h4 { margin:6px 4px 4px; color:#31577f; font-size:8px; font-weight:800; }
+#tplStepThree .tpl-source-copy .tpl-source-meta { color:#5d6d82; }
+#tplStepThree .tpl-source-copy code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:7px; color:#7a899d; }
+#tplStepThree .tpl-mapping-block-item.pending .tpl-mapping-block-status { background:#fff1dc; color:#a45a00; }
 
 /* ---------- Plantillas: paso 4, Estilo visual ---------- */
 #tplStepFour .tpl-style-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
@@ -958,6 +991,11 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepFour .tpl-style-theme-swatch { display:flex; gap:3px; height:16px; border-radius:5px; overflow:hidden; }
 #tplStepFour .tpl-style-theme-swatch i { flex:1; display:block; }
 #tplStepFour .tpl-style-theme-card strong { color:#18385f; font-size:9px; font-weight:700; }
+#tplStepFour .tpl-style-theme-card { position:relative; }
+#tplStepFour .tpl-style-theme-card small { color:#8491a2; font-size:7px; }
+#tplStepFour .tpl-style-theme-card.suggested { border-color:#7fc4a0; }
+#tplStepFour .tpl-style-suggested-badge { position:absolute; top:-7px; right:8px; padding:2px 7px; border-radius:999px; background:#137345; color:#fff; font-size:6.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+#tplStepFour .tpl-style-suggestion-hint { margin:0; padding:8px 12px 0; color:#137345; font-size:8px; line-height:1.4; }
 #tplStepFour .tpl-style-panel-section { padding-top:12px; border-top:1px solid #edf1f5; }
 #tplStepFour .tpl-style-panel-section h3 { color:#294666; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; margin:0 0 10px; }
 #tplStepFour .tpl-style-left .field { margin-bottom:10px; }
@@ -965,62 +1003,88 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 #tplStepFour .tpl-style-control.select,#tplStepFour select.tpl-style-control { min-height:33px; padding:7px 8px; border-radius:7px; font-size:8px; }
 #tplStepFour .tpl-style-center { background:#f4f7fb; padding:16px; display:flex; flex-direction:column; }
 #tplStepFour .tpl-style-format-badge { padding:4px 8px; border-radius:999px; background:#eaf2ff; color:#1768de; font-size:7px; font-weight:800; letter-spacing:.03em; }
-#tplStepFour .tpl-style-preview-stage { display:flex; justify-content:center; padding:14px 0 4px; }
-#tplStepFour .tpl-style-preview-page { display:flex; flex-direction:column; width:100%; max-width:400px; min-height:520px; background:#fff; box-shadow:0 6px 20px rgba(15,42,74,.14); border-radius:2px; overflow:hidden; font-size:9px; color:#33455e; transition:max-width .15s ease,padding .15s ease; }
+/* Ronda P4: la vista previa es el documento completo, así que el escenario
+   se desplaza por dentro del panel en vez de estirar la página. */
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-stage { display:flex; justify-content:center; align-items:flex-start; padding:14px 6px 4px; max-height:calc(100vh - 260px); min-height:420px; overflow:auto; overscroll-behavior:contain; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page { display:flex; flex-direction:column; width:100%; max-width:400px; min-height:520px; background:#fff; box-shadow:0 6px 20px rgba(15,42,74,.14); border-radius:2px; overflow:hidden; font-size:9px; color:var(--tpl-preview-text,#33455e); background:var(--tpl-preview-background,#fff); font-family:var(--tpl-preview-body-font,inherit); flex-shrink:0; transition:max-width .15s ease,padding .15s ease; }
 /* Formato de página: carta es el valor por defecto — se deja explícito
    para que no dependa de que ninguna otra clase format- esté ausente. */
-#tplStepFour .tpl-style-preview-page.format-carta { max-width:400px; min-height:520px; }
-#tplStepFour .tpl-style-preview-page.format-a4 { max-width:378px; min-height:534px; }
-#tplStepFour .tpl-style-preview-content { display:flex; flex-direction:column; gap:12px; flex:1; padding:16px 20px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.format-carta { max-width:400px; min-height:520px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.format-a4 { max-width:378px; min-height:534px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-content { display:flex; flex-direction:column; gap:12px; flex:1; padding:16px 20px; }
 /* Márgenes: normal es el valor por defecto, explícito por el mismo motivo. */
-#tplStepFour .tpl-style-preview-page.margin-normal .tpl-style-preview-content { padding:16px 20px; gap:12px; }
-#tplStepFour .tpl-style-preview-page.margin-compacto .tpl-style-preview-content { padding:10px 14px; gap:8px; }
-#tplStepFour .tpl-style-preview-page.margin-amplio .tpl-style-preview-content { padding:24px 30px; gap:16px; }
-#tplStepFour .tpl-style-preview-content h2 { color:#0f2a4a; font-size:10px; font-weight:800; margin:0 0 4px; }
-#tplStepFour .tpl-style-preview-content p { color:#5b6b81; font-size:8px; line-height:1.5; margin:0; }
-#tplStepFour .tpl-style-preview-content ul { margin:0; padding-left:14px; color:#5b6b81; font-size:8px; line-height:1.6; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.margin-normal .tpl-style-preview-content { padding:16px 20px; gap:12px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.margin-compacto .tpl-style-preview-content { padding:10px 14px; gap:8px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.margin-amplio .tpl-style-preview-content { padding:24px 30px; gap:16px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-content h2 { color:var(--tpl-preview-primary,#0f2a4a); font-family:var(--tpl-preview-title-font,inherit); font-size:10px; font-weight:800; margin:0 0 6px; padding-bottom:4px; border-bottom:2px solid var(--tpl-preview-accent,#20b8cd); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-content h3 { color:var(--tpl-preview-primary,#0f2a4a); font-family:var(--tpl-preview-title-font,inherit); font-size:8.5px; font-weight:800; margin:6px 0 4px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-content p { color:var(--tpl-preview-text,#5b6b81); font-size:8px; line-height:1.5; margin:0 0 4px; white-space:pre-wrap; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-content ul { margin:0 0 4px; padding-left:14px; color:var(--tpl-preview-text,#5b6b81); font-size:8px; line-height:1.6; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover h1 { font-family:var(--tpl-preview-title-font,inherit); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-section { display:flex; flex-direction:column; gap:4px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-heading { font-size:9.5px !important; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-summary { padding:8px 10px; border-left:3px solid var(--tpl-preview-secondary,#1f6fff); border-radius:4px; background:color-mix(in srgb,var(--tpl-preview-secondary,#1f6fff) 7%,transparent); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-pairs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 14px; margin:2px 0 4px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-pairs div { min-width:0; padding-bottom:4px; border-bottom:1px solid #edf1f5; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-pairs dt { color:#8391a5; font-size:6.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-pairs dd { margin:1px 0 0; font-size:8px; overflow-wrap:anywhere; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover .tpl-style-preview-cover-text { margin-top:8px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover .tpl-style-preview-cover-text p,:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover .tpl-style-preview-cover-text ul { color:inherit; opacity:.9; font-size:8px; margin:0 0 4px; padding-left:14px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover .tpl-style-preview-cover-text p { padding-left:0; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover .tpl-style-preview-pairs { margin-top:10px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover .tpl-style-preview-pairs div { border-color:rgba(255,255,255,.25); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover .tpl-style-preview-pairs dt { color:inherit; opacity:.7; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover .tpl-style-preview-pairs div { border-color:#edf1f5; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-image { display:flex; align-items:center; justify-content:center; min-height:60px; border:1px dashed #cad7e7; border-radius:6px; background:#f5f8fc; color:#8391a5; font-size:7.5px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-signature { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:16px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-signature span { padding-top:4px; border-top:1px solid var(--tpl-preview-text,#33455e); color:#8391a5; font-size:7px; text-align:center; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-break { position:relative; margin:6px -20px; height:14px; background:#dfe6ef; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-break span { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#7a899d; font-size:6.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-empty { padding:24px 10px; color:#8391a5; font-size:8px; line-height:1.5; text-align:center; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-row.chosen { font-weight:800; color:var(--tpl-preview-primary,#0a294f); background:color-mix(in srgb,var(--tpl-preview-accent,#20b8cd) 12%,transparent); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-row span { min-width:0; overflow-wrap:anywhere; }
 /* --tpl-preview-primary/secondary/accent los fija aplicarTemaPreview() en
    plantillas_app.html según el tema elegido; los valores por defecto acá
    son los del tema "Profesional" para que sin JS/tema se vea igual que
    antes. */
-#tplStepFour .tpl-style-preview-cover { padding:20px; color:#fff; background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-secondary,#1f6fff)); }
-#tplStepFour .tpl-style-preview-brand { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
-#tplStepFour .tpl-style-preview-brand img { height:20px; width:auto; }
-#tplStepFour .tpl-style-preview-brand strong { font-size:9px; font-weight:800; letter-spacing:.02em; }
-#tplStepFour .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { display:block; color:rgba(255,255,255,.72); font-size:7px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px; }
-#tplStepFour .tpl-style-preview-cover h1 { font-size:16px; font-weight:800; line-height:1.2; margin:0 0 6px; }
-#tplStepFour .tpl-style-preview-cover p { color:rgba(255,255,255,.85); font-size:9px; margin:0; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover { padding:20px; color:#fff; background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-secondary,#1f6fff)); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-brand { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-brand img { height:20px; width:auto; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-brand strong { font-size:9px; font-weight:800; letter-spacing:.02em; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { display:block; color:rgba(255,255,255,.72); font-size:7px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover h1 { font-size:16px; font-weight:800; line-height:1.2; margin:0 0 6px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-cover p { color:rgba(255,255,255,.85); font-size:9px; margin:0; }
 /* Portada: banda_superior es el valor por defecto (usa la misma regla
    de fondo de .tpl-style-preview-cover de arriba), explícita acá para
    que las 4 opciones queden documentadas juntas y no dependa de que
    ningún otro cover- esté aplicado. */
-#tplStepFour .tpl-style-preview-page.cover-banda_superior .tpl-style-preview-cover { background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-secondary,#1f6fff)); }
-#tplStepFour .tpl-style-preview-page.cover-lateral { flex-direction:row; }
-#tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-cover { flex:0 0 34%; display:flex; flex-direction:column; justify-content:center; }
-#tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-content { flex:1 1 auto; }
-#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover { background:#fff; color:#0f2a4a; border-bottom:2px solid #e5ebf3; }
-#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover p,#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { color:#7a899d; }
-#tplStepFour .tpl-style-preview-page.cover-minimalista .tpl-style-preview-brand strong { color:#0f2a4a; }
-#tplStepFour .tpl-style-preview-page.cover-bloque .tpl-style-preview-cover { margin:16px 20px 0; border-radius:12px; background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-accent,#20b8cd)); }
-#tplStepFour .tpl-style-preview-page.cover-bloque .tpl-style-preview-content { padding-top:8px; }
-#tplStepFour .tpl-style-preview-table { display:flex; flex-direction:column; border:1px solid #e5ebf3; border-radius:6px; overflow:hidden; }
-#tplStepFour .tpl-style-preview-row { display:flex; justify-content:space-between; padding:7px 10px; font-size:8px; border-bottom:1px solid #edf1f5; }
-#tplStepFour .tpl-style-preview-row:last-child { border-bottom:0; }
-#tplStepFour .tpl-style-preview-row.head { background:#f6f8fc; color:#607087; font-weight:800; text-transform:uppercase; font-size:7px; letter-spacing:.04em; }
-#tplStepFour .tpl-style-preview-row.total { background:#f8faff; color:#0a294f; font-weight:800; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-banda_superior .tpl-style-preview-cover { background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-secondary,#1f6fff)); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-lateral { flex-direction:row; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-lateral .tpl-style-preview-cover { flex:0 0 34%; display:flex; flex-direction:column; justify-content:center; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-lateral .tpl-style-preview-content { flex:1 1 auto; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover { background:#fff; color:#0f2a4a; border-bottom:2px solid #e5ebf3; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover p,:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-minimalista .tpl-style-preview-cover > span:not(.tpl-style-preview-brand) { color:#7a899d; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-minimalista .tpl-style-preview-brand strong { color:#0f2a4a; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-bloque .tpl-style-preview-cover { margin:16px 20px 0; border-radius:12px; background:linear-gradient(135deg,var(--tpl-preview-primary,#0b2f63),var(--tpl-preview-accent,#20b8cd)); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-bloque .tpl-style-preview-content { padding-top:8px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-table { display:flex; flex-direction:column; border:1px solid #e5ebf3; border-radius:6px; overflow:hidden; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-row { display:flex; justify-content:space-between; padding:7px 10px; font-size:8px; border-bottom:1px solid #edf1f5; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-row:last-child { border-bottom:0; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-row.head { background:#f6f8fc; color:#607087; font-weight:800; text-transform:uppercase; font-size:7px; letter-spacing:.04em; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-row.total { background:#f8faff; color:#0a294f; font-weight:800; }
 /* Tablas: líneas es el valor por defecto, explícito por el mismo motivo. */
-#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-table { border:1px solid #e5ebf3; border-radius:6px; background:#fff; }
-#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-row { border-bottom:1px solid #edf1f5; background:transparent; }
-#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-row.head { background:#f6f8fc; }
-#tplStepFour .tpl-style-preview-page.table-lineas .tpl-style-preview-row.total { background:#f8faff; }
-#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-table { border:0; gap:4px; background:transparent; }
-#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row { border:0; border-radius:6px; background:#f6f8fc; }
-#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row.head { background:transparent; padding-bottom:2px; }
-#tplStepFour .tpl-style-preview-page.table-suave .tpl-style-preview-row.total { background:#eaf6ef; color:#137345; }
-#tplStepFour .tpl-style-preview-page.table-tarjetas .tpl-style-preview-table { border:0; gap:6px; background:transparent; }
-#tplStepFour .tpl-style-preview-page.table-tarjetas .tpl-style-preview-row { border:1px solid #e5ebf3; border-radius:8px; box-shadow:0 1px 3px rgba(15,42,74,.06); }
-#tplStepFour .tpl-style-preview-page.table-tarjetas .tpl-style-preview-row.total { border-color:#bfe6cc; background:#f0fbf5; color:#137345; }
-#tplStepFour .tpl-style-preview-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 20px; border-top:1px solid #edf1f5; color:#8993a3; font-size:7px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-lineas .tpl-style-preview-table { border:1px solid #e5ebf3; border-radius:6px; background:#fff; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-lineas .tpl-style-preview-row { border-bottom:1px solid #edf1f5; background:transparent; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-lineas .tpl-style-preview-row.head { background:#f6f8fc; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-lineas .tpl-style-preview-row.total { background:#f8faff; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-suave .tpl-style-preview-table { border:0; gap:4px; background:transparent; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-suave .tpl-style-preview-row { border:0; border-radius:6px; background:#f6f8fc; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-suave .tpl-style-preview-row.head { background:transparent; padding-bottom:2px; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-suave .tpl-style-preview-row.total { background:#eaf6ef; color:#137345; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-tarjetas .tpl-style-preview-table { border:0; gap:6px; background:transparent; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-tarjetas .tpl-style-preview-row { border:1px solid #e5ebf3; border-radius:8px; box-shadow:0 1px 3px rgba(15,42,74,.06); }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.table-tarjetas .tpl-style-preview-row.total { border-color:#bfe6cc; background:#f0fbf5; color:#137345; }
+:is(#tplStepFour,#tplStepFive) .tpl-style-preview-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 20px; border-top:1px solid #edf1f5; color:#8993a3; font-size:7px; }
 #tplStepFour .tpl-style-right { padding:14px; }
 #tplStepFour .tpl-style-settings h3 { color:#294666; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; margin:14px 0 10px; }
 #tplStepFour .tpl-style-settings h3:first-child { margin-top:0; }
@@ -1059,8 +1123,8 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
   #tplStepTwo .tpl-canvas-columns { grid-template-columns:1fr!important; }
   #tplStepThree .tpl-mapping-grid,#tplStepFour .tpl-style-grid { grid-template-columns:1fr; }
   #tplStepThree .tpl-mapping-left,#tplStepThree .tpl-mapping-right,#tplStepFour .tpl-style-left,#tplStepFour .tpl-style-right { position:static; grid-column:auto; }
-  #tplStepFour .tpl-style-preview-page.cover-lateral { flex-direction:column; }
-  #tplStepFour .tpl-style-preview-page.cover-lateral .tpl-style-preview-cover { flex:0 0 auto; }
+  :is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-lateral { flex-direction:column; }
+  :is(#tplStepFour,#tplStepFive) .tpl-style-preview-page.cover-lateral .tpl-style-preview-cover { flex:0 0 auto; }
 }
 
 .table-wrap { background: #fff; border-radius: 12px; overflow-x: auto; box-shadow: 0 1px 3px rgba(15,42,74,0.08); }
@@ -1934,6 +1998,27 @@ table tr:last-child td { border-bottom: none; }
 @media (max-width:700px) {
   .runtime-opcion-panel-head-acciones { justify-content: flex-start; }
 }
+
+/* ---------- Plantillas: paso 5, Revisar y publicar (Ronda P5) ---------- */
+/* La vista previa es la misma página del paso 4 (reglas :is(#tplStepFour,
+   #tplStepFive)); acá solo cambia el escenario según el canal. */
+#section-plantillas .tpl-review-preview-stage { align-items:flex-start; max-height:calc(100vh - 250px); }
+#section-plantillas .tpl-review-preview-stage .tpl-style-preview-page { max-width:560px; font-size:10px; }
+#section-plantillas .tpl-review-preview-stage.channel-web { background:#f4f7fb; padding:16px; }
+#section-plantillas .tpl-review-preview-stage.channel-web .tpl-style-preview-page { max-width:720px; box-shadow:none; border:1px solid #dfe6ef; border-radius:12px; }
+#section-plantillas .tpl-review-preview-stage.channel-web .tpl-style-preview-footer span:last-child { display:none; }
+#section-plantillas .tpl-review-preview-stage.channel-pdf { background:#d9dee6; padding:28px 24px; }
+#section-plantillas .tpl-review-preview-stage.channel-pdf .tpl-style-preview-page { border-radius:0; box-shadow:0 10px 30px rgba(15,42,74,.25); }
+#section-plantillas .tpl-review-preview-stage.channel-pdf .tpl-style-preview-break { background:#d9dee6; height:22px; margin:10px -30px; box-shadow:inset 0 6px 8px -6px rgba(15,42,74,.35),inset 0 -6px 8px -6px rgba(15,42,74,.35); }
+#section-plantillas .tpl-review-validation-list { max-height:360px; overflow:auto; }
+#section-plantillas .tpl-review-validation-list > .tpl-review-issue { flex-direction:column; gap:3px; }
+#section-plantillas .tpl-review-issue.error { border-color:#f2c4c4; background:#fff6f6; }
+#section-plantillas .tpl-review-issue.error strong { color:#a52b2b; }
+#section-plantillas .tpl-review-issue.warning { border-color:#f1dcae; background:#fffaf0; }
+#section-plantillas .tpl-review-issue.warning strong { color:#9a5d07; }
+#section-plantillas .tpl-review-issue.ok strong { color:#137345; }
+#section-plantillas .tpl-review-issue span { color:#44546a; font-size:10px; line-height:1.45; }
+#section-plantillas .tpl-review-publish-info .btn { width:auto; margin-top:10px; }
 
 </style>
 </head>
@@ -6472,6 +6557,12 @@ table tr:last-child td { border-bottom: none; }
           </div>
           <div id="tplStructureCanvas" class="tpl-structure-canvas"></div>
           <div id="tplStructureEmpty" class="tpl-structure-empty hidden">
+            <div id="tplSuggestedCard" class="tpl-suggested-card">
+              <span class="tpl-suggested-badge">Estructura sugerida</span>
+              <strong>Comience con la estructura de referencia</strong>
+              <span>12 secciones y 18 bloques: portada, datos del cliente, resumen ejecutivo, seis secciones de contenido, inversión, condiciones comerciales y aceptación. Es un punto de partida: todo queda editable.</span>
+              <button id="tplBtnEstructuraSugerida" class="btn btn-primary" type="button">Cargar estructura sugerida</button>
+            </div>
             <strong>La plantilla no tiene secciones</strong>
             <span>Agregue la primera sección para comenzar.</span>
           </div>
@@ -6523,15 +6614,18 @@ table tr:last-child td { border-bottom: none; }
               <label for="tplPropBlockName">Nombre interno</label>
               <input id="tplPropBlockName" class="input" maxlength="120" type="text">
             </div>
-            <div class="field">
-              <label for="tplPropBlockTitle">Título visible</label>
+            <div id="tplPropBlockTitleField" class="field">
+              <label id="tplPropBlockTitleLabel" for="tplPropBlockTitle">Título visible</label>
               <input id="tplPropBlockTitle" class="input" maxlength="160" type="text">
             </div>
-            <div class="field">
-              <label for="tplPropBlockPlaceholder">Contenido o indicación</label>
+            <div id="tplPropBlockContentField" class="field">
+              <label id="tplPropBlockContentLabel" for="tplPropBlockPlaceholder">Contenido o indicación</label>
               <textarea id="tplPropBlockPlaceholder" class="input tpl-property-textarea" maxlength="1000"></textarea>
-              <small>La vinculación con datos del cotizador se realizará en el siguiente paso.</small>
+              <button id="tplBtnAgregarVineta" class="btn btn-mini tpl-bullet-button hidden" type="button">+ Agregar viñeta</button>
+              <small id="tplPropBlockContentHelp">La vinculación con datos del cotizador se realizará en el siguiente paso.</small>
             </div>
+            <div id="tplPropBlockNote" class="tpl-info-box hidden"></div>
+            <div id="tplPropBlockCampos" class="tpl-block-fields hidden"></div>
             <div class="field">
               <label for="tplPropBlockColumn">Ubicación en la sección</label>
               <select id="tplPropBlockColumn" class="select"><option value="0">Ancho completo</option></select>
@@ -6577,7 +6671,16 @@ table tr:last-child td { border-bottom: none; }
 
         <aside class="tpl-builder-panel tpl-mapping-right">
           <div class="tpl-builder-panel-head"><div><h2>Fuentes disponibles</h2><span>Campos visibles, salidas especiales y componentes</span></div></div>
-          <div class="tpl-source-search"><input id="tplMappingSourceSearch" class="input" type="search" placeholder="Buscar campo, salida o componente"></div>
+          <div class="tpl-source-search">
+            <label for="tplMappingSourceOrigen">Origen</label>
+            <select id="tplMappingSourceOrigen" class="select">
+              <option value="">Todos</option>
+              <option value="CAMPO">Campo del cotizador</option>
+              <option value="SALIDA_ESTANDAR">Salida especial</option>
+              <option value="COTIZACION_BASE">Dato de la cotización</option>
+            </select>
+            <input id="tplMappingSourceSearch" class="input" type="search" placeholder="Buscar campo, salida o componente">
+          </div>
           <div id="tplAvailableSources" class="tpl-available-sources"></div>
         </aside>
       </div>
@@ -6595,6 +6698,7 @@ table tr:last-child td { border-bottom: none; }
       <div class="tpl-style-grid">
         <aside class="tpl-builder-panel tpl-style-left">
           <div class="tpl-builder-panel-head"><div><h2>Temas visuales</h2><span>Seleccione un punto de partida</span></div></div>
+          <p id="tplStyleSuggestionHint" class="tpl-style-suggestion-hint hidden"></p>
           <div id="tplStyleThemes" class="tpl-style-themes"></div>
 
           <div class="tpl-style-panel-section">
@@ -6628,7 +6732,7 @@ table tr:last-child td { border-bottom: none; }
 
         <div class="tpl-builder-panel tpl-style-center">
           <div class="tpl-builder-panel-head">
-            <div><h2>Vista previa</h2><span>Representación aproximada de la propuesta web y PDF</span></div>
+            <div><h2>Vista previa</h2><span>Documento completo con datos de ejemplo — no es una cotización real</span></div>
             <span id="tplStylePreviewFormat" class="tpl-style-format-badge">CARTA</span>
           </div>
           <div class="tpl-style-preview-stage">
@@ -6641,25 +6745,9 @@ table tr:last-child td { border-bottom: none; }
                 <span id="tplStylePreviewHeader">PROPUESTA COMERCIAL</span>
                 <h1 id="tplStylePreviewTitle">Título de la propuesta</h1>
                 <p id="tplStylePreviewClient">Preparado para Cliente Ejemplo S.A.</p>
+                <div id="tplStylePreviewCoverText" class="tpl-style-preview-cover-text"></div>
               </header>
-              <div class="tpl-style-preview-content">
-                <section>
-                  <h2>Nuestra solución</h2>
-                  <p>Resumen de la solución propuesta, sus beneficios y el valor principal para el cliente.</p>
-                </section>
-                <section>
-                  <h2>Alcance del proyecto</h2>
-                  <ul><li>Entregable principal</li><li>Implementación y acompañamiento</li><li>Soporte especializado</li></ul>
-                </section>
-                <section>
-                  <h2>Inversión</h2>
-                  <div class="tpl-style-preview-table">
-                    <div class="tpl-style-preview-row head"><span>Concepto</span><span>Inversión</span></div>
-                    <div class="tpl-style-preview-row"><span>Servicios profesionales</span><span>USD 18,500</span></div>
-                    <div class="tpl-style-preview-row total"><span>Total</span><span>USD 18,500</span></div>
-                  </div>
-                </section>
-              </div>
+              <div id="tplStylePreviewContent" class="tpl-style-preview-content"></div>
               <footer class="tpl-style-preview-footer">
                 <span id="tplStylePreviewFooter"></span>
                 <span id="tplStylePreviewConfidential" class="hidden">CONFIDENCIAL</span>
@@ -6742,7 +6830,7 @@ table tr:last-child td { border-bottom: none; }
           </div>
           <div id="tplReviewPublishInfo" class="tpl-review-publish-info">
             <strong>Publicación controlada</strong>
-            <p>Al publicar, esta versión quedará bloqueada y disponible para generar propuestas nuevas.</p>
+            <p>Al publicar, esta versión quedará bloqueada para edición directa: cualquier cambio necesitará una versión nueva.</p>
           </div>
         </aside>
       </div>
@@ -6801,11 +6889,14 @@ table tr:last-child td { border-bottom: none; }
     }
   };
 
+  // Marcador de la opción "Estructura sugerida" del paso 1 (Ronda P2): no es
+  // un plantilla_id, nunca viaja como crear_desde.
+  const BASE_ESTRUCTURA_SUGERIDA="ESTRUCTURA_SUGERIDA";
   function nuevoEstadoEstructura(){
-    return {secciones:[],seleccion:null,arrastre:null,timers:{}};
+    return {secciones:[],seleccion:null,arrastre:null,timers:{},fuentes:{}};
   }
   function nuevoEstadoMapeo(){
-    return {calculadoraID:"",bloqueId:"",busqueda:"",campos:[],datosCotizacion:[]};
+    return {calculadoraID:"",bloqueId:"",busqueda:"",origen:"",campos:[],salidas:[],datosCotizacion:[]};
   }
 
   function core(){ return window.__cotizaCore || null; }
@@ -6864,8 +6955,12 @@ table tr:last-child td { border-bottom: none; }
     });
     bind("tplBtnRefreshReview","click",cargarResumenRevision);
     bind("tplBtnNuevaSeccion","click",crearSeccion);
+    bind("tplBtnEstructuraSugerida","click",aplicarEstructuraSugerida);
     bind("tplBtnDeleteSection","click",eliminarSeccionSeleccionada);
     bind("tplBtnDeleteBlock","click",eliminarBloqueSeleccionado);
+    bind("tplBtnAgregarVineta","click",agregarVinetaContenido);
+    bind("tplPropBlockCampos","click",manejarClickCampoBloque);
+    bind("tplPropBlockCampos","change",manejarCambioCampoBloque);
 
     const tarjetas=byId("tplCards");
     if(tarjetas) tarjetas.addEventListener("click",manejarAccionTarjeta);
@@ -6922,6 +7017,7 @@ table tr:last-child td { border-bottom: none; }
     });
 
     bind("tplMappingCotizador","change",function(){ cambiarCotizadorMapeo(this.value); });
+    bind("tplMappingSourceOrigen","change",function(){ estado.wizard.mapeo.origen=this.value; renderAvailableSources(); });
     let timerBusquedaFuente=null;
     bind("tplMappingSourceSearch","input",function(){
       estado.wizard.mapeo.busqueda=this.value;
@@ -7037,9 +7133,9 @@ table tr:last-child td { border-bottom: none; }
     const temas=["theme-navy","theme-blue","theme-green","theme-slate"];
     contenedor.innerHTML=estado.plantillas.map(function(item,indice){
       const publicada=item.estado==="Publicada";
-      const claseEstado=publicada?"tpl-badge-published":"tpl-badge-draft";
-      const accion=publicada?"base":"editar";
-      const etiqueta=publicada?"Usar como base":"Editar borrador";
+      const claseEstado=publicada?"tpl-badge-published":(item.estado==="Archivada"?"tpl-badge-archived":"tpl-badge-draft");
+      const accion=publicada?"nueva-version":(item.estado==="Archivada"?"base":"editar");
+      const etiqueta=publicada?"Nueva versión":(item.estado==="Archivada"?"Usar como base":"Editar borrador");
       const cotizadores=(item.cotizadores||[]).join(", ")||"Sin cotizadores asociados";
       const tipos=(item.tipos_propuesta||[]).join(", ")||"Sin tipos asociados";
       return '<article class="tpl-template-card">'+
@@ -7056,6 +7152,7 @@ table tr:last-child td { border-bottom: none; }
     if(boton.dataset.tplAccion==="preview") abrirPreview(id);
     else if(boton.dataset.tplAccion==="base") abrirWizardNuevo(id);
     else if(boton.dataset.tplAccion==="editar") abrirWizardEdicion(id);
+    else if(boton.dataset.tplAccion==="nueva-version") crearNuevaVersion(id);
   }
 
   async function obtenerDetalle(id){const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(id));return data.plantilla;}
@@ -7086,18 +7183,41 @@ table tr:last-child td { border-bottom: none; }
     contenedor.innerHTML=secciones.map(function(seccion){
       const bloques=seccion.bloques||[];
       return '<section><h3>'+escapar(seccion.titulo||seccion.nombre||"Sección")+'</h3>'+
-        (bloques.length?'<ul>'+bloques.map(function(bloque){return '<li><strong>'+escapar(bloque.titulo||bloque.nombre_interno||"Bloque")+'</strong><span>'+escapar(bloque.tipo_bloque||"BLOQUE")+'</span></li>';}).join("")+'</ul>':'<p>Sin bloques.</p>')+'</section>';
+        (bloques.length?'<ul>'+bloques.map(function(bloque){return '<li><strong>'+escapar(bloque.titulo||bloque.nombre_interno||"Bloque")+'</strong><span>'+escapar(etiquetaTipoBloque(bloque.tipo_bloque))+'</span></li>';}).join("")+'</ul>':'<p>Sin bloques.</p>')+'</section>';
     }).join("");
   }
 
+  // Los 14 tipos de la paleta, con el texto exacto de la plantilla real de
+  // producción de Exceltec. "editor" dice qué muestra el panel de
+  // propiedades: titulo/contenido (con su etiqueta), viñetas (botón
+  // "+ Agregar viñeta") y campos (mini-editor de plantilla_bloque_campos).
+  // Los marcados legado:true ya no están en la paleta, pero las plantillas
+  // guardadas con ellos (la de ISA Custom) se siguen viendo y editando.
+  //
+  // RESUMEN_EJECUTIVO usa el mismo mecanismo que TEXTO (contenido libre con
+  // tokens [NOMBRE_INTERNO]) pero es su propio tipo: el documento lo
+  // destaca visualmente y la futura "Estructura sugerida" (Ronda P2)
+  // necesita reconocerlo sin adivinar por el título.
   const tiposBloqueEstructura=[
-    {tipo:"TEXTO",titulo:"Texto",descripcion:"Párrafos y contenido libre",icono:"T"},
-    {tipo:"LISTA",titulo:"Lista",descripcion:"Elementos ordenados o con viñetas",icono:"≡"},
-    {tipo:"TABLA_INVERSION",titulo:"Tabla de inversión",descripcion:"Resumen económico de la propuesta",icono:"▦"},
-    {tipo:"CAMPO_VINCULADO",titulo:"Campo vinculado",descripcion:"Dato del cotizador",icono:"⌁"},
-    {tipo:"CONDICIONES",titulo:"Condiciones",descripcion:"Términos comerciales",icono:"§"},
-    {tipo:"IMAGEN",titulo:"Imagen",descripcion:"Recurso gráfico de la propuesta",icono:"▧"}
+    {tipo:"PORTADA",titulo:"Portada",descripcion:"Título, cliente y datos de la oferta",icono:"◩",editor:{titulo:"Título de la portada",contenido:"Texto o valor fijo",vinetas:true,campos:true,ayuda:"Subtítulo libre; use viñetas para destacar puntos. Solo puede haber una portada por plantilla."}},
+    {tipo:"ENCABEZADO",titulo:"Encabezado",descripcion:"Título de una parte del documento",icono:"H",editor:{titulo:"Texto del encabezado"}},
+    {tipo:"TEXTO",titulo:"Texto",descripcion:"Párrafos y contenido libre",icono:"T",editor:{titulo:"Título visible",contenido:"Contenido",vinetas:true,ayuda:"Puede usar [NOMBRE_INTERNO] para insertar un dato del cotizador."}},
+    {tipo:"IMAGEN",titulo:"Imagen",descripcion:"Recurso gráfico de la propuesta",icono:"▧",editor:{titulo:"Texto alternativo",contenido:"URL de la imagen",ayuda:"Dirección pública (https://…) de la imagen."}},
+    {tipo:"DATOS_CLIENTE",titulo:"Datos del cliente",descripcion:"Contacto, empresa, correo y teléfono",icono:"◉",editor:{titulo:"Título visible",campos:true}},
+    {tipo:"RESUMEN_EJECUTIVO",titulo:"Resumen ejecutivo",descripcion:"Síntesis destacada de la propuesta",icono:"≣",editor:{titulo:"Título visible",contenido:"Resumen",vinetas:true,ayuda:"Puede usar [NOMBRE_INTERNO] para insertar un dato del cotizador."}},
+    {tipo:"TABLA_INVERSION",titulo:"Tabla de Inversión",descripcion:"Resumen económico de la propuesta",icono:"▦",editor:{titulo:"Título visible",nota:"Las columnas se configuran en el paso 3, para cada cotizador."}},
+    {tipo:"TABLA_DATOS",titulo:"Tabla de datos",descripcion:"Tabla genérica, no de precios",icono:"▤",editor:{titulo:"Título visible",nota:"Las columnas y el origen de las filas se configuran en el paso 3, para cada cotizador."}},
+    {tipo:"OPCIONES_PROPUESTA",titulo:"Opciones de propuesta",descripcion:"Comparativa de escenarios",icono:"⇆",editor:{titulo:"Título visible",nota:"Una fila por cada Opción de Propuesta. Nace con las columnas Escenario y Recomendada; agregue las de montos en el paso 3."}},
+    {tipo:"LISTA_PRECIOS",titulo:"Lista de precios",descripcion:"Ítems de una Lista de Precios",icono:"$",editor:{titulo:"Título visible",nota:"En el paso 3 elija qué Lista de Precios del cotizador mostrar. Nunca se muestra costo interno ni margen."}},
+    {tipo:"GRUPO_INFORMACION",titulo:"Grupo de información",descripcion:"Pares concepto / valor",icono:"ℹ",editor:{titulo:"Título visible",campos:true}},
+    {tipo:"CONDICIONES_COMERCIALES",titulo:"Condiciones comerciales",descripcion:"Validez, forma de pago y plazos",icono:"§",editor:{titulo:"Título visible",campos:true}},
+    {tipo:"FIRMA_ACEPTACION",titulo:"Firma y aceptación",descripcion:"Aceptación con espacio de firma",icono:"✍",editor:{titulo:"Título visible",contenido:"Texto de aceptación",campos:true,ayuda:"El espacio de firma y fecha se dibuja solo en el documento."}},
+    {tipo:"SALTO_PAGINA",titulo:"Salto de página",descripcion:"Fuerza una página nueva en el PDF",icono:"⤓",editor:{nota:"Fuerza un salto de página al generar el PDF. No requiere configuración."}},
+    {tipo:"LISTA",titulo:"Lista",descripcion:"Elementos con viñetas",icono:"≡",legado:true,editor:{titulo:"Título visible",contenido:"Contenido",vinetas:true}},
+    {tipo:"CAMPO_VINCULADO",titulo:"Campo vinculado",descripcion:"Dato del cotizador",icono:"⌁",legado:true,editor:{titulo:"Etiqueta",nota:"El dato se vincula en el paso 3."}},
+    {tipo:"CONDICIONES",titulo:"Condiciones (texto libre)",descripcion:"Términos comerciales",icono:"§",legado:true,editor:{titulo:"Título visible",contenido:"Contenido",vinetas:true}}
   ];
+  function editorTipoBloque(tipo){const item=tiposBloqueEstructura.find(function(actual){return actual.tipo===tipo;});return (item&&item.editor)||{titulo:"Título visible",contenido:"Contenido o indicación"};}
 
   function cargarEstructura(opciones){
     if(!estado.wizard.plantillaId)return Promise.resolve();
@@ -7125,7 +7245,7 @@ table tr:last-child td { border-bottom: none; }
 
   function renderPaletaBloques(){
     const paleta=byId("tplBlockPalette");if(!paleta)return;
-    paleta.innerHTML=tiposBloqueEstructura.map(function(item){
+    paleta.innerHTML=tiposBloqueEstructura.filter(function(item){return !item.legado;}).map(function(item){
       return '<div class="tpl-palette-block" draggable="true" tabindex="0" role="button" title="Arrastre o presione Enter para agregar" data-tipo-bloque="'+item.tipo+'">'+
         '<span class="tpl-palette-icon">'+escapar(item.icono)+'</span><span><strong>'+escapar(item.titulo)+'</strong><small>'+escapar(item.descripcion)+'</small></span><i>⋮⋮</i></div>';
     }).join("");
@@ -7150,6 +7270,11 @@ table tr:last-child td { border-bottom: none; }
     const secciones=estado.wizard.estructura.secciones;
     canvas.classList.toggle("hidden",secciones.length===0);
     if(vacio)vacio.classList.toggle("hidden",secciones.length!==0);
+    // Quien eligió "Plantilla vacía" en el paso 1 igual puede cargarla, pero
+    // sin destacarla; en cualquier otro caso (estructura sugerida, o una
+    // plantilla existente que quedó sin secciones) es la acción principal.
+    const tarjeta=byId("tplSuggestedCard");
+    if(tarjeta)tarjeta.classList.toggle("tpl-suggested-secondary",!!estado.wizard.eligioVacia);
     if(!secciones.length){canvas.innerHTML="";return;}
     const seleccion=estado.wizard.estructura.seleccion;
     canvas.innerHTML=secciones.map(function(seccion,indice){
@@ -7193,9 +7318,182 @@ table tr:last-child td { border-bottom: none; }
     byId("tplPropBlockName").value=resultado.bloque.nombre_interno||"";
     byId("tplPropBlockTitle").value=resultado.bloque.titulo||"";
     byId("tplPropBlockPlaceholder").value=resultado.bloque.contenido||"";
+    aplicarEditorTipoBloque(resultado.bloque);
     poblarColumnasBloque(resultado.seccion,resultado.bloque);
     byId("tplPropBlockWeb").checked=resultado.bloque.mostrar_web!==false;
     byId("tplPropBlockPdf").checked=resultado.bloque.mostrar_pdf!==false;
+  }
+
+  // Muestra en el panel solo lo que el tipo de bloque usa (editorTipoBloque).
+  function aplicarEditorTipoBloque(bloque){
+    const editor=editorTipoBloque(bloque.tipo_bloque);
+    const mostrar=function(id,visible){const nodo=byId(id);if(nodo)nodo.classList.toggle("hidden",!visible);};
+    mostrar("tplPropBlockTitleField",!!editor.titulo);
+    setTexto("tplPropBlockTitleLabel",editor.titulo||"Título visible");
+    mostrar("tplPropBlockContentField",!!editor.contenido);
+    setTexto("tplPropBlockContentLabel",editor.contenido||"Contenido");
+    setTexto("tplPropBlockContentHelp",editor.ayuda||"");
+    mostrar("tplBtnAgregarVineta",!!editor.vinetas);
+    const nota=byId("tplPropBlockNote");
+    if(nota){nota.textContent=editor.nota||"";nota.classList.toggle("hidden",!editor.nota);}
+    const campos=byId("tplPropBlockCampos");
+    if(campos){
+      campos.classList.toggle("hidden",!editor.campos);
+      if(editor.campos)renderEditorCamposBloque(bloque);else campos.innerHTML="";
+    }
+  }
+  // "+ Agregar viñeta": inserta una línea "• " donde está el cursor. Los
+  // renderizadores (publico.html, vista previa) dibujan esas líneas como
+  // lista; el contenido sigue siendo texto plano en la base.
+  function agregarVinetaContenido(){
+    const area=byId("tplPropBlockPlaceholder");if(!area)return;
+    const inicio=area.selectionStart!==undefined?area.selectionStart:area.value.length;
+    const fin=area.selectionEnd!==undefined?area.selectionEnd:inicio;
+    const antes=area.value.slice(0,inicio),despues=area.value.slice(fin);
+    const prefijo=(antes===""||antes.slice(-1)==="\n")?"• ":"\n• ";
+    area.value=antes+prefijo+despues;
+    const cursor=antes.length+prefijo.length;
+    area.focus();area.setSelectionRange(cursor,cursor);
+    programarGuardadoBloque();
+  }
+
+  // ---------- Campos del bloque (plantilla_bloque_campos) ----------
+  // Pares Etiqueta/Valor de Portada, Datos del cliente, Grupo de
+  // información, Condiciones comerciales y Firma y aceptación. Un campo es
+  // VALOR_FIJO (texto escrito acá), COTIZACION_BASE (dato común a toda
+  // cotización) o CAMPO (del Diseñador de UN cotizador asociado). Mismo
+  // patrón de lista que las columnas de tabla del paso 3: agregar al final,
+  // quitar, y subir/bajar para reordenar.
+  const etiquetasFuenteCampo={VALOR_FIJO:"Valor fijo",COTIZACION_BASE:"Dato de la cotización",CAMPO:"Campo del cotizador"};
+  function nombreCotizador(id){const calc=estado.calculadoras.find(function(c){return c.calculadora_id===id;});return calc?calc.nombre_calculadora:id;}
+  async function fuentesEditorCampos(calculadoraID){
+    const cache=estado.wizard.estructura.fuentes;const clave=calculadoraID||"";
+    if(cache[clave])return cache[clave];
+    const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/fuentes"+(calculadoraID?"?calculadora_id="+encodeURIComponent(calculadoraID):""));
+    cache[clave]={campos:data.campos||[],base:data.datos_cotizacion||[]};
+    return cache[clave];
+  }
+  function descripcionFuenteCampo(campo){
+    const cache=estado.wizard.estructura.fuentes;
+    if(campo.fuente_tipo==="COTIZACION_BASE"){
+      const base=((cache[""]||{}).base||[]).find(function(f){return f.fuente_id===campo.fuente_id;});
+      return etiquetasFuenteCampo.COTIZACION_BASE+": "+(base?base.nombre:campo.fuente_id);
+    }
+    if(campo.fuente_tipo==="CAMPO"){
+      const lista=(cache[campo.calculadora_id||""]||{}).campos||[];
+      const fuente=lista.find(function(f){return f.fuente_id===campo.fuente_id;});
+      return nombreCotizador(campo.calculadora_id)+": "+(fuente?fuente.nombre:campo.fuente_id);
+    }
+    return etiquetasFuenteCampo.VALOR_FIJO;
+  }
+  function renderEditorCamposBloque(bloque){
+    const contenedor=byId("tplPropBlockCampos");if(!contenedor)return;
+    const campos=(bloque.campos||[]).slice().sort(function(a,b){return a.orden-b.orden;});
+    const calculadoras=(estado.wizard.detalle&&estado.wizard.detalle.calculadora_ids)||[];
+    const filas=campos.map(function(campo,indice){
+      return '<div class="tpl-block-field-row" data-campo-id="'+escapar(campo.campo_id)+'">'+
+        '<div class="tpl-block-field-order">'+
+          '<button type="button" class="tpl-field-button" data-mover-campo="-1" title="Subir"'+(indice===0?' disabled':'')+'>↑</button>'+
+          '<button type="button" class="tpl-field-button" data-mover-campo="1" title="Bajar"'+(indice===campos.length-1?' disabled':'')+'>↓</button>'+
+        '</div>'+
+        '<div class="tpl-block-field-copy">'+
+          '<input class="input" type="text" maxlength="120" data-campo-etiqueta value="'+escapar(campo.etiqueta)+'" aria-label="Etiqueta">'+
+          (campo.fuente_tipo==="VALOR_FIJO"
+            ?'<input class="input" type="text" maxlength="2000" data-campo-valor value="'+escapar(campo.valor_fijo||"")+'" placeholder="Valor que se mostrará" aria-label="Valor fijo">'
+            :'<small>'+escapar(descripcionFuenteCampo(campo))+'</small>')+
+        '</div>'+
+        '<button type="button" class="tpl-field-button tpl-block-field-remove" data-quitar-campo title="Quitar">✕</button>'+
+      '</div>';
+    }).join("");
+    contenedor.innerHTML='<h3>Campos del bloque</h3>'+
+      '<div class="tpl-block-field-list">'+(filas||'<p class="tpl-block-field-empty">Todavía no hay campos.</p>')+'</div>'+
+      '<div class="tpl-block-field-add">'+
+        '<input id="tplCampoNuevoEtiqueta" class="input" type="text" maxlength="120" placeholder="Etiqueta, ej. Idioma">'+
+        '<select id="tplCampoNuevoTipo" class="select">'+
+          '<option value="VALOR_FIJO">'+etiquetasFuenteCampo.VALOR_FIJO+'</option>'+
+          '<option value="COTIZACION_BASE">'+etiquetasFuenteCampo.COTIZACION_BASE+'</option>'+
+          (calculadoras.length?'<option value="CAMPO">'+etiquetasFuenteCampo.CAMPO+'</option>':'')+
+        '</select>'+
+        '<select id="tplCampoNuevoCotizador" class="select hidden">'+calculadoras.map(function(id){return '<option value="'+escapar(id)+'">'+escapar(nombreCotizador(id))+'</option>';}).join("")+'</select>'+
+        '<select id="tplCampoNuevoFuente" class="select hidden"></select>'+
+        '<input id="tplCampoNuevoValor" class="input" type="text" maxlength="2000" placeholder="Valor que se mostrará">'+
+        '<button id="tplBtnAgregarCampo" class="btn btn-primary btn-mini" type="button">Agregar campo</button>'+
+      '</div>';
+    // Las descripciones de CAMPO/COTIZACION_BASE necesitan los nombres de las
+    // fuentes: se piden una vez por cotizador y se vuelve a pintar.
+    const pendientes=[""].concat(campos.filter(function(c){return c.fuente_tipo==="CAMPO"&&c.calculadora_id;}).map(function(c){return c.calculadora_id;}))
+      .filter(function(id,i,todos){return todos.indexOf(id)===i&&!estado.wizard.estructura.fuentes[id];});
+    if(pendientes.length){
+      Promise.all(pendientes.map(fuentesEditorCampos)).then(function(){
+        const actual=estado.wizard.estructura.seleccion;
+        if(actual&&actual.tipo==="bloque"&&actual.id===bloque.bloque_id)renderEditorCamposBloque(bloque);
+      }).catch(function(){});
+    }
+  }
+  async function actualizarFormularioCampoNuevo(){
+    const tipo=byId("tplCampoNuevoTipo")?byId("tplCampoNuevoTipo").value:"VALOR_FIJO";
+    const cotizador=byId("tplCampoNuevoCotizador"),fuente=byId("tplCampoNuevoFuente"),valor=byId("tplCampoNuevoValor");
+    if(!cotizador||!fuente||!valor)return;
+    cotizador.classList.toggle("hidden",tipo!=="CAMPO");
+    fuente.classList.toggle("hidden",tipo==="VALOR_FIJO");
+    valor.classList.toggle("hidden",tipo!=="VALOR_FIJO");
+    if(tipo==="VALOR_FIJO"){fuente.innerHTML="";return;}
+    try{
+      const fuentes=await fuentesEditorCampos(tipo==="CAMPO"?cotizador.value:"");
+      const lista=tipo==="CAMPO"?fuentes.campos:fuentes.base;
+      fuente.innerHTML=lista.map(function(f){return '<option value="'+escapar(f.fuente_id)+'">'+escapar(f.nombre)+(f.tab_nombre?' · '+escapar(f.tab_nombre):'')+'</option>';}).join("");
+    }catch(error){fuente.innerHTML="";toast(error&&error.message?error.message:"No fue posible cargar las fuentes disponibles.");}
+  }
+  function bloqueSeleccionadoConCampos(){
+    const seleccion=estado.wizard.estructura.seleccion;if(!seleccion||seleccion.tipo!=="bloque")return null;
+    const resultado=buscarBloque(seleccion.id);
+    return resultado&&editorTipoBloque(resultado.bloque.tipo_bloque).campos?resultado.bloque:null;
+  }
+  async function operarCampoBloque(bloque,accion,mensajeError){
+    cambiarEstadoEstructura("Guardando...");
+    try{await accion();await cargarEstructura({seleccion:{tipo:"bloque",id:bloque.bloque_id},guardado:true});}
+    catch(error){await cargarEstructura({seleccion:{tipo:"bloque",id:bloque.bloque_id}});cambiarEstadoEstructura("Error al guardar",true);toast(error&&error.message?error.message:mensajeError);}
+  }
+  function agregarCampoBloque(){
+    const bloque=bloqueSeleccionadoConCampos();if(!bloque)return;
+    const etiqueta=byId("tplCampoNuevoEtiqueta").value.trim(),tipo=byId("tplCampoNuevoTipo").value;
+    const payload={etiqueta:etiqueta,fuente_tipo:tipo};
+    if(!etiqueta){toast("Ingrese la etiqueta del campo.");return;}
+    if(tipo==="VALOR_FIJO")payload.valor_fijo=byId("tplCampoNuevoValor").value.trim();
+    else{
+      payload.fuente_id=byId("tplCampoNuevoFuente").value;
+      if(!payload.fuente_id){toast("Seleccione la fuente del campo.");return;}
+      if(tipo==="CAMPO")payload.calculadora_id=byId("tplCampoNuevoCotizador").value;
+    }
+    operarCampoBloque(bloque,function(){return solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloque.bloque_id)+"/campos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});},"No fue posible agregar el campo.");
+  }
+  function manejarCambioCampoBloque(evento){
+    const bloque=bloqueSeleccionadoConCampos();if(!bloque)return;
+    if(evento.target.id==="tplCampoNuevoTipo"||evento.target.id==="tplCampoNuevoCotizador"){actualizarFormularioCampoNuevo();return;}
+    const fila=evento.target.closest("[data-campo-id]");if(!fila)return;
+    const payload={};
+    if(evento.target.hasAttribute("data-campo-etiqueta")){
+      payload.etiqueta=evento.target.value.trim();
+      if(!payload.etiqueta){toast("La etiqueta no puede quedar vacía.");renderEditorCamposBloque(bloque);return;}
+    }else if(evento.target.hasAttribute("data-campo-valor"))payload.valor_fijo=evento.target.value.trim();
+    else return;
+    operarCampoBloque(bloque,function(){return solicitarJSON("/api/plantillas/campos/"+encodeURIComponent(fila.dataset.campoId),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});},"No fue posible actualizar el campo.");
+  }
+  function manejarClickCampoBloque(evento){
+    const bloque=bloqueSeleccionadoConCampos();if(!bloque)return;
+    if(evento.target.closest("#tplBtnAgregarCampo")){agregarCampoBloque();return;}
+    const fila=evento.target.closest("[data-campo-id]");if(!fila)return;
+    const campoID=fila.dataset.campoId;
+    if(evento.target.closest("[data-quitar-campo]")){
+      operarCampoBloque(bloque,function(){return solicitarJSON("/api/plantillas/campos/"+encodeURIComponent(campoID),{method:"DELETE"});},"No fue posible quitar el campo.");
+      return;
+    }
+    const mover=evento.target.closest("[data-mover-campo]");if(!mover)return;
+    const ids=(bloque.campos||[]).slice().sort(function(a,b){return a.orden-b.orden;}).map(function(c){return c.campo_id;});
+    const desde=ids.indexOf(campoID),hasta=desde+Number(mover.dataset.moverCampo);
+    if(desde<0||hasta<0||hasta>=ids.length)return;
+    ids.splice(hasta,0,ids.splice(desde,1)[0]);
+    operarCampoBloque(bloque,function(){return solicitarJSON("/api/plantillas/bloques/"+encodeURIComponent(bloque.bloque_id)+"/campos/orden",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({campo_ids:ids})});},"No fue posible reordenar los campos.");
   }
 
   function poblarColumnasBloque(seccion,bloque){
@@ -7203,6 +7501,26 @@ table tr:last-child td { border-bottom: none; }
     const cantidad=numeroColumnas(seccion.diseno_bloques);let html="";
     for(let i=0;i<cantidad;i++)html+='<option value="'+i+'">'+(cantidad===1?'Columna única':'Columna '+(i+1))+'</option>';
     select.innerHTML=html;select.value=String(columnaNormalizada(seccion,bloque.columna));
+  }
+
+  // Ronda P2: puebla una plantilla SIN secciones con la estructura de
+  // referencia de Exceltec. El backend rechaza (409) si ya hay secciones —
+  // su mensaje ya pide vaciar la estructura primero, y se recarga por si
+  // otra pestaña la armó mientras tanto.
+  async function aplicarEstructuraSugerida(){
+    if(!estado.wizard.plantillaId){toast("Guarde primero los datos básicos de la plantilla.");return;}
+    const boton=byId("tplBtnEstructuraSugerida");if(boton)boton.disabled=true;
+    cambiarEstadoEstructura("Guardando...");
+    try{
+      await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/estructura-sugerida",{method:"POST"});
+      estado.wizard.estructura.seleccion=null;
+      await cargarEstructura({guardado:true});
+      toast("Se cargó la estructura sugerida. Revísela y guárdela para confirmar.");
+    }catch(error){
+      await cargarEstructura();
+      cambiarEstadoEstructura("Error al guardar",true);
+      toast(error&&error.message?error.message:"No fue posible cargar la estructura sugerida.");
+    }finally{if(boton)boton.disabled=false;}
   }
 
   function numeroColumnas(diseno){return diseno==="TRES_IGUALES"?3:(String(diseno||"").indexOf("DOS_")===0?2:1);}
@@ -7418,7 +7736,7 @@ table tr:last-child td { border-bottom: none; }
   // filtra en el cliente por el cotizador seleccionado en vez de pedirlo
   // de nuevo al servidor cada vez que cambia el selector.
   //
-  // Solo CAMPO_VINCULADO y TABLA_INVERSION representan un dato puntual
+  // CAMPO_VINCULADO y TABLA_INVERSION representan un dato puntual
   // del cotizador (según quedaron definidos en el paso 2): CAMPO_VINCULADO
   // existe justamente para mostrar un valor, y TABLA_INVERSION puede
   // anclarse al total de la oferta (fuente COTIZACION_BASE
@@ -7433,7 +7751,23 @@ table tr:last-child td { border-bottom: none; }
   // INTEGRACION_API=Sí), así que bloquesVinculables() lista TODOS los
   // bloques de la plantilla — el panel de vinculación a una fuente puntual
   // sigue mostrándose solo para tiposBloqueVinculable, ver renderAvailableSources.
-  const tiposBloqueVinculable=["CAMPO_VINCULADO","TABLA_INVERSION"];
+  //
+  // LISTA_PRECIOS (Ronda P1) también es una sola fuente: el elemento Lista
+  // de Precios del cotizador cuyos ítems se muestran — solo se ofrecen esos
+  // elementos (el backend rechaza cualquier otro). Los pares Etiqueta/Valor
+  // de Portada, Datos del cliente, etc. no se vinculan acá: se arman en el
+  // paso 2 (campos del bloque).
+  //
+  // Ronda P3: TABLA_INVERSION ya no está acá — el renderizador nunca usó su
+  // vinculación (una tabla sale de sus columnas), así que ofrecerla solo
+  // confundía. Sus columnas se configuran en el panel central.
+  const tiposBloqueVinculable=["CAMPO_VINCULADO","LISTA_PRECIOS"];
+  // Los tres bloques de tabla comparten el editor de columnas.
+  // TABLA_INVERSION ya no ofrece "una fila por opción" (para eso está el
+  // bloque Opciones de propuesta), salvo que una plantilla vieja ya lo use.
+  const tiposBloqueTabla=["TABLA_INVERSION","TABLA_DATOS","OPCIONES_PROPUESTA"];
+  function origenFilasEfectivo(bloque){return bloque.tipo_bloque==="OPCIONES_PROPUESTA"?"OPCIONES_PROPUESTA":(bloque.origen_filas||"FIJO");}
+  function permiteElegirOrigenFilas(bloque){return bloque.tipo_bloque==="TABLA_DATOS"||(bloque.tipo_bloque==="TABLA_INVERSION"&&bloque.origen_filas==="OPCIONES_PROPUESTA");}
 
   function bloquesVinculables(){
     const resultado=[];
@@ -7495,14 +7829,15 @@ table tr:last-child td { border-bottom: none; }
   async function cargarFuentesCalculadora(){
     const calculadoraID=estado.wizard.mapeo.calculadoraID;
     if(!calculadoraID||!estado.wizard.plantillaId){
-      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.datosCotizacion=[];renderAvailableSources();return;
+      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.salidas=[];estado.wizard.mapeo.datosCotizacion=[];renderAvailableSources();return;
     }
     try{
       const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/fuentes?calculadora_id="+encodeURIComponent(calculadoraID));
       estado.wizard.mapeo.campos=data.campos||[];
+      estado.wizard.mapeo.salidas=data.salidas||[];
       estado.wizard.mapeo.datosCotizacion=data.datos_cotizacion||[];
     }catch(error){
-      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.datosCotizacion=[];
+      estado.wizard.mapeo.campos=[];estado.wizard.mapeo.salidas=[];estado.wizard.mapeo.datosCotizacion=[];
       toast(error&&error.message?error.message:"No fue posible cargar las fuentes disponibles.");
     }
     renderAvailableSources();
@@ -7511,21 +7846,47 @@ table tr:last-child td { border-bottom: none; }
     const lista=byId("tplMappingBlockList");if(!lista)return;
     const items=bloquesVinculables();
     const calculadoraID=estado.wizard.mapeo.calculadoraID;
-    const vinculables=items.filter(function(item){return tiposBloqueVinculable.indexOf(item.bloque.tipo_bloque)>=0;});
-    const vinculados=vinculables.filter(function(item){return !!vinculacionParaCotizador(item.bloque,calculadoraID);}).length;
-    setTexto("tplMappingSummary",vinculados+" de "+vinculables.length+" vinculados");
+    const resumen=resumenCamposMapeo(items,calculadoraID);
+    setTexto("tplMappingSummary",resumen.campos+(resumen.campos===1?" campo":" campos")+" · "+resumen.pendientes+(resumen.pendientes===1?" requerido pendiente":" requeridos pendientes"));
     if(!items.length){
       lista.innerHTML='<div class="tpl-mapping-empty">Esta plantilla todavía no tiene bloques. Agréguelos en el paso 2.</div>';
       return;
     }
     lista.innerHTML=items.map(function(item){
-      const vinculado=!!vinculacionParaCotizador(item.bloque,calculadoraID)||!!condicionParaCotizador(item.bloque,calculadoraID);
+      const requisito=requisitoDatosBloque(item.bloque,calculadoraID);
+      const conCondicion=!!condicionParaCotizador(item.bloque,calculadoraID);
+      const estadoBloque=requisito==="PENDIENTE"?"pending":((requisito==="CUMPLIDO"||conCondicion)?"linked":"unlinked");
+      const icono={pending:"!",linked:"✓",unlinked:"○"}[estadoBloque];
       const activo=estado.wizard.mapeo.bloqueId===item.bloque.bloque_id;
-      return '<button class="tpl-mapping-block-item '+(activo?'selected':'')+' '+(vinculado?'linked':'unlinked')+'" type="button" data-bloque-id="'+escapar(item.bloque.bloque_id)+'">'+
-        '<span class="tpl-mapping-block-status">'+(vinculado?'✓':'○')+'</span>'+
+      return '<button class="tpl-mapping-block-item '+(activo?'selected':'')+' '+estadoBloque+'" type="button" data-bloque-id="'+escapar(item.bloque.bloque_id)+'"'+(requisito==="PENDIENTE"?' title="Requiere un dato del cotizador"':'')+'>'+
+        '<span class="tpl-mapping-block-status">'+icono+'</span>'+
         '<span class="tpl-mapping-block-copy"><strong>'+escapar(item.bloque.titulo||item.bloque.nombre_interno||"Bloque")+'</strong><small>'+escapar(item.seccionNombre)+' · '+escapar(etiquetaTipoBloque(item.bloque.tipo_bloque))+'</small></span>'+
       '</button>';
     }).join("");
+  }
+  // Resumen del paso 3 ("40 campos · 2 requeridos pendientes"), por el
+  // cotizador elegido arriba. Un "campo" es cada destino de datos del
+  // documento: un bloque de una sola fuente (Campo vinculado, Lista de
+  // precios), cada columna de una tabla, y cada par Etiqueta/Valor de
+  // plantilla_bloque_campos que aplica a este cotizador. "Requerido
+  // pendiente" es lo que saldría vacío sin remedio: un bloque de una sola
+  // fuente sin vincular, o una tabla sin ninguna columna. Los textos libres
+  // no piden datos y no cuentan.
+  function requisitoDatosBloque(bloque,calculadoraID){
+    if(tiposBloqueVinculable.indexOf(bloque.tipo_bloque)>=0)return vinculacionParaCotizador(bloque,calculadoraID)?"CUMPLIDO":"PENDIENTE";
+    if(tiposBloqueTabla.indexOf(bloque.tipo_bloque)>=0)return columnasParaCotizador(bloque,calculadoraID).length?"CUMPLIDO":"PENDIENTE";
+    return "";
+  }
+  function resumenCamposMapeo(items,calculadoraID){
+    let campos=0,pendientes=0;
+    items.forEach(function(item){
+      const bloque=item.bloque;
+      if(requisitoDatosBloque(bloque,calculadoraID)==="PENDIENTE")pendientes++;
+      if(tiposBloqueVinculable.indexOf(bloque.tipo_bloque)>=0)campos++;
+      else if(tiposBloqueTabla.indexOf(bloque.tipo_bloque)>=0)campos+=Math.max(1,columnasParaCotizador(bloque,calculadoraID).length);
+      campos+=(bloque.campos||[]).filter(function(c){return !c.calculadora_id||c.calculadora_id===calculadoraID;}).length;
+    });
+    return {campos:campos,pendientes:pendientes};
   }
   function manejarSeleccionBloqueMapeo(evento){
     const item=evento.target.closest("[data-bloque-id]");if(!item)return;
@@ -7552,20 +7913,21 @@ table tr:last-child td { border-bottom: none; }
     if(tiposBloqueVinculable.indexOf(seleccionado.bloque.tipo_bloque)>=0){
       const vinculacion=vinculacionParaCotizador(seleccionado.bloque,estado.wizard.mapeo.calculadoraID);
       html+=vinculacion
-        ? '<div class="tpl-mapping-current"><div><span>Vinculado a</span><strong>'+escapar(nombreFuente(vinculacion.fuente_tipo,vinculacion.fuente_id))+'</strong><small>'+(vinculacion.fuente_tipo==="CAMPO"?"Campo del cotizador":"Dato de la cotización")+'</small></div><button id="tplBtnQuitarVinculacion" class="btn tpl-btn-danger" type="button">Quitar vinculación</button></div>'
+        ? '<div class="tpl-mapping-current"><div><span>Vinculado a</span><strong>'+escapar(nombreFuente(vinculacion.fuente_tipo,vinculacion.fuente_id))+'</strong><small>'+escapar(etiquetasOrigenFuente[vinculacion.fuente_tipo]||"Dato de la cotización")+'</small></div><button id="tplBtnQuitarVinculacion" class="btn tpl-btn-danger" type="button">Quitar vinculación</button></div>'
         : '<div class="tpl-mapping-current tpl-mapping-current-empty"><p>Este bloque todavía no está vinculado. Elija una fuente en el panel derecho.</p></div>';
     }
     html+=renderPanelCondicionBloque(seleccionado.bloque);
-    if(seleccionado.bloque.tipo_bloque==="TABLA_INVERSION"){
-      html+=renderPanelOrigenFilas(seleccionado.bloque);
-      if((seleccionado.bloque.origen_filas||"FIJO")==="OPCIONES_PROPUESTA")html+=renderPanelColumnasTabla(seleccionado.bloque);
+    const esTabla=tiposBloqueTabla.indexOf(seleccionado.bloque.tipo_bloque)>=0;
+    if(esTabla){
+      if(permiteElegirOrigenFilas(seleccionado.bloque))html+=renderPanelOrigenFilas(seleccionado.bloque);
+      html+=renderPanelColumnasTabla(seleccionado.bloque);
     }
     campo.innerHTML=html;
     const botonQuitarVinculacion=byId("tplBtnQuitarVinculacion");if(botonQuitarVinculacion)botonQuitarVinculacion.addEventListener("click",quitarVinculacionActual);
     bindPanelCondicionBloque();
-    if(seleccionado.bloque.tipo_bloque==="TABLA_INVERSION"){
-      bindPanelOrigenFilas(seleccionado.bloque);
-      if((seleccionado.bloque.origen_filas||"FIJO")==="OPCIONES_PROPUESTA")bindPanelColumnasTabla(seleccionado.bloque);
+    if(esTabla){
+      if(permiteElegirOrigenFilas(seleccionado.bloque))bindPanelOrigenFilas(seleccionado.bloque);
+      bindPanelColumnasTabla(seleccionado.bloque);
     }
   }
   // ---------- "Mostrar solo si…" (condición de bloque, cuarto hueco) ----------
@@ -7665,8 +8027,9 @@ table tr:last-child td { border-bottom: none; }
   // ---------- Origen de las filas + columnas de TABLA_INVERSION ----------
   function renderPanelOrigenFilas(bloque){
     const origen=bloque.origen_filas||"FIJO";
+    const aviso=bloque.tipo_bloque==="TABLA_INVERSION"?'<small>Para comparar escenarios use el bloque "Opciones de propuesta"; esta opción se mantiene para plantillas existentes.</small>':'';
     return '<div class="tpl-mapping-condition tpl-mapping-panel-extra">'+
-      '<h3>Origen de las filas</h3>'+
+      '<h3>Origen de las filas</h3>'+aviso+
       '<div class="field"><select id="tplOrigenFilas" class="select">'+
         '<option value="FIJO"'+(origen==="FIJO"?" selected":"")+'>Fijo (una sola fila)</option>'+
         '<option value="OPCIONES_PROPUESTA"'+(origen==="OPCIONES_PROPUESTA"?" selected":"")+'>Una por cada Opción de Propuesta</option>'+
@@ -7699,16 +8062,17 @@ table tr:last-child td { border-bottom: none; }
   }
   function renderPanelColumnasTabla(bloque){
     const columnas=columnasParaCotizador(bloque,estado.wizard.mapeo.calculadoraID);
+    const porOpcion=origenFilasEfectivo(bloque)==="OPCIONES_PROPUESTA";
+    const titulo=bloque.tipo_bloque==="TABLA_DATOS"?"Columnas de la tabla":(porOpcion?"Columnas (Concepto, Implementación, Mensualidad, Recomendada…)":"Columnas (una sola fila)");
     return '<div class="tpl-mapping-condition tpl-mapping-panel-extra">'+
-      '<h3>Columnas (Concepto, Implementación, Mensualidad, Recomendada…)</h3>'+
+      '<h3>'+escapar(titulo)+'</h3>'+
       '<div id="tplColumnasLista">'+(columnas.length?columnas.map(filaColumnaTabla).join(""):'<p class="tpl-mapping-current-empty">Todavía no hay columnas.</p>')+'</div>'+
       '<div class="tpl-inline-action">'+
         '<input id="tplNuevaColumnaTitulo" class="input" type="text" placeholder="Título de columna, ej. Mensualidad">'+
         '<select id="tplNuevaColumnaTipo" class="select">'+
           '<option value="CAMPO">Campo del cotizador</option>'+
           '<option value="COTIZACION_BASE">Dato de la cotización</option>'+
-          '<option value="NOMBRE_ESCENARIO">Nombre del escenario</option>'+
-          '<option value="ES_RECOMENDADA">Recomendada (Sí/No)</option>'+
+          (porOpcion?'<option value="NOMBRE_ESCENARIO">Nombre del escenario</option><option value="ES_RECOMENDADA">Recomendada (Sí/No)</option>':'')+
         '</select>'+
         '<select id="tplNuevaColumnaFuenteID" class="select"></select>'+
         '<button id="tplBtnAgregarColumna" class="btn btn-primary btn-mini" type="button">Agregar columna</button>'+
@@ -7772,8 +8136,16 @@ table tr:last-child td { border-bottom: none; }
       toast(error&&error.message?error.message:"No fue posible eliminar la columna.");
     }
   }
+  const etiquetasOrigenFuente={CAMPO:"Campo del cotizador",SALIDA_ESTANDAR:"Salida especial",COTIZACION_BASE:"Dato de la cotización"};
+  const etiquetasTipoElementoFuente={CAMPO:"Campo",CAMPO_CATALOGO:"Campo catálogo",CAMPO_CALCULADO:"Campo calculado",LISTA_PRECIOS:"Lista de precios",TABLA:"Tabla"};
+  const etiquetasTipoDatoSalida={MONEDA:"Monto",TEXTO:"Texto",PORCENTAJE:"Porcentaje"};
+  function tipoVisibleFuente(fuente){
+    if(fuente.fuente_tipo==="CAMPO")return etiquetasTipoElementoFuente[fuente.tipo_elemento]||fuente.tipo_elemento||"Campo";
+    if(fuente.fuente_tipo==="SALIDA_ESTANDAR")return "Salida · "+(etiquetasTipoDatoSalida[fuente.tipo_dato]||fuente.tipo_dato||"");
+    return "Dato de la cotización";
+  }
   function nombreFuente(fuenteTipo,fuenteID){
-    const lista=fuenteTipo==="CAMPO"?estado.wizard.mapeo.campos:estado.wizard.mapeo.datosCotizacion;
+    const lista=fuenteTipo==="CAMPO"?estado.wizard.mapeo.campos:(fuenteTipo==="SALIDA_ESTANDAR"?estado.wizard.mapeo.salidas:estado.wizard.mapeo.datosCotizacion);
     const item=(lista||[]).find(function(f){return f.fuente_id===fuenteID;});
     return item?item.nombre:fuenteID;
   }
@@ -7799,27 +8171,53 @@ table tr:last-child td { border-bottom: none; }
       contenedor.innerHTML='<div class="tpl-source-empty">Este tipo de bloque no se vincula a una fuente puntual. Use el panel central para configurar su condición.</div>';
       return;
     }
+    // Filtro en vivo: nombre, sección, tipo y código (fuente_id), sin
+    // tildes ni mayúsculas (normalizarBusquedaFuente).
     const termino=normalizarBusquedaFuente(estado.wizard.mapeo.busqueda);
-    const filtrar=function(lista){
+    const origen=estado.wizard.mapeo.origen||"";
+    const filtrar=function(lista,fuenteTipo){
+      if(origen&&origen!==fuenteTipo)return [];
       return (lista||[]).filter(function(f){
-        return !termino||normalizarBusquedaFuente(f.nombre).indexOf(termino)>=0||normalizarBusquedaFuente(f.tab_nombre||"").indexOf(termino)>=0;
+        if(!termino)return true;
+        return [f.nombre,f.tab_nombre,f.fuente_id,tipoVisibleFuente(f)].some(function(texto){return normalizarBusquedaFuente(texto||"").indexOf(termino)>=0;});
       });
     };
-    const campos=filtrar(estado.wizard.mapeo.campos);
-    const datos=filtrar(estado.wizard.mapeo.datosCotizacion);
-    if(!campos.length&&!datos.length){
+    const esLista=bloqueActual.tipo_bloque==="LISTA_PRECIOS";
+    const campos=filtrar(estado.wizard.mapeo.campos,"CAMPO").filter(function(f){return !esLista||f.tipo_elemento==="LISTA_PRECIOS";});
+    const salidas=esLista?[]:filtrar(estado.wizard.mapeo.salidas,"SALIDA_ESTANDAR");
+    const datos=esLista?[]:filtrar(estado.wizard.mapeo.datosCotizacion,"COTIZACION_BASE");
+    if(esLista&&!campos.length&&!termino&&!origen){
+      contenedor.innerHTML='<div class="tpl-source-empty">Este cotizador no tiene ningún elemento Lista de Precios activo.</div>';
+      return;
+    }
+    if(!campos.length&&!salidas.length&&!datos.length){
       contenedor.innerHTML='<div class="tpl-source-empty">Ninguna fuente coincide con la búsqueda.</div>';
       return;
     }
+    // Campos agrupados por sección del Diseñador, en el orden en que llegan
+    // (el backend ya los ordena por sección y por elemento).
+    const secciones=[];
+    campos.forEach(function(f){
+      const nombre=f.tab_nombre||"Sin sección";
+      let grupo=secciones.find(function(g){return g.nombre===nombre;});
+      if(!grupo){grupo={nombre:nombre,fuentes:[]};secciones.push(grupo);}
+      grupo.fuentes.push(f);
+    });
     contenedor.innerHTML=
-      (campos.length?'<div class="tpl-source-group"><h3>Campos del cotizador</h3>'+campos.map(filaFuente).join("")+'</div>':'')+
-      (datos.length?'<div class="tpl-source-group"><h3>Datos de la cotización</h3>'+datos.map(filaFuente).join("")+'</div>':'');
+      (campos.length?'<div class="tpl-source-group"><h3>Campos visibles ('+campos.length+')</h3>'+secciones.map(function(g){
+        return '<div class="tpl-source-section"><h4>'+escapar(g.nombre)+'</h4>'+g.fuentes.map(filaFuente).join("")+'</div>';
+      }).join("")+'</div>':'')+
+      (salidas.length?'<div class="tpl-source-group"><h3>Salidas especiales ('+salidas.length+')</h3>'+salidas.map(filaFuente).join("")+'</div>':'')+
+      (datos.length?'<div class="tpl-source-group"><h3>Datos de la cotización ('+datos.length+')</h3>'+datos.map(filaFuente).join("")+'</div>':'');
   }
   function filaFuente(fuente){
     const actual=vinculacionSeleccionActual();
     const activa=!!(actual&&actual.fuente_tipo===fuente.fuente_tipo&&actual.fuente_id===fuente.fuente_id);
     return '<button class="tpl-source-item '+(activa?'selected':'')+'" type="button" data-fuente-tipo="'+escapar(fuente.fuente_tipo)+'" data-fuente-id="'+escapar(fuente.fuente_id)+'">'+
-      '<span class="tpl-source-copy"><strong>'+escapar(fuente.nombre)+'</strong>'+(fuente.tab_nombre?'<small>'+escapar(fuente.tab_nombre)+'</small>':'')+'</span>'+
+      '<span class="tpl-source-copy"><strong>'+escapar(fuente.nombre)+'</strong>'+
+        '<small class="tpl-source-meta">'+escapar(tipoVisibleFuente(fuente))+' · <code>'+escapar(fuente.fuente_id)+'</code></small>'+
+        (fuente.tab_nombre?'<small>'+escapar(fuente.tab_nombre)+'</small>':'')+
+      '</span>'+
       (activa?'<span class="tpl-source-check">✓</span>':'')+
     '</button>';
   }
@@ -7864,12 +8262,47 @@ table tr:last-child td { border-bottom: none; }
   }
 
   // ---------- Paso 4: Estilo visual ----------
+  // Los 4 temas de la plantilla de referencia de Exceltec (Ronda P4):
+  // Profesional azul, Minimalista, Ejecutivo oscuro y Empresarial verde.
+  // "Empresarial" reemplazó a "Moderno" en las tarjetas; MODERNO queda como
+  // legado (sin tarjeta) para que una plantilla guardada con él siga
+  // mostrando sus colores. Colores: primario, secundario, acento.
   const temasEstiloPredefinidos=[
-    {clave:"PROFESIONAL",nombre:"Profesional",colores:["#0B2F63","#1F6FFF","#20B8CD"]},
-    {clave:"MODERNO",nombre:"Moderno",colores:["#0F2A4A","#185FA5","#25BCD2"]},
-    {clave:"EJECUTIVO",nombre:"Ejecutivo",colores:["#1C2B3A","#3D5A80","#E0B354"]},
-    {clave:"MINIMALISTA",nombre:"Minimalista",colores:["#111827","#4B5563","#9CA3AF"]}
+    {clave:"PROFESIONAL",nombre:"Profesional",descripcion:"Azul corporativo",colores:["#0B2F63","#1F6FFF","#20B8CD"]},
+    {clave:"MINIMALISTA",nombre:"Minimalista",descripcion:"Sobrio, en grises",colores:["#111827","#4B5563","#9CA3AF"]},
+    {clave:"EJECUTIVO",nombre:"Ejecutivo",descripcion:"Oscuro con acento dorado",colores:["#1C2B3A","#3D5A80","#E0B354"]},
+    {clave:"EMPRESARIAL",nombre:"Empresarial",descripcion:"Verde institucional",colores:["#0F4C3A","#1E8A5F","#7FD1AE"]},
+    {clave:"MODERNO",nombre:"Moderno",legado:true,colores:["#0F2A4A","#185FA5","#25BCD2"]}
   ];
+  // "Estilo sugerido": una regla simple y documentada a propósito, no un
+  // modelo. Se revisan los Tipos de propuesta del paso 1 (sin tildes ni
+  // mayúsculas) contra estas palabras, en este orden; gana la primera regla
+  // que coincide con CUALQUIER tipo. Sin coincidencia (o sin tipos) no se
+  // sugiere nada — mejor ninguna badge que una arbitraria.
+  const reglasEstiloSugerido=[
+    {tema:"EJECUTIVO",palabras:["ejecutiv","corporativ","directiv","gerencia","junta","estrateg","premium","alta direccion"]},
+    {tema:"EMPRESARIAL",palabras:["empresa","industri","manufactur","construc","logistic","distribu","institucional","gobierno","licitacion","mayorista"]},
+    {tema:"MINIMALISTA",palabras:["basic","simple","express","rapid","breve","estandar","minim"]},
+    {tema:"PROFESIONAL",palabras:["consultor","servicio","profesional","tecnolog","software","implementa","soporte","digital","comercial","ti"]}
+  ];
+  function normalizarTextoEstilo(valor){
+    return String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  }
+  function sugerirTemaEstilo(tiposPropuesta){
+    const palabrasTipos=(tiposPropuesta||[]).map(function(tipo){return " "+normalizarTextoEstilo(tipo).replace(/[^a-z0-9]+/g," ")+" ";});
+    for(const regla of reglasEstiloSugerido){
+      for(const palabra of regla.palabras){
+        // Palabras de 2 letras ("ti") solo como palabra completa; el resto
+        // como raíz ("ejecutiv" cubre ejecutivo/ejecutiva/ejecutivos).
+        const coincide=palabrasTipos.some(function(t){return palabra.length<=2?t.indexOf(" "+palabra+" ")>=0:t.indexOf(palabra)>=0;});
+        if(coincide){
+          const tipo=(tiposPropuesta||[]).find(function(tp){const n=" "+normalizarTextoEstilo(tp).replace(/[^a-z0-9]+/g," ")+" ";return palabra.length<=2?n.indexOf(" "+palabra+" ")>=0:n.indexOf(palabra)>=0;});
+          return {tema:regla.tema,tipo:tipo};
+        }
+      }
+    }
+    return null;
+  }
   // Los temas son solo un punto de partida visual: no hay tabla de temas
   // en el backend, así que elegir uno solo guarda el campo "tema" (texto
   // libre) de plantilla_estilos. Los colores de cada tarjeta son valores
@@ -7941,6 +8374,7 @@ table tr:last-child td { border-bottom: none; }
       if(byId("tplStyleTable"))byId("tplStyleTable").value=estilo.estilo_tablas||"LINEAS";
       renderTemasEstilo(estilo.tema||"PROFESIONAL");
       cargarControlesIdentidad(estilo);
+      renderDocumentoEjemploEstilo();
       aplicarClasesPreview();
       cambiarEstadoEstilo("Sin cambios");
     }catch(error){
@@ -7950,32 +8384,204 @@ table tr:last-child td { border-bottom: none; }
   }
   function renderTemasEstilo(temaActual){
     const contenedor=byId("tplStyleThemes");if(!contenedor)return;
-    contenedor.innerHTML=temasEstiloPredefinidos.map(function(tema){
+    const tipos=(estado.wizard.detalle&&estado.wizard.detalle.tipos_propuesta)||[];
+    const sugerencia=sugerirTemaEstilo(tipos);
+    contenedor.innerHTML=temasEstiloPredefinidos.filter(function(tema){return !tema.legado;}).map(function(tema){
       const activo=String(temaActual||"").toUpperCase()===tema.clave;
-      return '<button class="tpl-style-theme-card '+(activo?'selected':'')+'" type="button" data-tema="'+tema.clave+'">'+
+      const sugerido=!!(sugerencia&&sugerencia.tema===tema.clave);
+      return '<button class="tpl-style-theme-card '+(activo?'selected ':'')+(sugerido?'suggested':'')+'" type="button" data-tema="'+tema.clave+'">'+
+        (sugerido?'<span class="tpl-style-suggested-badge">Estilo sugerido</span>':'')+
         '<span class="tpl-style-theme-swatch">'+tema.colores.map(function(color){return '<i style="background:'+color+'"></i>';}).join("")+'</span>'+
-        '<strong>'+escapar(tema.nombre)+'</strong>'+
+        '<strong>'+escapar(tema.nombre)+'</strong>'+(tema.descripcion?'<small>'+escapar(tema.descripcion)+'</small>':'')+
       '</button>';
     }).join("");
-    aplicarTemaPreview(temaActual);
+    const pista=byId("tplStyleSuggestionHint");
+    if(pista){
+      pista.classList.toggle("hidden",!sugerencia);
+      pista.textContent=sugerencia?'Sugerido para el tipo de propuesta "'+sugerencia.tipo+'": '+temaEstiloPorClave(sugerencia.tema).nombre+".":"";
+    }
   }
-  // Los temas no tienen columnas propias en plantilla_estilos (solo el
-  // texto libre "tema"): lo único que puede reflejar visualmente un tema
-  // en la vista previa son estas 3 variables CSS, que el CSS usa como
-  // color de la portada (ver cotiza_base.css, .tpl-style-preview-cover).
-  function aplicarTemaPreview(temaActual){
-    const pagina=byId("tplStylePreviewPage");if(!pagina)return;
-    const clave=String(temaActual||"").toUpperCase();
-    const tema=temasEstiloPredefinidos.find(function(t){return t.clave===clave;})||temasEstiloPredefinidos[0];
-    pagina.style.setProperty("--tpl-preview-primary",tema.colores[0]);
-    pagina.style.setProperty("--tpl-preview-secondary",tema.colores[1]);
-    pagina.style.setProperty("--tpl-preview-accent",tema.colores[2]);
-  }
+  // Elegir un tema es elegir sus colores: se pasan a los controles de color
+  // y se guardan junto con "tema". Antes solo se guardaba "tema" y los
+  // colores ya guardados lo pisaban al recargar (y al tocar cualquier otro
+  // control), así que el tema parecía no hacer nada.
   function manejarClickTema(evento){
     const item=evento.target.closest("[data-tema]");if(!item)return;
-    renderTemasEstilo(item.dataset.tema);
-    guardarEstilo({tema:item.dataset.tema});
+    const tema=temaEstiloPorClave(item.dataset.tema);
+    asignarValorEstilo("tplStylePrimary",tema.colores[0]);
+    asignarValorEstilo("tplStyleSecondary",tema.colores[1]);
+    asignarValorEstilo("tplStyleAccent",tema.colores[2]);
+    renderTemasEstilo(tema.clave);
+    aplicarIdentidadPreview();
+    cancelarAutoguardado("estilo");
+    guardarEstilo({tema:tema.clave,color_primario:tema.colores[0],color_secundario:tema.colores[1],color_acento:tema.colores[2]});
   }
+
+  // ---------- Vista previa del documento completo (Ronda P4) ----------
+  // Dibuja TODAS las secciones y bloques de la plantilla (paso 2) con datos
+  // INVENTADOS de ejemplo, para diseñar el estilo — no es una cotización:
+  // para ver una oferta real está la Vista Previa de la Oferta (Ronda C).
+  // Mismo criterio de dibujo que publico.html / la vista previa real (pares
+  // en grilla, tablas, viñetas, espacio de firma), pero con las clases del
+  // panel para que tema, portada, márgenes y estilo de tabla se apliquen.
+  const datosEjemploEstilo={
+    cliente:"Cliente Ejemplo S.A.",empresa:"Cliente Ejemplo S.A.",contacto:"María Pérez",
+    contacto_correo:"maria.perez@clienteejemplo.com",contacto_telefono:"+506 2222-3333",contacto_cargo:"Gerente de Operaciones",
+    codigo_oferta:"CTZ-2026-0001",total_precio:"US$ 18.500,00",moneda:"US$",vendedor:"Ana Gómez",estado:"Borrador"
+  };
+  const valoresFijosEjemploEstilo=[
+    {palabra:"validez",valor:"30 días naturales"},{palabra:"pago",valor:"50% al inicio y 50% contra entrega"},
+    {palabra:"plazo",valor:"6 semanas a partir de la aceptación"},{palabra:"observ",valor:"Los precios no incluyen impuestos."},
+    {palabra:"idioma",valor:"Español"},{palabra:"cantidad",valor:"3"}
+  ];
+  function valorEjemploCampoEstilo(campo){
+    if(campo.fuente_tipo==="VALOR_FIJO"){
+      if(campo.valor_fijo)return campo.valor_fijo;
+      const etiqueta=normalizarTextoEstilo(campo.etiqueta);
+      const ejemplo=valoresFijosEjemploEstilo.find(function(e){return etiqueta.indexOf(e.palabra)>=0;});
+      return ejemplo?ejemplo.valor:"Valor de ejemplo";
+    }
+    if(campo.fuente_tipo==="COTIZACION_BASE"){
+      if(campo.fuente_id==="tipo_propuesta")return ((estado.wizard.detalle&&estado.wizard.detalle.tipos_propuesta)||[])[0]||"Comercial";
+      if(campo.fuente_id==="fecha_creacion")return new Date().toLocaleDateString("es-CR",{day:"2-digit",month:"long",year:"numeric"});
+      return datosEjemploEstilo[campo.fuente_id]||"Dato de ejemplo";
+    }
+    return "Dato del cotizador";
+  }
+  // Los tokens [NOMBRE_INTERNO] se muestran como «NOMBRE_INTERNO»: es un
+  // dato que la oferta real va a reemplazar, no texto del cliente.
+  function textoEjemploEstilo(contenido,alternativo){
+    const texto=String(contenido||"").trim()||alternativo||"";
+    return texto.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g,"«$1»");
+  }
+  function htmlTextoEnriquecidoEstilo(contenido){
+    let html="",parrafo=[],enLista=false;
+    const cerrarParrafo=function(){if(parrafo.length){html+='<p>'+escapar(parrafo.join("\n"))+'</p>';parrafo=[];}};
+    const cerrarLista=function(){if(enLista){html+='</ul>';enLista=false;}};
+    String(contenido||"").split("\n").forEach(function(linea){
+      const vineta=/^\s*•\s?(.*)$/.exec(linea);
+      if(vineta){cerrarParrafo();if(!enLista){html+='<ul>';enLista=true;}html+='<li>'+escapar(vineta[1])+'</li>';return;}
+      cerrarLista();
+      if(linea.trim()==="")cerrarParrafo();else parrafo.push(linea);
+    });
+    cerrarParrafo();cerrarLista();
+    return html;
+  }
+  function htmlParesEstilo(campos){
+    if(!campos||!campos.length)return "";
+    return '<dl class="tpl-style-preview-pairs">'+campos.slice().sort(function(a,b){return a.orden-b.orden;}).map(function(c){
+      return '<div><dt>'+escapar(c.etiqueta)+'</dt><dd>'+escapar(valorEjemploCampoEstilo(c))+'</dd></div>';
+    }).join("")+'</dl>';
+  }
+  function htmlTablaEstilo(columnas,filas,total){
+    const grilla=' style="display:grid;grid-template-columns:repeat('+columnas.length+',minmax(0,1fr))"';
+    const fila=function(celdas,clase){return '<div class="tpl-style-preview-row'+(clase?' '+clase:'')+'"'+grilla+'>'+celdas.map(function(c){return '<span>'+escapar(c)+'</span>';}).join("")+'</div>';};
+    return '<div class="tpl-style-preview-table">'+fila(columnas,"head")+filas.map(function(f){return fila(f.celdas||f,f.clase);}).join("")+(total?fila(total,"total"):"")+'</div>';
+  }
+  function htmlBloqueEjemploEstilo(bloque,seccion){
+    // Un título igual al de su sección (así nace la Estructura sugerida:
+    // sección "Inversión" con bloque "Inversión") no se repite.
+    const repiteSeccion=seccion.mostrar_titulo!==false&&normalizarTextoEstilo(bloque.titulo)===normalizarTextoEstilo(seccion.titulo||seccion.nombre);
+    const titulo=bloque.titulo&&!repiteSeccion?'<h3>'+escapar(bloque.titulo)+'</h3>':'';
+    switch(bloque.tipo_bloque){
+      case "PORTADA":return ""; // Se dibuja como la portada del documento.
+      case "SALTO_PAGINA":return '<div class="tpl-style-preview-break" aria-hidden="true"><span>Salto de página</span></div>';
+      case "ENCABEZADO":
+        // La Estructura sugerida repite el nombre de la sección en su
+        // encabezado: no se dibuja dos veces el mismo título.
+        if(repiteSeccion)return "";
+        return '<h3 class="tpl-style-preview-heading">'+escapar(bloque.titulo||"Encabezado")+'</h3>';
+      case "RESUMEN_EJECUTIVO":
+        return '<div class="tpl-style-preview-summary">'+htmlTextoEnriquecidoEstilo(textoEjemploEstilo(bloque.contenido,"Resumen de la necesidad del cliente, la solución y el valor que obtiene."))+'</div>';
+      case "IMAGEN":
+        return '<div class="tpl-style-preview-image">'+escapar(bloque.titulo&&bloque.titulo!=="Imagen"?bloque.titulo:"Imagen de la propuesta")+'</div>';
+      case "DATOS_CLIENTE":case "GRUPO_INFORMACION":case "CONDICIONES_COMERCIALES":
+        return titulo+(bloque.contenido?htmlTextoEnriquecidoEstilo(textoEjemploEstilo(bloque.contenido)):"")+(htmlParesEstilo(bloque.campos)||'<p>Sin campos configurados.</p>');
+      case "FIRMA_ACEPTACION":
+        return titulo+htmlTextoEnriquecidoEstilo(textoEjemploEstilo(bloque.contenido,"Con la firma de este documento, el cliente acepta la presente propuesta."))+htmlParesEstilo(bloque.campos)+
+          '<div class="tpl-style-preview-signature"><span>Firma</span><span>Fecha</span></div>';
+      case "TABLA_INVERSION":
+        return titulo+htmlTablaEstilo(["Concepto","Inversión"],[["Implementación y configuración","US$ 12.000,00"],["Licencias (12 meses)","US$ 4.800,00"],["Capacitación","US$ 1.700,00"]],["Total","US$ 18.500,00"]);
+      case "OPCIONES_PROPUESTA":
+        return titulo+htmlTablaEstilo(["Escenario","Recomendada","Inversión"],[["Básico","No","US$ 12.000,00"],{celdas:["Completo","Sí","US$ 18.500,00"],clase:"chosen"},["Premium","No","US$ 26.000,00"]]);
+      case "TABLA_DATOS":{
+        const columnas=(bloque.columnas||[]).filter(function(c,i,todas){return todas.findIndex(function(o){return o.titulo===c.titulo;})===i;}).map(function(c){return c.titulo;});
+        const titulos=columnas.length?columnas:["Concepto","Detalle"];
+        return titulo+htmlTablaEstilo(titulos,[titulos.map(function(t,i){return i?"Dato de ejemplo":"Elemento 1";}),titulos.map(function(t,i){return i?"Dato de ejemplo":"Elemento 2";})]);
+      }
+      case "LISTA_PRECIOS":
+        return titulo+htmlTablaEstilo(["Código","Nombre","Precio"],[{celdas:["SRV-01","Servicio estándar","US$ 1.500,00 / mes"],clase:"chosen"},["SRV-02","Servicio avanzado","US$ 2.500,00 / mes"],["SRV-03","Soporte extendido","US$ 600,00 / mes"]]);
+      case "CAMPO_VINCULADO":
+        return '<dl class="tpl-style-preview-pairs"><div><dt>'+escapar(bloque.titulo||"Dato")+'</dt><dd>Dato del cotizador</dd></div></dl>';
+      default: // TEXTO y los heredados LISTA / CONDICIONES.
+        return titulo&&bloque.tipo_bloque!=="TEXTO"?titulo+htmlTextoEnriquecidoEstilo(textoEjemploEstilo(bloque.contenido,"Contenido de ejemplo de este bloque.")):
+          htmlTextoEnriquecidoEstilo(textoEjemploEstilo(bloque.contenido,"Contenido de ejemplo de este bloque."));
+    }
+  }
+  // Secciones de la plantilla con datos de ejemplo. canal "WEB"/"PDF" deja
+  // solo lo que se ve en ese canal (mostrar_web/mostrar_pdf de la sección y
+  // del bloque; el salto de página solo existe en el PDF); "" muestra todo
+  // lo visible en al menos uno (paso 4, donde se diseña el estilo).
+  function documentoEjemploPlantilla(detalle,canal){
+    const visible=function(elemento){
+      if(canal==="WEB")return elemento.mostrar_web!==false;
+      if(canal==="PDF")return elemento.mostrar_pdf!==false;
+      return elemento.mostrar_web!==false||elemento.mostrar_pdf!==false;
+    };
+    const secciones=((detalle&&detalle.secciones)||[]).slice().sort(function(a,b){return a.orden-b.orden;}).filter(visible);
+    let portada=null,seccionPortada=null;
+    secciones.forEach(function(s){(s.bloques||[]).forEach(function(b){if(b.tipo_bloque==="PORTADA"&&!portada&&visible(b)){portada=b;seccionPortada=s;}});});
+    const html=secciones.map(function(seccion){
+      const bloques=(seccion.bloques||[]).filter(visible).filter(function(b){return canal!=="WEB"||b.tipo_bloque!=="SALTO_PAGINA";})
+        .sort(function(a,b){return a.orden-b.orden;});
+      if(bloques.length&&bloques.every(function(b){return b.tipo_bloque==="PORTADA";}))return "";
+      const cuerpo=bloques.map(function(b){return htmlBloqueEjemploEstilo(b,seccion);}).join("");
+      const tituloSeccion=seccion.mostrar_titulo!==false?'<h2>'+escapar(seccion.titulo||seccion.nombre||"Sección")+'</h2>':'';
+      return '<section class="tpl-style-preview-section" data-seccion-id="'+escapar(seccion.seccion_id)+'">'+tituloSeccion+(cuerpo||'<p>Sección sin bloques.</p>')+'</section>';
+    }).join("");
+    return {html:html,portada:portada,seccionPortada:seccionPortada,vacio:!secciones.length,
+      titulo:(portada&&portada.titulo)||(detalle&&detalle.nombre)||"Título de la propuesta",
+      htmlPortada:portada?htmlTextoEnriquecidoEstilo(textoEjemploEstilo(portada.contenido))+htmlParesEstilo(portada.campos):""};
+  }
+  const mensajeDocumentoVacio='<div class="tpl-style-preview-empty">La plantilla todavía no tiene secciones. Arme la estructura en el paso 2 para verla aquí con datos de ejemplo.</div>';
+  function renderDocumentoEjemploEstilo(){
+    const contenedor=byId("tplStylePreviewContent");if(!contenedor)return;
+    const doc=documentoEjemploPlantilla(estado.wizard.detalle||{},"");
+    setTexto("tplStylePreviewTitle",doc.titulo);
+    setTexto("tplStylePreviewClient","Preparado para "+datosEjemploEstilo.cliente);
+    const textoPortada=byId("tplStylePreviewCoverText");if(textoPortada)textoPortada.innerHTML=doc.htmlPortada;
+    // La sección de la portada se dibuja como la portada del documento; la
+    // marca permite contarla junto con las demás secciones.
+    const cubierta=document.querySelector("#tplStylePreviewPage .tpl-style-preview-cover");
+    if(cubierta){if(doc.seccionPortada)cubierta.dataset.seccionId=doc.seccionPortada.seccion_id;else delete cubierta.dataset.seccionId;}
+    contenedor.innerHTML=doc.vacio?mensajeDocumentoVacio:doc.html;
+  }
+  // Paso 5: la misma página del paso 4, armada entera desde el estilo
+  // GUARDADO de la plantilla (no desde los controles del paso 4).
+  function renderPaginaRevision(detalle,canal){
+    const pagina=byId("tplReviewPreviewPage");if(!pagina)return;
+    const e=detalle.estilo||{};
+    const tema=temaEstiloPorClave(e.tema);
+    const minus=function(v,defecto){return String(v||defecto).toLowerCase();};
+    pagina.className="tpl-style-preview-page format-"+minus(e.formato_pagina,"CARTA")+" margin-"+minus(e.margenes,"NORMAL")+" cover-"+minus(e.diseno_portada,"BANDA_SUPERIOR")+" table-"+minus(e.estilo_tablas,"LINEAS");
+    const variables={primary:e.color_primario||tema.colores[0],secondary:e.color_secundario||tema.colores[1],accent:e.color_acento||tema.colores[2],
+      text:e.color_texto||"#172B4D",background:e.color_fondo||"#FFFFFF",
+      "title-font":fuenteCSSPreview(e.fuente_titulos),"body-font":fuenteCSSPreview(e.fuente_texto)};
+    Object.keys(variables).forEach(function(clave){pagina.style.setProperty("--tpl-preview-"+clave,variables[clave]);});
+    const doc=documentoEjemploPlantilla(detalle,canal);
+    const logo=e.mostrar_logo&&/^https:\/\//i.test(e.logo_url||"")?'<img class="size-'+minus(e.logo_tamano,"MEDIANO")+'" src="'+escapar(e.logo_url)+'" alt="Logo de la organización">':'';
+    const org=!logo&&e.mostrar_organizacion&&e.nombre_organizacion_visible?'<strong>'+escapar(e.nombre_organizacion_visible)+'</strong>':'';
+    pagina.innerHTML=
+      '<header class="tpl-style-preview-cover"'+(doc.seccionPortada?' data-seccion-id="'+escapar(doc.seccionPortada.seccion_id)+'"':'')+'>'+
+        (logo||org?'<div class="tpl-style-preview-brand">'+logo+org+'</div>':'')+
+        (e.texto_encabezado?'<span>'+escapar(e.texto_encabezado)+'</span>':'')+
+        '<h1>'+escapar(doc.titulo)+'</h1><p>Preparado para '+escapar(datosEjemploEstilo.cliente)+'</p>'+
+        '<div class="tpl-style-preview-cover-text">'+doc.htmlPortada+'</div>'+
+      '</header>'+
+      '<div class="tpl-style-preview-content">'+(doc.vacio?mensajeDocumentoVacio:doc.html)+'</div>'+
+      '<footer class="tpl-style-preview-footer"><span>'+escapar(e.texto_pie||"")+'</span>'+(e.marca_confidencial?'<span>CONFIDENCIAL</span>':'')+(e.numerar_paginas?'<span>1</span>':'')+'</footer>';
+  }
+
   function programarGuardadoEstilo(){
     aplicarClasesPreview();
     aplicarIdentidadPreview();
@@ -8093,7 +8699,7 @@ table tr:last-child td { border-bottom: none; }
       let base=detalleConocido||null;
       if(baseID&&!base)base=await obtenerDetalle(baseID);
       limpiarWizard();
-      estado.wizard.crearDesde=baseID||"";
+      estado.wizard.crearDesde=baseID||BASE_ESTRUCTURA_SUGERIDA;
       if(base){
         if(byId("tplNombre"))byId("tplNombre").value="Copia de "+(base.nombre||"plantilla");
         if(byId("tplDescripcion"))byId("tplDescripcion").value=base.descripcion||"";
@@ -8133,7 +8739,7 @@ table tr:last-child td { border-bottom: none; }
 
   function limpiarWizard(){
     Object.keys((estado.wizard.estructura&&estado.wizard.estructura.timers)||{}).forEach(function(clave){clearTimeout(estado.wizard.estructura.timers[clave]);});
-    estado.wizard={plantillaId:"",crearDesde:"",paso:1,sucio:false,guardando:false,detalle:null,estructura:nuevoEstadoEstructura(),mapeo:nuevoEstadoMapeo()};
+    estado.wizard={plantillaId:"",crearDesde:"",eligioVacia:false,canalRevision:"WEB",validacion:null,paso:1,sucio:false,guardando:false,detalle:null,estructura:nuevoEstadoEstructura(),mapeo:nuevoEstadoMapeo()};
     if(byId("tplNombre"))byId("tplNombre").value="";
     if(byId("tplDescripcion"))byId("tplDescripcion").value="";
     if(byId("tplCodigo"))byId("tplCodigo").value="";
@@ -8169,7 +8775,8 @@ table tr:last-child td { border-bottom: none; }
     const contenedor=byId("tplBaseOptions");if(!contenedor)return;
     const seleccion=estado.wizard.crearDesde||"";const editando=!!estado.wizard.plantillaId;
     const vacia='<button class="tpl-base-option '+(!seleccion?'selected':'')+'" data-base-id="" type="button" '+(editando?'disabled':'')+'><strong>Plantilla vacía</strong><span>Comenzar sin estructura previa</span></button>';
-    contenedor.innerHTML=vacia+(estado.publicadas||[]).map(function(item){
+    const sugerida='<button class="tpl-base-option '+(seleccion===BASE_ESTRUCTURA_SUGERIDA?'selected':'')+'" data-base-id="'+BASE_ESTRUCTURA_SUGERIDA+'" type="button" '+(editando?'disabled':'')+'><strong>Estructura sugerida</strong><span>12 secciones y 18 bloques de referencia, editables</span></button>';
+    contenedor.innerHTML=vacia+sugerida+(estado.publicadas||[]).map(function(item){
       return '<button class="tpl-base-option '+(seleccion===item.plantilla_id?'selected':'')+'" data-base-id="'+escapar(item.plantilla_id)+'" type="button" '+(editando?'disabled':'')+'><strong>'+escapar(item.nombre||"Plantilla")+'</strong><span>'+escapar(item.descripcion||"Versión publicada")+'</span></button>';
     }).join("");
   }
@@ -8207,7 +8814,11 @@ table tr:last-child td { border-bottom: none; }
       if(estado.wizard.plantillaId){
         data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
       }else{
-        if(estado.wizard.crearDesde)payload.crear_desde=estado.wizard.crearDesde;
+        // La estructura sugerida no es una plantilla base del backend: se
+        // ofrece en el paso 2 (POST /estructura-sugerida), con la
+        // plantilla ya creada y todavía vacía.
+        if(estado.wizard.crearDesde&&estado.wizard.crearDesde!==BASE_ESTRUCTURA_SUGERIDA)payload.crear_desde=estado.wizard.crearDesde;
+        estado.wizard.eligioVacia=!estado.wizard.crearDesde;
         data=await solicitarJSON("/api/plantillas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
         estado.wizard.plantillaId=data.plantilla_id||"";
         if(byId("tplCodigo"))byId("tplCodigo").value=data.codigo||"";
@@ -8247,6 +8858,7 @@ table tr:last-child td { border-bottom: none; }
     setTexto("tplWizardDescripcionCabecera",descripciones[paso]);
     window.scrollTo({top:0,left:0,behavior:"auto"});
     const principal=byId("tplBtnGuardarContinuar");
+    if(principal&&paso!==5){principal.disabled=false;principal.title="";}
     if(principal){principal.textContent=["","Guardar y continuar a Estructura →","Continuar a Vincular datos →","Continuar a Estilo visual →","Continuar a Revisar y publicar →","Publicar plantilla"][paso];}
     if(paso===2)await cargarEstructura();
     if(paso===3)await cargarMapeo();
@@ -8260,53 +8872,114 @@ table tr:last-child td { border-bottom: none; }
     await publicarPlantilla();
   }
 
+  // ---------- Paso 5: Revisar y publicar (Ronda P5) ----------
+  // Resumen y validaciones salen de GET /api/plantillas/{id}/validacion — la
+  // MISMA validación que Publicar exige en el servidor, así que lo que se ve
+  // acá es lo que va a pasar al publicar.
   async function cargarResumenRevision(){
     if(!estado.wizard.plantillaId)return;
     mostrarCargando(true);
     try{
-      const detalle=await obtenerDetalle(estado.wizard.plantillaId);estado.wizard.detalle=detalle;
-      const secciones=detalle.secciones||[];
-      const bloques=secciones.reduce(function(total,seccion){return total+(seccion.bloques||[]).length;},0);
-      const estilo=detalle.estilo&&detalle.estilo.tema?detalle.estilo.tema:"Sin estilo definido";
-      setTexto("tplReviewVersion","Versión "+(detalle.version||1));
-      const resumen=byId("tplReviewSummary");if(resumen)resumen.innerHTML=
-        '<dl><div><dt>Plantilla</dt><dd>'+escapar(detalle.nombre||"—")+'</dd></div><div><dt>Estructura</dt><dd>'+secciones.length+' secciones · '+bloques+' bloques</dd></div><div><dt>Cotizadores</dt><dd>'+escapar(nombresCotizadores(detalle.calculadora_ids))+'</dd></div><div><dt>Tipos de propuesta</dt><dd>'+escapar((detalle.tipos_propuesta||[]).join(", ")||"Sin tipos asociados")+'</dd></div><div><dt>Estilo</dt><dd>'+escapar(estilo)+'</dd></div></dl>';
-      renderEstructuraSimplificada(detalle,byId("tplReviewPreviewPage"));
-      renderValidacionesRevision(detalle,secciones,bloques);
-      setTexto("tplReviewState",detalle.estado==="Publicada"?"Publicada":"Lista para revisión");
+      const resultados=await Promise.all([
+        obtenerDetalle(estado.wizard.plantillaId),
+        solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/validacion")
+      ]);
+      const detalle=resultados[0],validacion=resultados[1].validacion;
+      estado.wizard.detalle=detalle;estado.wizard.validacion=validacion;
+      renderResumenRevision(validacion.resumen);
+      renderValidacionesRevision(validacion);
+      renderPaginaRevision(detalle,estado.wizard.canalRevision||"WEB");
+      renderPublicacionControlada(validacion);
     }catch(error){
       toast(error&&error.message?error.message:"No fue posible cargar el resumen.");
-    }finally{mostrarCargando(false);}
+    }finally{mostrarCargando(false);actualizarBotonPublicar();}
   }
-  function renderValidacionesRevision(detalle,secciones,bloques){
-    const validaciones=[
-      {ok:!!detalle.nombre,texto:"Datos básicos completos"},
-      {ok:(detalle.calculadora_ids||[]).length>0,texto:"Cotizadores asociados"},
-      {ok:(detalle.tipos_propuesta||[]).length>0,texto:"Tipos de propuesta asociados"},
-      {ok:secciones.length>0&&bloques>0,texto:"Al menos una sección con un bloque"},
-      {ok:!!detalle.estilo,texto:"Estilo visual configurado"}
+  function renderResumenRevision(r){
+    setTexto("tplReviewVersion","Versión "+r.version+" · "+r.estado);
+    const filas=[
+      ["Secciones",r.secciones],["Bloques",r.bloques],["Vinculaciones",r.vinculaciones],
+      ["Cotizadores",(r.cotizadores||[]).map(function(c){return c.nombre;}).join(", ")||"Sin cotizadores asociados"],
+      ["Tipos de propuesta",(r.tipos_propuesta||[]).join(", ")||"Cualquier tipo"],
+      ["Canales","Web ("+r.canales.web+" bloques) + PDF ("+r.canales.pdf+" bloques)"]
     ];
-    const lista=byId("tplReviewValidationList");if(lista)lista.innerHTML=validaciones.map(function(item){return '<div><strong>'+(item.ok?'✓':'!')+' '+escapar(item.texto)+'</strong><span>'+(item.ok?'Correcto':'Pendiente')+'</span></div>';}).join("");
-    const correctas=validaciones.filter(function(item){return item.ok;}).length;
-    setTexto("tplReviewValidationSummary",correctas+" de "+validaciones.length+" correctas");
+    const resumen=byId("tplReviewSummary");
+    if(resumen)resumen.innerHTML='<dl>'+filas.map(function(f){return '<div><dt>'+escapar(f[0])+'</dt><dd>'+escapar(f[1])+'</dd></div>';}).join("")+'</dl>';
+  }
+  function renderValidacionesRevision(validacion){
+    const lista=byId("tplReviewValidationList");
+    const items=validacion.validaciones||[];
+    const errores=items.filter(function(v){return v.nivel==="ERROR";}),advertencias=items.filter(function(v){return v.nivel!=="ERROR";});
+    if(lista){
+      lista.innerHTML=items.length?errores.concat(advertencias).map(function(v){
+        const esError=v.nivel==="ERROR";
+        return '<div class="tpl-review-issue '+(esError?'error':'warning')+'"><strong>'+(esError?'Error':'Advertencia')+'</strong><span>'+escapar(v.mensaje)+'</span></div>';
+      }).join(""):'<div class="tpl-review-issue ok"><strong>✓ Todo en orden</strong><span>No hay errores ni advertencias.</span></div>';
+    }
+    setTexto("tplReviewValidationSummary",errores.length+(errores.length===1?" error":" errores")+" · "+advertencias.length+(advertencias.length===1?" advertencia":" advertencias"));
+    const publicada=validacion.resumen.estado!=="Borrador";
+    setTexto("tplReviewState",publicada?validacion.resumen.estado:(errores.length?"Requiere ajustes":"Lista para publicar"));
+    actualizarBotonPublicar();
+  }
+  // Va después de mostrarCargando(false), que re-habilita el botón principal.
+  function actualizarBotonPublicar(){
+    const principal=byId("tplBtnGuardarContinuar"),validacion=estado.wizard.validacion;
+    if(!principal||estado.wizard.paso!==5||!validacion)return;
+    const publicada=validacion.resumen.estado!=="Borrador",errores=validacion.resumen.errores;
+    principal.disabled=publicada||errores>0;
+    principal.title=publicada?"Esta versión ya está publicada.":(errores?"Corrija los errores para poder publicar.":"");
+  }
+  // "Publicación controlada": la versión publicada queda bloqueada en el
+  // servidor (cualquier edición directa responde 409); para cambiarla se crea
+  // una versión nueva, y la publicada sigue en uso hasta que se publique esa.
+  function renderPublicacionControlada(validacion){
+    const caja=byId("tplReviewPublishInfo");if(!caja)return;
+    const r=validacion.resumen;
+    if(r.estado==="Borrador"){
+      caja.innerHTML='<strong>Publicación controlada</strong><p>Al publicar, la versión '+r.version+' quedará bloqueada: ya no se podrá editar directamente. Para cambiarla deberá crear una versión nueva (versión '+(r.version+1)+'); mientras tanto las propuestas seguirán usando la versión publicada'+(r.version>1?', y la versión anterior pasará a Archivada':'')+'.</p>';
+    }else{
+      caja.innerHTML='<strong>Versión '+r.version+' '+escapar(r.estado.toLowerCase())+' y bloqueada</strong><p>No se puede editar directamente. Cree una versión nueva para hacer cambios: esta seguirá en uso hasta que publique la nueva.</p>'+
+        '<button id="tplBtnNuevaVersionRevision" class="btn btn-primary btn-mini" type="button">Crear nueva versión</button>';
+      const boton=byId("tplBtnNuevaVersionRevision");if(boton)boton.addEventListener("click",function(){crearNuevaVersion(estado.wizard.plantillaId);});
+    }
   }
   async function publicarPlantilla(){
     if(!estado.wizard.plantillaId){toast("Guarde primero la plantilla.");return;}
     mostrarCargando(true);
     try{
-      const data=await solicitarJSON("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/publicar",{method:"POST"});
+      const c=core();
+      const resp=await c.fetchAutenticado("/api/plantillas/"+encodeURIComponent(estado.wizard.plantillaId)+"/publicar",{method:"POST"});
+      let data=null;try{data=await resp.json();}catch(error){data=null;}
+      if(!resp.ok||!data||!data.ok){
+        // Publicar devuelve la validación completa cuando la rechaza.
+        if(data&&data.validacion){estado.wizard.validacion=data.validacion;renderResumenRevision(data.validacion.resumen);renderValidacionesRevision(data.validacion);}
+        throw new Error((data&&data.error)||"No fue posible publicar la plantilla.");
+      }
       toast(data.mensaje||"Plantilla publicada.");
       await cargarOpciones(true);await volverGaleria();
     }catch(error){
-      const mensaje=error&&error.message?error.message:"No fue posible publicar la plantilla.";
-      toast(mensaje);setTexto("tplReviewState","Requiere ajustes");setTexto("tplReviewValidationSummary","No se pudo publicar");
-      const lista=byId("tplReviewValidationList");if(lista)lista.innerHTML='<div><strong>! No se pudo publicar</strong><span>'+escapar(mensaje)+'</span></div>';
-    }finally{mostrarCargando(false);}
+      toast(error&&error.message?error.message:"No fue posible publicar la plantilla.");
+    }finally{mostrarCargando(false);actualizarBotonPublicar();}
+  }
+  async function crearNuevaVersion(plantillaID){
+    if(!plantillaID)return;
+    mostrarCargando(true);
+    let destino="";
+    try{
+      const resp=await core().fetchAutenticado("/api/plantillas/"+encodeURIComponent(plantillaID)+"/nueva-version",{method:"POST"});
+      let data=null;try{data=await resp.json();}catch(error){data=null;}
+      if(resp.ok&&data&&data.ok){destino=data.plantilla_id;toast(data.mensaje||"Se creó la nueva versión.");}
+      else if(resp.status===409&&data&&data.plantilla_id){destino=data.plantilla_id;toast(data.error);}
+      else throw new Error((data&&data.error)||"No fue posible crear la nueva versión.");
+    }catch(error){toast(error&&error.message?error.message:"No fue posible crear la nueva versión.");}
+    finally{mostrarCargando(false);}
+    if(destino)await abrirWizardEdicion(destino);
   }
   function cambiarCanalRevision(canal){
+    estado.wizard.canalRevision=canal;
     document.querySelectorAll("#section-plantillas [data-preview-channel]").forEach(function(boton){boton.classList.toggle("active",boton.dataset.previewChannel===canal);});
     const escenario=byId("tplReviewPreviewStage");if(escenario){escenario.classList.toggle("channel-web",canal==="WEB");escenario.classList.toggle("channel-pdf",canal==="PDF");}
     setTexto("tplReviewPreviewHint","Datos de ejemplo · "+(canal==="PDF"?"PDF":"Propuesta web"));
+    if(estado.wizard.detalle)renderPaginaRevision(estado.wizard.detalle,canal);
   }
   function nombresCotizadores(ids){
     const mapa={};estado.calculadoras.forEach(function(calc){mapa[String(calc.calculadora_id||"")]=calc.nombre_calculadora||calc.calculadora_id;});
@@ -8933,7 +9606,29 @@ table tr:last-child td { border-bottom: none; }
       .vpo-table th{text-align:left;padding:8px 12px;border-bottom:2px solid #e5edf8;font-size:11.5px;color:#475467;}
       .vpo-table td{padding:8px 12px;border-bottom:1px solid #edf2f7;font-size:12.5px;}
       .vpo-empty{padding:14px 16px;color:#64748b;font-size:12.5px;}
-      @media(max-width:640px){.vpo-hero-body{grid-template-columns:1fr;}.vpo-total{text-align:left;}.vpo-meta{grid-template-columns:1fr;}.vpo-field-row{grid-template-columns:1fr;gap:4px;}}
+      .vpo-block-title{margin:0;padding:12px 16px 0;font-size:13px;color:#0b2450;}
+      .vpo-rich{padding:12px 16px;font-size:13px;}
+      .vpo-rich p{margin:0 0 6px;white-space:pre-wrap;}
+      .vpo-rich p:last-child{margin-bottom:0;}
+      .vpo-rich ul{margin:0 0 6px;padding-left:20px;}
+      .vpo-heading{margin:0;padding:14px 16px 2px;font-size:17px;color:#0b2450;}
+      .vpo-summary{margin:12px 16px;border-left:4px solid #246df5;border-radius:8px;background:#f2f7ff;}
+      .vpo-cover{padding:24px 16px 16px;text-align:center;}
+      .vpo-cover h3{margin:0;font-size:22px;color:#0b2450;}
+      .vpo-cover .vpo-rich{max-width:560px;margin:0 auto;padding:8px 0 0;color:#64748b;text-align:left;}
+      .vpo-pairs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 22px;margin:0;padding:12px 16px;}
+      .vpo-pairs div{min-width:0;padding-bottom:8px;border-bottom:1px solid #edf2f7;}
+      .vpo-pairs dt{color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;}
+      .vpo-pairs dd{margin:2px 0 0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;}
+      .vpo-table-wrap{overflow-x:auto;}
+      .vpo-table .vpo-num{text-align:right;white-space:nowrap;}
+      .vpo-table tr.vpo-chosen td{background:#f2f7ff;font-weight:600;}
+      .vpo-image{display:block;max-width:100%;height:auto;margin:12px auto;border-radius:8px;}
+      .vpo-signature{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;padding:26px 16px 16px;}
+      .vpo-signature span{display:block;padding-top:6px;border-top:1px solid #0b2450;color:#64748b;font-size:11.5px;text-align:center;}
+      .vpo-page-break{height:0;}
+      @media print{.vpo-page-break{break-after:page;}}
+      @media(max-width:640px){.vpo-hero-body{grid-template-columns:1fr;}.vpo-total{text-align:left;}.vpo-meta{grid-template-columns:1fr;}.vpo-field-row{grid-template-columns:1fr;gap:4px;}.vpo-pairs,.vpo-signature{grid-template-columns:1fr;}}
     </style>
 
     <div class="modal-head">
@@ -17315,23 +18010,87 @@ window.CotizaApp = (function(){
     return simbolo + " " + numero.toLocaleString("es-CR", {minimumFractionDigits:2, maximumFractionDigits:2});
   }
 
+  // Texto enriquecido: líneas "• " = viñetas (botón "+ Agregar viñeta" del
+  // editor de plantillas), el resto párrafos. Mismo criterio que publico.html.
+  function textoEnriquecido_(contenido){
+    let html = "", parrafo = [], enLista = false;
+    const cerrarParrafo = function(){ if(parrafo.length){ html += '<p>' + escapeHtml(parrafo.join("\n")) + '</p>'; parrafo = []; } };
+    const cerrarLista = function(){ if(enLista){ html += '</ul>'; enLista = false; } };
+    String(contenido || "").split("\n").forEach(function(linea){
+      const vineta = /^\s*•\s?(.*)$/.exec(linea);
+      if(vineta){ cerrarParrafo(); if(!enLista){ html += '<ul>'; enLista = true; } html += '<li>' + escapeHtml(vineta[1]) + '</li>'; return; }
+      cerrarLista();
+      if(linea.trim() === "") cerrarParrafo(); else parrafo.push(linea);
+    });
+    cerrarParrafo(); cerrarLista();
+    return '<div class="vpo-rich">' + html + '</div>';
+  }
+
+  // Pares Etiqueta/Valor en grilla de 2 columnas.
+  function grillaPares_(campos){
+    return '<dl class="vpo-pairs">' + (Array.isArray(campos) ? campos : []).map(function(c){
+      return '<div><dt>' + escapeHtml(texto_(c.etiqueta)) + '</dt><dd>' + escapeHtml(texto_(c.valor)) + '</dd></div>';
+    }).join("") + '</dl>';
+  }
+
+  function tabla_(columnas, filas, numericas){
+    const clase = function(i){ return numericas && numericas[i] ? ' class="vpo-num"' : ''; };
+    let html = '<div class="vpo-table-wrap"><table class="vpo-table"><thead><tr>' + columnas.map(function(c, i){ return '<th' + clase(i) + '>' + escapeHtml(texto_(c)) + '</th>'; }).join("") + '</tr></thead><tbody>';
+    filas.forEach(function(fila){
+      const celdas = fila.celdas || fila;
+      html += '<tr' + (fila.clase ? ' class="' + fila.clase + '"' : '') + '>' + celdas.map(function(v, i){ return '<td' + clase(i) + '>' + escapeHtml(texto_(v)) + '</td>'; }).join("") + '</tr>';
+    });
+    return html + '</tbody></table></div>';
+  }
+
+  function conTitulo_(bloque, cuerpo){
+    return (bloque.titulo ? '<h3 class="vpo-block-title">' + escapeHtml(bloque.titulo) + '</h3>' : '') + cuerpo;
+  }
+
   function renderBloque_(bloque){
     const tipo = bloque.tipo_bloque;
+    if(tipo === "SALTO_PAGINA") return '<div class="vpo-page-break" aria-hidden="true"></div>';
     if(tipo === "CAMPO_VINCULADO"){
       return '<dl class="vpo-fields"><div class="vpo-field-row"><dt>' + escapeHtml(texto_(bloque.titulo || "Dato")) + '</dt><dd>' + escapeHtml(texto_(bloque.valor)) + '</dd></div></dl>';
     }
-    if(tipo === "TABLA_INVERSION"){
+    if(tipo === "PORTADA"){
+      const campos = Array.isArray(bloque.campos) && bloque.campos.length ? grillaPares_(bloque.campos) : "";
+      return '<div class="vpo-cover">' + (bloque.titulo ? '<h3>' + escapeHtml(bloque.titulo) + '</h3>' : '') + (bloque.contenido ? textoEnriquecido_(bloque.contenido) : '') + '</div>' + campos;
+    }
+    if(tipo === "ENCABEZADO") return '<h3 class="vpo-heading">' + escapeHtml(texto_(bloque.titulo || bloque.contenido)) + '</h3>';
+    if(tipo === "RESUMEN_EJECUTIVO") return conTitulo_(bloque, '<div class="vpo-summary">' + textoEnriquecido_(bloque.contenido) + '</div>');
+    if(tipo === "IMAGEN"){
+      const url = String(bloque.contenido || "").trim();
+      if(/^https?:\/\//i.test(url)) return '<img class="vpo-image" src="' + escapeHtml(url) + '" alt="' + escapeHtml(bloque.titulo || "Imagen de la propuesta") + '" loading="lazy">';
+      return textoEnriquecido_(url);
+    }
+    if(tipo === "DATOS_CLIENTE" || tipo === "GRUPO_INFORMACION" || tipo === "CONDICIONES_COMERCIALES"){
+      return conTitulo_(bloque, (bloque.contenido ? textoEnriquecido_(bloque.contenido) : '') + grillaPares_(bloque.campos));
+    }
+    if(tipo === "FIRMA_ACEPTACION"){
+      const campos = Array.isArray(bloque.campos) && bloque.campos.length ? grillaPares_(bloque.campos) : "";
+      return conTitulo_(bloque, (bloque.contenido ? textoEnriquecido_(bloque.contenido) : '') + campos + '<div class="vpo-signature"><span>Firma</span><span>Fecha</span></div>');
+    }
+    if(tipo === "LISTA_PRECIOS"){
+      const items = Array.isArray(bloque.items) ? bloque.items : [];
+      if(!items.length) return conTitulo_(bloque, '<p class="vpo-empty">Sin precios para mostrar.</p>');
+      const conCantidad = items.some(function(i){ return i.cantidad !== undefined && i.cantidad !== null; });
+      const columnas = ["Código", "Nombre", "Descripción", "Precio"].concat(conCantidad ? ["Cantidad"] : []);
+      const filas = items.map(function(i){
+        const celdas = [i.codigo, i.nombre, i.descripcion, dinero_(i.precio, i.moneda) + (i.unidad_cobro ? " / " + i.unidad_cobro : "")];
+        if(conCantidad) celdas.push(i.cantidad);
+        return {celdas:celdas, clase:i.seleccionado ? "vpo-chosen" : ""};
+      });
+      return conTitulo_(bloque, tabla_(columnas, filas, [false, false, false, true, true]));
+    }
+    if(tipo === "TABLA_INVERSION" || tipo === "TABLA_DATOS" || tipo === "OPCIONES_PROPUESTA"){
       const columnas = Array.isArray(bloque.columnas) ? bloque.columnas : [];
       const filas = Array.isArray(bloque.filas) ? bloque.filas : [];
-      if(!filas.length) return '<p class="vpo-empty">Sin datos para mostrar en esta tabla.</p>';
-      let html = '<table class="vpo-table"><thead><tr>' + columnas.map(function(c){ return '<th>' + escapeHtml(texto_(c)) + '</th>'; }).join("") + '</tr></thead><tbody>';
-      filas.forEach(function(fila){
-        html += '<tr>' + (Array.isArray(fila) ? fila : []).map(function(v){ return '<td>' + escapeHtml(texto_(v)) + '</td>'; }).join("") + '</tr>';
-      });
-      html += '</tbody></table>';
-      return html;
+      if(!filas.length) return conTitulo_(bloque, '<p class="vpo-empty">Sin datos para mostrar en esta tabla.</p>');
+      return conTitulo_(bloque, tabla_(columnas, filas.map(function(f){ return Array.isArray(f) ? f : []; })));
     }
-    return '<p style="margin:0;padding:12px 16px;white-space:pre-wrap;">' + escapeHtml(texto_(bloque.contenido)) + '</p>';
+    // TEXTO y heredados (LISTA, CONDICIONES): contenido libre.
+    return textoEnriquecido_(bloque.contenido);
   }
 
   function renderPlantilla_(plantilla){

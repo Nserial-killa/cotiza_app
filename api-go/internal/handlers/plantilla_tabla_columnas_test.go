@@ -102,7 +102,7 @@ func TestPlantillaTablaColumnas_Validaciones(t *testing.T) {
 		codigo    int
 		contenido string
 	}{
-		{"bloque no es tabla", bloqueTexto, map[string]any{"calculadora_id": e.calculadora, "titulo": "X", "fuente_tipo": "NOMBRE_ESCENARIO"}, http.StatusBadRequest, "TABLA_INVERSION"},
+		{"bloque no es tabla", bloqueTexto, map[string]any{"calculadora_id": e.calculadora, "titulo": "X", "fuente_tipo": "NOMBRE_ESCENARIO"}, http.StatusBadRequest, "bloque de tabla"},
 		{"campo sin fuente_id", bloqueTabla, map[string]any{"calculadora_id": e.calculadora, "titulo": "Precio", "fuente_tipo": "CAMPO"}, http.StatusBadRequest, "fuente_id"},
 		{"fuente_tipo inválida", bloqueTabla, map[string]any{"calculadora_id": e.calculadora, "titulo": "X", "fuente_tipo": "RARO"}, http.StatusBadRequest, "fuente_tipo"},
 		{"sin título", bloqueTabla, map[string]any{"calculadora_id": e.calculadora, "fuente_tipo": "NOMBRE_ESCENARIO"}, http.StatusBadRequest, "titulo"},

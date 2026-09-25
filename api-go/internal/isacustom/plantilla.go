@@ -10,9 +10,16 @@ func (c *Cliente) plantilla(ctx context.Context, diagnostico bool) string {
 	r := c.Intentar(ctx, "Buscar plantilla", "GET", "/api/plantillas?busqueda="+url.QueryEscape(nombre), nil)
 	id := ""
 	for _, p := range Lista(r.Datos["plantillas"]) {
-		if p["nombre"] == nombre {
+		if p["nombre"] != nombre {
+			continue
+		}
+		// Una versión Publicada quedó bloqueada (Ronda P5): volver a sembrar
+		// no la toca. Para cambiarla hay que crear una versión nueva.
+		if p["estado"] == "Publicada" {
+			return texto(p["plantilla_id"])
+		}
+		if p["estado"] == "Borrador" {
 			id = texto(p["plantilla_id"])
-			break
 		}
 	}
 	if id == "" {
