@@ -149,6 +149,20 @@ alguien recompile la calculadora después. `estadosCotizacionValidos` en
 `cotiza_scripts.html` y del `CHECK` de `0007_cotizaciones_shell.sql` — los tres
 tienen que cambiar juntos.
 
+**Plantilla fijada por versión de cotización (0032).** Mismo criterio que el
+compilado: `GenerarEnlace` (`enlaces_publicos.go`) graba en
+`cotizacion_versiones.plantilla_id_usada/plantilla_version_usada` la plantilla
+que le corresponde en ese momento (`fijarPlantillaCotizacionVersion` en
+`plantilla_renderizador.go`), solo si estaba vacía. Desde ahí el enlace y la
+Vista Previa (ambos pasan por `construirDocumentoOferta` →
+`resolverPlantillaOferta`) usan esa versión aunque quede Archivada; sin nada
+fijado se resuelve en vivo. La Vista Previa nunca fija. El estilo del paso 4
+viaja en `plantilla.estilo` (`plantilla_estilo_oferta.go`) y lo aplica
+`publico.html`, que también es el PDF (imprimir). `coloresTemaEstilo` es copia
+a mano de `temasEstiloPredefinidos` en `plantillas_app.html`: cambian juntos.
+El payload público no puede contener "margen" en ninguna clave (las pruebas de
+Lista de Precios la buscan), por eso `margenes` viaja como `espaciado_pagina`.
+
 **Alcance de referencias (Ronda F2).** Las referencias de DATOS (operandos de
 Campo Calculado, tokens de Fórmula Avanzada, campo fuente de Caja de Valor)
 tienen alcance de COTIZADOR: secciones propias activas + las asociadas vía

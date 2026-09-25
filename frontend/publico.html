@@ -5,23 +5,30 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Vista previa de propuesta | Exceltec</title>
   <style>
-    :root{color-scheme:light;--navy:#0d2b52;--blue:#246df5;--ink:#12233d;--muted:#65758b;--line:#dbe3ee;--surface:#fff;--background:#f3f6fa}
+    :root{color-scheme:light;--navy:#0d2b52;--navy-2:#174f91;--blue:#246df5;--accent:#9ec5ff;--ink:#12233d;--muted:#65758b;--line:#dbe3ee;--surface:#fff;--background:#f3f6fa;--body-font:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--title-font:var(--body-font)}
     *{box-sizing:border-box}
-    body{margin:0;background:var(--background);color:var(--ink);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+    body{margin:0;background:var(--background);color:var(--ink);font-family:var(--body-font);line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    h1,h2,h3{font-family:var(--title-font)}
     .shell{width:min(980px,calc(100% - 32px));margin:32px auto 56px}
     .brand{display:flex;align-items:center;gap:12px;color:#fff}
     .brand-mark{display:grid;width:38px;height:38px;place-items:center;border:2px solid #fff;border-radius:50%;font-size:22px;font-weight:800}
     .brand strong{display:block;font-size:22px;line-height:1}.brand small{display:block;margin-top:4px;font-size:10px;letter-spacing:.08em;opacity:.8}
-    .hero{overflow:hidden;border-radius:20px;background:linear-gradient(135deg,var(--navy),#174f91);box-shadow:0 18px 45px rgba(20,46,83,.16)}
-    .hero-top{display:flex;align-items:center;justify-content:space-between;padding:26px 32px;border-bottom:1px solid rgba(255,255,255,.15)}
+    .hero{overflow:hidden;border-radius:20px;background:linear-gradient(135deg,var(--navy),var(--navy-2));box-shadow:0 18px 45px rgba(20,46,83,.16)}
+    .hero-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:26px 32px;border-bottom:1px solid rgba(255,255,255,.15)}
+    .brand-name{font-size:20px;line-height:1.15;overflow-wrap:anywhere}
+    .brand-logo{display:inline-flex;align-items:center;padding:6px 10px;border-radius:10px;background:#fff}
+    .brand-logo img{display:block;width:auto;max-width:220px;object-fit:contain}
+    .brand-logo.size-pequeno img{height:26px}.brand-logo.size-mediano img{height:38px}.brand-logo.size-grande img{height:54px;max-width:280px}
+    .hero-note{display:flex;align-items:center;gap:10px;color:#dceafe;font-size:12px;text-align:right}
+    .confidential{padding:4px 9px;border:1px solid rgba(255,255,255,.55);border-radius:999px;color:#fff;font-size:10px;font-weight:800;letter-spacing:.12em}
     .hero-body{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:end;padding:38px 32px;color:#fff}
-    .eyebrow{margin:0 0 7px;color:#9ec5ff;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .eyebrow{margin:0 0 7px;color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
     h1{margin:0;font-size:clamp(30px,5vw,48px);letter-spacing:-.04em}.client{margin:10px 0 0;color:#dceafe;font-size:17px}
     .total{text-align:right}.total span{display:block;color:#bcd5f7;font-size:12px;font-weight:700;text-transform:uppercase}.total strong{display:block;margin-top:3px;font-size:clamp(30px,5vw,45px);white-space:nowrap}
     .meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0 28px}
     .meta div,.section{border:1px solid var(--line);background:var(--surface);box-shadow:0 8px 22px rgba(21,44,76,.05)}
     .meta div{padding:16px 18px;border-radius:12px}.meta span{display:block;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase}.meta strong{display:block;margin-top:3px;font-size:14px}
-    .sections{display:grid;gap:16px}.section{overflow:hidden;border-radius:15px}.section h2{margin:0;padding:18px 22px;border-bottom:1px solid var(--line);font-size:18px}
+    .sections{display:grid;gap:16px}.section{overflow:hidden;border-radius:15px}.section h2{margin:0;padding:18px 22px;border-bottom:1px solid var(--line);border-left:4px solid var(--blue);color:var(--navy);font-size:18px}
     .fields{margin:0}.field-row{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(0,1.4fr);gap:28px;padding:15px 22px;border-top:1px solid #edf1f6}.field-row:first-child{border-top:0}
     dt{color:var(--muted);font-size:13px;font-weight:700}dd{margin:0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
     .empty{padding:20px 22px;color:var(--muted)}
@@ -44,6 +51,7 @@
     [hidden]{display:none!important}
     @media(max-width:680px){.shell{margin-top:16px}.hero-top,.hero-body{padding:22px}.hero-body{grid-template-columns:1fr}.total{text-align:left}.meta{grid-template-columns:1fr}.field-row{grid-template-columns:1fr;gap:5px}.pairs,.signature{grid-template-columns:1fr}}
   </style>
+  <style id="estiloPagina"></style>
 </head>
 <body>
   <main class="shell">
@@ -52,7 +60,7 @@
     </section>
     <div id="propuesta" hidden>
       <header class="hero">
-        <div class="hero-top"><div class="brand"><span class="brand-mark">e</span><span><strong>Exceltec</strong><small>BUSINESS SOLUTIONS</small></span></div></div>
+        <div class="hero-top"><div id="marca" class="brand"><span class="brand-mark">e</span><span><strong>Exceltec</strong><small>BUSINESS SOLUTIONS</small></span></div><div class="hero-note"><span id="textoEncabezado" hidden></span><span id="marcaConfidencial" class="confidential" hidden>CONFIDENCIAL</span></div></div>
         <div class="hero-body"><div><p class="eyebrow">Propuesta comercial</p><h1 id="codigoOferta"></h1><p id="cliente" class="client"></p></div><div class="total"><span>Precio total</span><strong id="precioTotal"></strong></div></div>
       </header>
       <section class="meta" aria-label="Datos de la propuesta">
@@ -61,7 +69,7 @@
         <div><span>Tipo de propuesta</span><strong id="tipoPropuesta"></strong></div>
       </section>
       <div id="secciones" class="sections"></div>
-      <footer>Documento de vista previa generado por Exceltec Business Solutions.</footer>
+      <footer id="pie">Documento de vista previa generado por Exceltec Business Solutions.</footer>
     </div>
   </main>
   <script>
@@ -214,13 +222,58 @@
         });
         if(!tabs.length){var vacia=document.createElement("section");vacia.className="section empty";vacia.textContent="Esta propuesta todavía no contiene secciones para mostrar.";contenedor.appendChild(vacia);}
       }
+      // Estilo de la plantilla (paso 4 del Diseñador), ya resuelto por el
+      // backend: la plantilla fijada al generar el enlace trae el SUYO. Sin
+      // plantilla (tabs crudas) queda la cabecera por defecto de arriba. Este
+      // mismo HTML es el PDF (imprimir → guardar como PDF), así que @page
+      // lleva formato, márgenes, numeración, pie y marca de confidencial.
+      var HEX=/^#[0-9A-Fa-f]{6}$/;
+      function fuenteCSS(nombre){return '"'+String(nombre).replace(/["\;{}<>]/g,"")+'", Inter, ui-sans-serif, -apple-system, "Segoe UI", sans-serif';}
+      function cadenaCSS(valor){return '"'+String(valor).replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/[\r\n]+/g," ")+'"';}
+      function aplicarMarca(estilo){
+        var marca=document.getElementById("marca");marca.textContent="";
+        var nombre=nodo("strong","brand-name",estilo.organizacion_nombre||"Exceltec Business Solutions");
+        function mostrarNombre(){if(!nombre.parentNode)marca.appendChild(nombre);}
+        var tamano={PEQUENO:"pequeno",MEDIANO:"mediano",GRANDE:"grande"}[estilo.logo_tamano]||"mediano";
+        if(estilo.logo_url&&/^https:\/\//i.test(estilo.logo_url)){
+          var caja=nodo("span","brand-logo size-"+tamano),img=document.createElement("img");
+          img.alt=estilo.organizacion_nombre||"Logo";img.src=estilo.logo_url;
+          // Un logo que no carga no deja un hueco roto: se reemplaza por el nombre.
+          img.onerror=function(){if(caja.parentNode)caja.parentNode.removeChild(caja);mostrarNombre();};
+          caja.appendChild(img);marca.appendChild(caja);
+          if(estilo.mostrar_organizacion)mostrarNombre();
+        }else{mostrarNombre();}
+      }
+      function aplicarEstilo(estilo){
+        var raiz=document.documentElement.style;
+        var colores={"--navy":estilo.color_primario,"--navy-2":estilo.color_secundario,"--blue":estilo.color_acento,"--accent":estilo.color_acento,"--ink":estilo.color_texto,"--background":estilo.color_fondo};
+        Object.keys(colores).forEach(function(v){if(HEX.test(colores[v]||""))raiz.setProperty(v,colores[v]);});
+        if(estilo.fuente_texto)raiz.setProperty("--body-font",fuenteCSS(estilo.fuente_texto));
+        if(estilo.fuente_titulos)raiz.setProperty("--title-font",fuenteCSS(estilo.fuente_titulos));
+        aplicarMarca(estilo);
+        var encabezado=document.getElementById("textoEncabezado");
+        encabezado.textContent=estilo.texto_encabezado||"";encabezado.hidden=!estilo.texto_encabezado;
+        document.getElementById("marcaConfidencial").hidden=!estilo.marca_confidencial;
+        document.getElementById("pie").textContent=estilo.texto_pie||("Documento generado por "+(estilo.organizacion_nombre||"Exceltec Business Solutions")+".");
+        var tamanoPagina={CARTA:"letter",A4:"A4"}[estilo.formato_pagina]||"letter";
+        var margen={COMPACTO:"12mm",NORMAL:"18mm",AMPLIO:"25mm"}[estilo.espaciado_pagina]||"18mm";
+        var cajas=[];
+        if(estilo.texto_pie)cajas.push("@bottom-left{content:"+cadenaCSS(estilo.texto_pie)+";font-size:9pt;color:#65758b}");
+        if(estilo.numerar_paginas)cajas.push('@bottom-right{content:"Página " counter(page) " de " counter(pages);font-size:9pt;color:#65758b}');
+        if(estilo.marca_confidencial)cajas.push('@top-right{content:"CONFIDENCIAL";font-size:9pt;font-weight:700;letter-spacing:.12em;color:#b42318}');
+        document.getElementById("estiloPagina").textContent="@page{size:"+tamanoPagina+";margin:"+margen+";"+cajas.join("")+"}";
+      }
       function render(data){
         poner("codigoOferta",data.codigo_oferta||"Propuesta");poner("cliente",data.cliente);poner("empresa",data.empresa||data.cliente);
         poner("cotizador",data.cotizador_nombre);poner("tipoPropuesta",data.tipo_propuesta);document.getElementById("precioTotal").textContent=dinero(data.total_precio,data.moneda);
         var contenedor=document.getElementById("secciones");contenedor.textContent="";
-        if(data.plantilla&&typeof data.plantilla==="object"){renderPlantilla(data.plantilla,contenedor);}
+        var marcaTitulo="Exceltec";
+        if(data.plantilla&&typeof data.plantilla==="object"){
+          if(data.plantilla.estilo&&typeof data.plantilla.estilo==="object"){aplicarEstilo(data.plantilla.estilo);marcaTitulo=data.plantilla.estilo.organizacion_nombre||marcaTitulo;}
+          renderPlantilla(data.plantilla,contenedor);
+        }
         else{renderTabsCrudas(Array.isArray(data.tabs)?data.tabs:[],contenedor);}
-        estado.hidden=true;propuesta.hidden=false;document.title=texto(data.codigo_oferta||"Propuesta")+" | Exceltec";
+        estado.hidden=true;propuesta.hidden=false;document.title=texto(data.codigo_oferta||"Propuesta")+" | "+marcaTitulo;
       }
       var token=new URLSearchParams(window.location.search).get("token");
       if(!token){mostrarError();return;}

@@ -30,9 +30,15 @@ import (
 // Opción de Propuesta con SUS PROPIOS valores — nunca el mismo valor
 // repetido en las N filas.
 type plantillaRenderizada struct {
-	PlantillaID string               `json:"plantilla_id"`
-	Nombre      string               `json:"nombre"`
-	Secciones   []seccionRenderizada `json:"secciones"`
+	PlantillaID string `json:"plantilla_id"`
+	Nombre      string `json:"nombre"`
+	// Version es la versión puntual de la plantilla con la que se armó el
+	// documento; Fijada dice si salió de cotizacion_versiones.plantilla_id_usada
+	// (enlace ya generado) o se resolvió en vivo.
+	Version   int                  `json:"version"`
+	Fijada    bool                 `json:"fijada"`
+	Estilo    *estiloOferta        `json:"estilo"`
+	Secciones []seccionRenderizada `json:"secciones"`
 }
 
 type seccionRenderizada struct {
@@ -114,30 +120,36 @@ type contextoRenderPlantilla struct {
 	porNombreInterno map[string]string
 }
 
-// renderizarPlantillaCotizacion busca la plantilla Publicada asociada al
-// cotizador de la cotización (y a su tipo_propuesta, si la plantilla
-// restringe tipos) y arma la propuesta resuelta contra los datos reales de
-// esa cotización+versión. Devuelve (nil, nil) cuando ningún cotizador tiene
-// una plantilla publicada que aplique — eso no es un error, es el estado
-// normal de un cotizador al que todavía no le armaron una plantilla.
+// plantillaResuelta es la versión puntual de plantilla (una fila de
+// plantillas, ver 0031) con la que se arma una oferta.
+type plantillaResuelta struct {
+	ID      string
+	Nombre  string
+	Version int
+	Fijada  bool
+}
+
+// resolverPlantillaVigente elige, en vivo, la plantilla Publicada que hoy le
+// corresponde a la cotización. Devuelve (nil, nil) cuando ningún cotizador
+// tiene una plantilla publicada que aplique — eso no es un error, es el
+// estado normal de un cotizador al que todavía no le armaron una plantilla.
 //
-// Selección de plantilla (decisión de producto documentada acá porque no
-// hay ningún plantilla_id en cotizaciones/cotizacion_versiones que la haga
-// explícita — nunca se agregó esa relación): entre las plantillas
-// Publicadas asociadas al cotizador de la cotización, se prefieren las que
-// restringen tipo_propuesta y coinciden con el de la cotización sobre las
-// que aplican a cualquier tipo; en caso de empate, la más recientemente
-// actualizada.
-func renderizarPlantillaCotizacion(ctx context.Context, db *pgxpool.Pool, cotizacionID string, version int) (*plantillaRenderizada, error) {
+// Selección (decisión de producto): entre las plantillas Publicadas
+// asociadas al cotizador de la cotización, se prefieren las que restringen
+// tipo_propuesta y coinciden con el de la cotización sobre las que aplican a
+// cualquier tipo; en caso de empate, la más recientemente actualizada.
+//
+// Recibe consultadorFila para correr también dentro de la transacción de
+// GenerarEnlace, que es el único lugar que fija el resultado.
+func resolverPlantillaVigente(ctx context.Context, db consultadorFila, cotizacionID string) (*plantillaResuelta, error) {
 	var calculadoraID, tipoPropuesta string
 	if err := db.QueryRow(ctx, `SELECT calculadora_id, COALESCE(tipo_propuesta,'') FROM cotizaciones WHERE cotizacion_id=$1`,
 		cotizacionID).Scan(&calculadoraID, &tipoPropuesta); err != nil {
 		return nil, err
 	}
-
-	var plantillaID, nombre string
+	var p plantillaResuelta
 	err := db.QueryRow(ctx, `
-		SELECT p.plantilla_id::text, p.nombre
+		SELECT p.plantilla_id::text, p.nombre, p.version
 		  FROM plantillas p
 		  JOIN plantilla_calculadoras pc ON pc.plantilla_id = p.plantilla_id
 		 WHERE pc.calculadora_id = $1 AND p.estado = 'Publicada'
@@ -145,11 +157,76 @@ func renderizarPlantillaCotizacion(ctx context.Context, db *pgxpool.Pool, cotiza
 		        OR EXISTS(SELECT 1 FROM plantilla_tipos_propuesta pt WHERE pt.plantilla_id = p.plantilla_id AND pt.tipo_propuesta = $2))
 		 ORDER BY EXISTS(SELECT 1 FROM plantilla_tipos_propuesta pt WHERE pt.plantilla_id = p.plantilla_id) DESC,
 		          p.fecha_actualizacion DESC
-		 LIMIT 1`, calculadoraID, tipoPropuesta).Scan(&plantillaID, &nombre)
+		 LIMIT 1`, calculadoraID, tipoPropuesta).Scan(&p.ID, &p.Nombre, &p.Version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// resolverPlantillaOferta devuelve la plantilla con la que se arma la oferta
+// de una cotización+versión: la fijada al generar su enlace público, si la
+// hay — aunque hoy esté Archivada —, o la vigente en vivo si todavía no se
+// fijó ninguna. Solo lee: fijar es exclusivo de GenerarEnlace
+// (fijarPlantillaCotizacionVersion), nunca de la Vista Previa.
+func resolverPlantillaOferta(ctx context.Context, db consultadorFila, cotizacionID string, version int) (*plantillaResuelta, error) {
+	var id, nombre *string
+	var numero *int
+	if err := db.QueryRow(ctx, `
+		SELECT p.plantilla_id::text, p.nombre, p.version
+		  FROM cotizacion_versiones cv
+		  LEFT JOIN plantillas p ON p.plantilla_id = cv.plantilla_id_usada
+		 WHERE cv.cotizacion_id = $1 AND cv.numero_version = $2`,
+		cotizacionID, version).Scan(&id, &nombre, &numero); err != nil {
+		return nil, err
+	}
+	if id != nil {
+		return &plantillaResuelta{ID: *id, Nombre: *nombre, Version: *numero, Fijada: true}, nil
+	}
+	return resolverPlantillaVigente(ctx, db, cotizacionID)
+}
+
+// fijarPlantillaCotizacionVersion graba en cotizacion_versiones la plantilla
+// que hoy le corresponde a esa cotización+versión, solo si todavía no tenía
+// una: regenerar el mismo enlace nunca vuelve a resolver. El FOR UPDATE
+// serializa dos generaciones simultáneas. Si no hay ninguna plantilla que
+// aplique, no fija nada (la oferta sigue saliendo de las tabs crudas y se
+// resuelve en vivo). Devuelve la plantilla que quedó fijada, o nil.
+func fijarPlantillaCotizacionVersion(ctx context.Context, tx pgx.Tx, cotizacionID string, version int) (*plantillaResuelta, error) {
+	var yaFijada *string
+	if err := tx.QueryRow(ctx, `
+		SELECT plantilla_id_usada::text FROM cotizacion_versiones
+		 WHERE cotizacion_id = $1 AND numero_version = $2 FOR UPDATE`,
+		cotizacionID, version).Scan(&yaFijada); err != nil {
+		return nil, err
+	}
+	if yaFijada != nil {
+		return resolverPlantillaOferta(ctx, tx, cotizacionID, version)
+	}
+	vigente, err := resolverPlantillaVigente(ctx, tx, cotizacionID)
+	if err != nil || vigente == nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE cotizacion_versiones SET plantilla_id_usada = $3::uuid, plantilla_version_usada = $4
+		 WHERE cotizacion_id = $1 AND numero_version = $2`,
+		cotizacionID, version, vigente.ID, vigente.Version); err != nil {
+		return nil, err
+	}
+	vigente.Fijada = true
+	return vigente, nil
+}
+
+// renderizarPlantillaCotizacion arma la propuesta resuelta contra los datos
+// reales de esa cotización+versión, con la plantilla que devuelve
+// resolverPlantillaOferta (la fijada o, si no hay, la vigente). Devuelve
+// (nil, nil) cuando no hay ninguna plantilla que aplique.
+func renderizarPlantillaCotizacion(ctx context.Context, db *pgxpool.Pool, cotizacionID string, version int) (*plantillaRenderizada, error) {
+	plantilla, err := resolverPlantillaOferta(ctx, db, cotizacionID, version)
+	if err != nil || plantilla == nil {
 		return nil, err
 	}
 
@@ -215,11 +292,18 @@ func renderizarPlantillaCotizacion(ctx context.Context, db *pgxpool.Pool, cotiza
 		metadatos: runtime.Elementos, valores: valores, valoresEfectivos: valoresEfectivos,
 		base: base, salidas: salidas, condicionValores: condicionValores, porNombreInterno: porNombreInterno,
 	}
-	secciones, err := rc.renderizarSecciones(ctx, plantillaID)
+	secciones, err := rc.renderizarSecciones(ctx, plantilla.ID)
 	if err != nil {
 		return nil, err
 	}
-	return &plantillaRenderizada{PlantillaID: plantillaID, Nombre: nombre, Secciones: secciones}, nil
+	estilo, err := estiloOfertaPlantilla(ctx, db, plantilla.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &plantillaRenderizada{
+		PlantillaID: plantilla.ID, Nombre: plantilla.Nombre, Version: plantilla.Version,
+		Fijada: plantilla.Fijada, Estilo: estilo, Secciones: secciones,
+	}, nil
 }
 
 // valoresBaseCotizacion arma el mapa de las fuentes COTIZACION_BASE fijas

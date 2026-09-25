@@ -3,9 +3,9 @@ package handlers
 // EnlacesPublicosHandler cubre la Vista Previa / enlace público al
 // cliente (versión acotada, esquema 0009): generar un token para una
 // cotización+versión puntual, y la lectura sin sesión de esa versión
-// como propuesta legible. No es el diseñador de plantillas
-// personalizable (colores, secciones arrastrables) — eso queda para
-// una fase posterior.
+// como propuesta legible. El contenido y el estilo (colores, logo,
+// tipografía) salen de la plantilla fijada al generar el enlace, ver
+// fijarPlantillaCotizacionVersion en plantilla_renderizador.go.
 //
 // Regla que no tiene excepción: esta vista NUNCA expone
 // costo/ganancia/margen, sin importar el rol de quien generó el
@@ -45,7 +45,9 @@ type generarEnlaceRequest struct {
 // GenerarEnlace responde POST /api/cotizaciones/{id}/enlace. Body
 // opcional {"version":N}; sin ella, usa version_actual. Si ya existe
 // un enlace para esa cotización+versión, lo reutiliza en vez de crear
-// uno nuevo.
+// uno nuevo. En la misma transacción fija la plantilla de esa versión
+// (migración 0032, fijarPlantillaCotizacionVersion): desde acá el enlace
+// sigue mostrando esa versión de la plantilla aunque se publique otra.
 func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Request) {
 	cotizacionID := strings.TrimSpace(chi.URLParam(r, "id"))
 	if cotizacionID == "" {
@@ -146,13 +148,26 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 		}
 	}
 
+	plantilla, err := fijarPlantillaCotizacionVersion(ctx, tx, cotizacionID, version)
+	if err != nil {
+		log.Printf("enlaces_publicos: error fijando la plantilla de %s v%d: %v", cotizacionID, version, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
+		return
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		log.Printf("enlaces_publicos: error confirmando enlace de %s: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
 		return
 	}
 
-	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "token": token, "url": "/publico.html?token=" + token})
+	respuesta := map[string]any{"ok": true, "token": token, "url": "/publico.html?token=" + token,
+		"plantilla_id_usada": nil, "plantilla_version_usada": nil}
+	if plantilla != nil {
+		respuesta["plantilla_id_usada"] = plantilla.ID
+		respuesta["plantilla_version_usada"] = plantilla.Version
+	}
+	escribirJSON(w, http.StatusOK, respuesta)
 }
 
 type enlacePublicoElemento struct {
@@ -308,10 +323,13 @@ func construirDocumentoOferta(ctx context.Context, db *pgxpool.Pool, cotizacionI
 	doc.Cliente = valorTexto(cliente)
 	doc.Empresa = valorTexto(empresa)
 
-	// Si el cotizador tiene una plantilla Publicada que aplique, la
-	// propuesta se arma con ella (secciones/bloques/condiciones/tabla de
-	// escenarios). Sin una, se sigue mostrando "tabs" (las secciones crudas
-	// del cotizador): no todo cotizador tiene todavía una plantilla armada,
+	// Si la versión ya tiene plantilla fijada (se generó su enlace), la
+	// propuesta se arma con esa, aunque hoy esté Archivada; si no, con la
+	// Publicada que aplique ahora (resolverPlantillaOferta). Así la Vista
+	// Previa y el enlace siguen resolviendo lo mismo antes y después de
+	// fijar. La plantilla trae secciones/bloques/condiciones/tabla de
+	// escenarios y su estilo. Sin una, se sigue mostrando "tabs" (las
+	// secciones crudas del cotizador): no todo cotizador tiene todavía una plantilla armada,
 	// y eso no es un error. Un error real al renderizar la plantilla SÍ se
 	// propaga — a diferencia de "no hay plantilla", que es silencioso.
 	tabs, err := (&EnlacesPublicosHandler{DB: db}).consultarTabsYValores(ctx, cotizacionID, version)
