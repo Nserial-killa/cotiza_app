@@ -520,10 +520,22 @@
         const cont = byId("cotizadorReglasLista");
         if(!cont) return;
         if(!st.reglasCotizador.length){
-          cont.innerHTML = '<div class="designer-empty">Este cotizador todavía no tiene reglas.</div>';
+          cont.innerHTML = '<div class="cotizador-rule-empty">Este cotizador todavía no tiene reglas.</div>';
           return;
         }
-        cont.innerHTML = st.reglasCotizador.map(function(r){
+        // Solo presentación: se listan las reglas que tocan algún componente de la
+        // sección abierta (como condición o como objetivo). Las reglas siguen siendo
+        // del cotizador; en otra sección aparecen las que tocan sus componentes.
+        const idsSeccion = {};
+        (st.elementos || []).forEach(function(e){ idsSeccion[String(e.elemento_id || "")] = true; });
+        const reglasSeccion = st.reglasCotizador.filter(function(r){
+          return idsSeccion[String(r.campo_condicion_id || "")] || (r.campos_objetivo || []).some(function(id){ return idsSeccion[String(id || "")]; });
+        });
+        if(!reglasSeccion.length){
+          cont.innerHTML = '<div class="cotizador-rule-empty">No hay reglas aplicadas para esta sección con el filtro actual.</div>';
+          return;
+        }
+        cont.innerHTML = reglasSeccion.map(function(r){
           return '<div class="cotizador-rule-card' + (r.activo ? '' : ' inactive') + '" data-regla-id="' + escapeHtml(r.regla_id) + '">' +
             '<div class="cotizador-rule-card-icon" aria-hidden="true">' + (r.accion === "BLOQUEAR_GUARDADO" ? "⛔" : "ƒ") + '</div>' +
             '<div class="cotizador-rule-card-main"><strong>' + escapeHtml(r.nombre || r.regla_id) + '</strong><small>' + escapeHtml(descripcionReglaCotizadorFase1_(r)) + '</small></div>' +
@@ -796,10 +808,11 @@
           const alcanceTxt = asociada ? "Asociada" : (alcance === "REUTILIZABLE" ? "Reutilizable" : "Propio");
           const origen = asociada ? String(t.calculadora_origen_id || t.calculadora_id || "").trim() : "";
           const quitar = asociada && t.elemento_asociacion_id ? '<span class="cotizador-associated-remove" role="button" tabindex="0" data-desasociar-tab="'+escapeHtml(id)+'" data-desasociar-elemento="'+escapeHtml(t.elemento_asociacion_id)+'">Quitar</span>' : '';
+          const alcanceClase = asociada ? " is-asociada" : (alcance === "REUTILIZABLE" ? " is-reutilizable" : " is-propio");
           return '<button class="cotizador-tree-item'+active+(asociada?' is-associated':'')+'" type="button" data-tab-id="'+escapeHtml(id)+'">'
             + '<span class="cotizador-tree-dot">'+escapeHtml(String(numeroOrdenCotizadorFase1_(t.orden) === 9999 ? idx+1 : t.orden))+'</span>'
             + '<div class="cotizador-tree-main"><strong>'+escapeHtml(nombre)+'</strong><small>'+escapeHtml(asociada ? ("Desde "+origen+(desc?" · "+desc:"")) : (desc || id))+'</small></div>'
-            + '<span class="cotizador-tree-actions">'+escapeHtml(alcanceTxt)+quitar+'</span></button>';
+            + '<span class="cotizador-tree-actions'+alcanceClase+'">'+escapeHtml(alcanceTxt)+quitar+'</span></button>';
         }).join("");
         cont.querySelectorAll("[data-tab-id]").forEach(function(btn){
           btn.addEventListener("click",function(){ seleccionarTabCotizadorFase1_(btn.getAttribute("data-tab-id")); });
@@ -902,6 +915,7 @@
         }
         const els = elementosDeTabCotizadorFase1_();
         llenarComponentePadreOptionsCotizadorFase1_(els);
+        renderReglasCotizadorListaFase1_();
         if(st.modoVista === "preview"){
           renderVistaPreviaCotizadorFase1_(cont, tab, els);
           return;
@@ -971,10 +985,11 @@
         const selected = id && id === st.elementoId ? " selected" : "";
         const extraClass = esContenedor ? " cotizador-container-head-card" : (nivel > 0 ? " cotizador-child-card" : "");
         const ayuda = desc ? " · " + desc : "";
+        const orden = e.orden === null || e.orden === undefined ? "" : String(e.orden);
         return '<div class="cotizador-component-card'+selected+extraClass+'" role="button" tabindex="0" data-elemento-id="'+escapeHtml(id)+'" data-tipo="'+escapeHtml(tipo)+'">'
           + '<div class="cotizador-component-icon">'+escapeHtml(iconoComponenteCotizadorFase1_(tipo))+'</div>'
-          + '<div class="cotizador-component-main"><strong>'+escapeHtml(etiqueta || tipo)+'</strong><small>'+escapeHtml(tipo + ayuda)+'</small></div>'
-          + '<div class="cotizador-component-actions"><span class="cotizador-component-meta">Orden '+escapeHtml(String(e.orden || ""))+'</span></div>'
+          + '<div class="cotizador-component-main"><strong>'+escapeHtml(etiqueta || tipo)+'</strong><small>'+escapeHtml(etiquetaTipoComponenteCotizadorFase1_(tipo) + ayuda)+'</small></div>'
+          + '<div class="cotizador-component-actions"><span class="cotizador-component-meta">Orden <b>'+escapeHtml(orden)+'</b></span></div>'
           + '</div>';
       }
 
@@ -1147,6 +1162,15 @@
         const th = heads.map(function(h){ return '<th>'+h+'</th>'; }).join("");
         const td = cols.length ? cols.map(function(){ return '<td>&nbsp;</td>'; }).join("") : "";
         return '<div class="cotizador-preview-field"><label>'+escapeHtml(etiqueta)+'</label>'+(desc ? '<small>'+escapeHtml(desc)+'</small>' : '')+'</div><div class="cotizador-preview-table-wrap"><table class="cotizador-preview-table"><thead><tr>'+th+'</tr></thead><tbody><tr>'+td+'</tr></tbody></table></div>';
+      }
+
+      // Nombre legible del tipo ("Campo Catálogo" en vez de CAMPO_CATALOGO). Sale
+      // del mismo <select> de tipos del modal para no mantener otra lista a mano.
+      function etiquetaTipoComponenteCotizadorFase1_(tipo){
+        tipo = String(tipo || "").toUpperCase();
+        const sel = byId("designerCotizadorElementoTipo");
+        const opt = sel ? Array.prototype.find.call(sel.options, function(o){ return o.value === tipo; }) : null;
+        return opt ? opt.textContent.trim() : tipo;
       }
 
       function iconoComponenteCotizadorFase1_(tipo){

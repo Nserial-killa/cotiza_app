@@ -1851,6 +1851,114 @@
             /* V51A - Indicador de Salidas en el topbar del paso Cotizador */
             .chip-orange{background:#fef3c7;color:#92400e;}
 
+
+            /* Ronda visual — paso "Cotizador" del Diseñador. Va al final para
+               ganarle a las capas V50* de arriba y a cotiza_base.css; todo con
+               prefijo #section-parametros para no filtrar a otras pantallas. */
+
+            /* 1. Barra "Cotizador actual" */
+            #section-parametros .cotizador-topbar-v50{align-items:center;gap:22px;padding:12px 16px;}
+            #section-parametros .cotizador-status-line-v50{align-items:center;gap:0;padding-bottom:0;}
+            #section-parametros .cotizador-topbar-v50 .cotizador-mini-status{padding:2px 20px;border-left:1px solid #e3eaf3 !important;gap:4px;}
+            #section-parametros .cotizador-topbar-v50 .cotizador-mini-status:first-child{border-left:0 !important;padding-left:4px;}
+            #section-parametros .cotizador-topbar-v50 .cotizador-mini-status small{font-size:9px;color:#6b7c93;}
+            #section-parametros .cotizador-topbar-v50 .cotizador-mini-status span{font-size:13px;color:#0b2450;}
+
+            /* 2. Panel "Estructura" */
+            #section-parametros .cotizador-tree-panel .designer-panel-head{margin-bottom:12px;}
+            #section-parametros .cotizador-tree-panel .designer-panel-head h2,
+            #section-parametros .cotizador-canvas-panel .designer-panel-head h2,
+            #section-parametros .cotizador-props-panel .designer-panel-head h2{font-size:14px;font-weight:800;color:var(--workspace-ink);}
+            #section-parametros .cotizador-tree-panel .designer-panel-head .btn{min-height:32px;padding:6px 12px;font-size:12px;}
+            #section-parametros .cotizador-tree{gap:6px;}
+            #section-parametros .cotizador-tree-item{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;min-height:0;padding:10px 12px;border-radius:10px;cursor:pointer;}
+            #section-parametros .cotizador-tree-dot{display:none;}
+            #section-parametros .cotizador-tree-main{gap:2px;}
+            #section-parametros .cotizador-tree-main strong{font-size:12.5px;font-weight:800;}
+            #section-parametros .cotizador-tree-main small{font-size:10.5px;}
+            #section-parametros .cotizador-tree-item.active{border-color:#9cc3f2;background:#eef6ff;box-shadow:inset 3px 0 #3b8ef0;}
+            #section-parametros .cotizador-tree-actions{display:inline-flex;align-items:center;gap:6px;margin-top:1px;padding:3px 7px;font-size:9px;font-weight:800;letter-spacing:.02em;white-space:nowrap;}
+            #section-parametros .cotizador-tree-actions.is-propio{background:#eef2f7;color:#56657a;}
+            #section-parametros .cotizador-tree-actions.is-reutilizable{background:#e6f1ff;color:#1d5fb8;}
+            #section-parametros .cotizador-tree-actions.is-asociada{background:#fff1d6;color:#9a4d08;}
+
+            /* 3. Panel central "Componentes" */
+            #section-parametros .cotizador-canvas-panel > .designer-panel-head{flex-wrap:wrap;align-items:flex-start;gap:10px 12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #e3eaf3;}
+            #section-parametros .cotizador-canvas-panel > .designer-panel-head > div:first-child{flex:1 1 220px;min-width:0;}
+            #section-parametros #designerCotizadorCanvasSubtitulo{margin-top:3px;}
+            #section-parametros .cotizador-canvas-tools{flex:0 1 auto;flex-wrap:nowrap;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;}
+            #section-parametros .cotizador-view-toggle{margin-right:0;gap:2px;}
+            #section-parametros .cotizador-canvas-tools > .btn{min-height:34px;padding:6px 12px;font-size:12px;white-space:nowrap;}
+            #section-parametros .cotizador-component-list{gap:10px;}
+
+            #section-parametros .cotizador-component-card{grid-template-columns:34px minmax(0,1fr) auto;gap:12px;min-height:54px;padding:9px 14px;border-radius:10px;}
+            #section-parametros .cotizador-component-card:hover{transform:none;}
+            #section-parametros .cotizador-component-icon{width:32px;height:32px;min-width:32px;display:grid;place-items:center;border-radius:8px;background:#eef3fa;color:#28507e;font-size:12px;font-weight:800;line-height:1;}
+            #section-parametros .cotizador-component-main{min-width:0;display:flex;flex-direction:column;gap:2px;}
+            #section-parametros .cotizador-component-main strong{overflow:hidden;color:var(--workspace-ink);font-size:13px;font-weight:800;text-overflow:ellipsis;white-space:nowrap;}
+            #section-parametros .cotizador-component-main small{overflow:hidden;color:var(--workspace-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap;}
+            #section-parametros .cotizador-component-actions{min-width:0;}
+            #section-parametros .cotizador-component-meta{color:#6b7c93;font-size:11px;}
+            #section-parametros .cotizador-component-meta b{color:var(--workspace-ink);font-weight:800;}
+
+            /* Contenedor: tarjeta con borde; hijos en filas más angostas e indentadas */
+            #section-parametros .cotizador-design-container{margin-bottom:12px;padding:0 0 12px;border:1px solid #cfdcec;border-radius:12px;background:#f9fbfe;box-shadow:0 2px 6px rgba(15,42,74,.04);}
+            #section-parametros .cotizador-design-container .cotizador-container-head-card{min-height:58px;padding:11px 14px;border:0;border-bottom:1px solid #e3eaf3;border-radius:12px 12px 0 0;background:#fff;box-shadow:none;}
+            #section-parametros .cotizador-design-container .cotizador-container-head-card.selected{background:#f3f7ff;box-shadow:inset 0 0 0 2px rgba(23,104,222,.25);}
+            #section-parametros .cotizador-container-head-card .cotizador-component-icon{background:#0f3a6d;color:#fff;font-size:14px;}
+            #section-parametros .cotizador-container-head-card .cotizador-component-main strong{font-size:13.5px;}
+            #section-parametros .cotizador-design-container-children{gap:6px;padding:10px 14px 0 40px;}
+            #section-parametros .cotizador-design-container-children:before{left:30px;top:10px;bottom:4px;background:#d6e4f5;}
+            #section-parametros .cotizador-child-card{grid-template-columns:28px minmax(0,1fr) auto;gap:10px;min-height:44px;padding:6px 12px;border-color:#e2e9f2;border-radius:8px;}
+            #section-parametros .cotizador-child-card .cotizador-component-icon{width:28px;height:28px;min-width:28px;font-size:11px;}
+            #section-parametros .cotizador-child-card .cotizador-component-main strong{font-size:12.5px;}
+            #section-parametros .cotizador-child-card .cotizador-component-main small{font-size:10.5px;}
+            #section-parametros .cotizador-design-container-children .cotizador-design-container{margin-bottom:0;}
+
+            /* Bloque "Reglas a Aplicar": separado del contenido, con su propio acento */
+            #section-parametros .cotizador-rules-section{margin-top:22px;border:1px solid #d5e3f5;border-left:4px solid #2f80ed;border-radius:12px;background:#fff;box-shadow:none;}
+            #section-parametros .cotizador-rules-head{align-items:center;padding:12px 14px;background:#f2f7fe;}
+            #section-parametros .cotizador-rules-head-title{flex:1 1 auto;align-items:center;}
+            #section-parametros .cotizador-rules-icon{width:32px;height:32px;border-radius:9px;}
+            #section-parametros .cotizador-rules-head strong{font-size:13.5px;}
+            #section-parametros .cotizador-rules-head small{font-size:11px;}
+            #section-parametros .cotizador-rules-head > .btn{flex:0 0 auto;min-height:32px;padding:6px 12px;font-size:12px;white-space:nowrap;}
+            #section-parametros .cotizador-rules-list{padding:10px 12px 12px;}
+            #section-parametros .cotizador-rule-card{grid-template-columns:30px minmax(0,1fr) auto;padding:9px 12px;border-radius:10px;}
+            #section-parametros .cotizador-rule-card:hover{transform:none;}
+            #section-parametros .cotizador-rule-card-icon{width:28px;height:28px;border-radius:8px;}
+            #section-parametros .cotizador-rule-card-main{min-width:0;}
+            #section-parametros .cotizador-rule-card-main strong{font-size:12.5px;}
+            #section-parametros .cotizador-rule-card-main small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+            #section-parametros .cotizador-rule-card-meta .btn{min-height:28px;padding:4px 10px;font-size:11px;}
+            #section-parametros .cotizador-rule-empty{text-align:center;}
+
+            /* 4. Panel "Propiedades" (modo sección) */
+            #section-parametros .cotizador-props-panel .designer-panel-head{margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #e3eaf3;}
+            #section-parametros #designerCotizadorPropsSeccion .field{margin-bottom:12px;}
+            #section-parametros #designerCotizadorPropsSeccion label{font-size:11px;}
+            #section-parametros #designerCotizadorPropsSeccion .designer-props-actions-stack{gap:8px;margin-top:6px;padding-top:12px;border-top:1px solid #e3eaf3;}
+            #section-parametros #designerCotizadorPropsSeccion .designer-props-actions-stack .btn{min-height:36px;justify-content:center;font-size:12px;}
+            #section-parametros #designerCotizadorAplicabilidadResumen{margin-top:8px;}
+
+            /* Responsive */
+            @media (max-width:1350px){
+              #section-parametros .cotizador-topbar-v50 .cotizador-mini-status{padding:2px 14px;}
+            }
+            @media (max-width:1180px){
+              #section-parametros .cotizador-status-line-v50{order:3;flex:1 1 100%;}
+              #section-parametros .cotizador-topbar-v50 .cotizador-mini-status:first-child{padding-left:0;}
+            }
+            @media (max-width:920px){
+              #section-parametros .cotizador-status-line-v50{flex-wrap:wrap;row-gap:10px;}
+            }
+            @media (max-width:820px){
+              #section-parametros .cotizador-canvas-tools{flex-wrap:wrap;justify-content:flex-start;margin-left:0;}
+              #section-parametros .cotizador-design-container-children{padding-left:28px;}
+              #section-parametros .cotizador-design-container-children:before{left:18px;}
+              #section-parametros .cotizador-rules-head{flex-direction:row;flex-wrap:wrap;}
+              #section-parametros .cotizador-rule-card{grid-template-columns:28px minmax(0,1fr);}
+            }
 </style>
 
           <div id="designerCotizadorView" class="hidden">
@@ -1973,11 +2081,11 @@
                         <div class="cotizador-rules-head-title">
                           <span class="cotizador-rules-icon" aria-hidden="true">R</span>
                           <div>
-                            <strong>Reglas de este cotizador</strong>
-                            <small>Condición sobre un campo (de la sección actual) → acción sobre uno o más campos objetivo: ocultar, poner en cero, exigir mínimo, bloquear guardado, etc.</small>
+                            <strong>Reglas a Aplicar</strong>
+                            <small>Condición sobre un campo de esta sección → acción sobre uno o más campos objetivo: ocultar, poner en cero, exigir mínimo, bloquear guardado, etc.</small>
                           </div>
                         </div>
-                        <button id="btnDesignerNuevaReglaCotizador" class="btn btn-light-blue btn-mini" type="button">+ Nueva regla</button>
+                        <button id="btnDesignerNuevaReglaCotizador" class="btn btn-light-blue btn-mini" type="button">+ Regla</button>
                       </div>
                       <div id="cotizadorReglasLista" class="cotizador-rules-list">
                         <div class="designer-empty">Seleccione un cotizador.</div>
