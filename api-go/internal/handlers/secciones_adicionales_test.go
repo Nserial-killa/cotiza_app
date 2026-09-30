@@ -120,7 +120,7 @@ func TestSeccionesAdicionales_FlujoCompletoCompiladorYRuntime(t *testing.T) {
 	routerRuntime := chi.NewRouter()
 	routerRuntime.Get("/api/cotizador/runtime/{cotizacion_id}", runtime.Obtener)
 	rec = httptest.NewRecorder()
-	routerRuntime.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/cotizador/runtime/"+cotizacionID, nil))
+	conAdminCompartido(t, pool, routerRuntime)(rec, httptest.NewRequest(http.MethodGet, "/api/cotizador/runtime/"+cotizacionID, nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), campoOrigenID) {
 		t.Fatalf("runtime no mostró el campo de la sección asociada: %d %s", rec.Code, rec.Body.String())
 	}

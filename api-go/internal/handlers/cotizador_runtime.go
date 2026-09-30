@@ -86,6 +86,11 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
+	// Alcance propio (permisos.go) antes de fijar nada: abrir la
+	// cotización de otro no debe ni siquiera fijarle el compilado.
+	if _, ok := exigirAccesoCotizacion(ctx, w, r, h.DB, cotizacionID); !ok {
+		return
+	}
 	runtime, err := h.cargarContexto(ctx, cotizacionID, version, true)
 	if err != nil {
 		h.responderError(w, "obteniendo runtime", cotizacionID, err)
@@ -152,10 +157,23 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 		"opciones_cotizacion_id": padreOpcionesCotizacion(runtime.Estructura)})
 }
 
+// exigirEdicion aplica puede_editar_borrador y el alcance propio a los
+// endpoints que modifican el contenido de una cotización (guardar
+// valores y administrar Opciones de Propuesta).
+func (h *CotizadorRuntimeHandler) exigirEdicion(w http.ResponseWriter, r *http.Request, cotizacionID string) bool {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	permisos, ok := exigirPuedeEditarBorrador(ctx, w, r, h.DB)
+	return ok && exigirAlcanceCotizacion(ctx, w, h.DB, permisos, cotizacionID)
+}
+
 // GuardarValores valida cada elemento contra el JSON compilado fijado y hace
 // upsert atómico de los valores de la versión indicada.
 func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.Request) {
 	cotizacionID := strings.TrimSpace(chi.URLParam(r, "cotizacion_id"))
+	if !h.exigirEdicion(w, r, cotizacionID) {
+		return
+	}
 	var req guardarValoresRuntimeRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})

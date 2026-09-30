@@ -260,7 +260,7 @@ func getCotizaciones(t *testing.T, handler *CotizacionesHandler, query string) *
 	}
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
-	handler.Listar(rec, req)
+	conAdminCompartido(t, handler.DB, http.HandlerFunc(handler.Listar))(rec, req)
 	return rec
 }
 
@@ -269,8 +269,8 @@ func getCotizaciones(t *testing.T, handler *CotizacionesHandler, query string) *
 // puede_ver_price contra ese usuario_id para decidir si Costo/
 // Ganancia/Margen van en la respuesta — sin un actor en el contexto,
 // esa consulta falla y el handler responde 500. actorID puede quedar
-// vacío en pruebas que ni siquiera llegan a esa parte del handler
-// (ej. cotización inexistente, que corta antes con 404).
+// vacío: entonces se usa actorAdminCompartido (desde la ronda de
+// permisos, Detalle resuelve el rol antes de cualquier otra cosa).
 func getDetalleCotizacion(t *testing.T, handler *CotizacionesHandler, actorID, cotizacionID, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	router := chi.NewRouter()
@@ -285,7 +285,7 @@ func getDetalleCotizacion(t *testing.T, handler *CotizacionesHandler, actorID, c
 		req = conActor(req, actorID)
 	}
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
+	conAdminCompartido(t, handler.DB, router)(rec, req)
 	return rec
 }
 
@@ -295,7 +295,7 @@ func postCotizacionSubruta(t *testing.T, handler http.HandlerFunc, patron, cotiz
 	router.Post(patron, handler)
 
 	ruta := "/api/cotizaciones/" + cotizacionID + "/" + patron[len("/api/cotizaciones/{id}/"):]
-	return postCatalogos(t, func(w http.ResponseWriter, r *http.Request) { router.ServeHTTP(w, r) }, ruta, body)
+	return postCatalogos(t, conAdminCompartido(t, setupTestDB(t), router), ruta, body)
 }
 
 func TestCotizacionesListar_AparecceLaFixtureCreada(t *testing.T) {
@@ -563,7 +563,9 @@ func TestCotizacionesDetalle_VendedorNoRecibeCamposDePrecio(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &CotizacionesHandler{DB: pool}
 	vendedor := crearUsuarioPrueba(t, pool, "vendedor.sin.precio."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
-	cotizacionID, _, _ := crearCotizacionPrueba(t, pool, "Borrador", "", "")
+	// Asignada al propio Vendedor: con alcance_propio (0033), la de otro
+	// daría 403 antes de llegar al filtro de precio que se prueba acá.
+	cotizacionID, _, _ := crearCotizacionPrueba(t, pool, "Borrador", vendedor, "")
 
 	rec := getDetalleCotizacion(t, handler, vendedor, cotizacionID, "")
 	if rec.Code != http.StatusOK {

@@ -290,7 +290,7 @@ func TestEnlacesPublicos_VerCotizacionIncluyePlantillaRenderizada(t *testing.T) 
 	router.Post("/api/cotizaciones/{id}/enlace", enlaces.GenerarEnlace)
 	router.Get("/api/publico/cotizacion/{token}", enlaces.VerCotizacion)
 
-	recGenerar := postCatalogos(t, func(w http.ResponseWriter, r *http.Request) { router.ServeHTTP(w, r) },
+	recGenerar := postCatalogos(t, conAdminCompartido(t, f.pool, router),
 		"/api/cotizaciones/"+f.cotizacionID+"/enlace", map[string]any{"version": 1})
 	if recGenerar.Code != http.StatusOK {
 		t.Fatalf("generar enlace: %d: %s", recGenerar.Code, recGenerar.Body.String())

@@ -206,7 +206,7 @@ func TestErroresCotizaciones_FechaDesdeInvalidaEnListarDa400(t *testing.T) {
 	}
 
 	t.Run("fecha válida responde 200", func(t *testing.T) {
-		rec := errPeticion(t, http.MethodGet, "", "/api/cotizaciones?fecha_desde=2026-09-10", "", "", handler.Listar)
+		rec := errPeticion(t, http.MethodGet, "", "/api/cotizaciones?fecha_desde=2026-09-10", "", actorAdminCompartido(t, pool), handler.Listar)
 		errAfirmarOK(t, rec, "GET /api/cotizaciones?fecha_desde=2026-09-10")
 	})
 }

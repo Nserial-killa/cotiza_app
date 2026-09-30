@@ -272,7 +272,9 @@ window.CotizaApp = (function(){
 
           const usuario = JSON.parse(raw);
 
-          if(usuario && usuario.usuario_id){
+          // Una sesión guardada antes de la ronda de permisos no trae las
+          // banderas del rol: pedir login de nuevo en vez de adivinarlas.
+          if(usuario && usuario.usuario_id && typeof usuario.puede_parametrizar === "boolean"){
             iniciarApp(usuario);
           }else{
             limpiarSesionCotiza();
@@ -301,6 +303,7 @@ window.CotizaApp = (function(){
         document.querySelectorAll('[data-section="usuarios"]').forEach(function(btn){
           btn.classList.toggle("hidden", usuario.rol !== "Administrador");
         });
+        aplicarPermisosInterfaz_();
 
         setLoading("loginView", false);
 
@@ -308,6 +311,83 @@ window.CotizaApp = (function(){
           cargarDashboard();
           cargarCotizaciones();
         });
+      }
+
+      // PERMISOS POR ROL — las banderas vienen en el login (usuarioSesion
+      // en auth.go) y se leen de state.usuario. Todo esto es cosmético:
+      // el backend (internal/handlers/permisos.go) responde 403 igual si
+      // alguien llama al endpoint a mano. Lo que no se puede hacer se
+      // deshabilita CON una nota breve, no solo se oculta, salvo el menú
+      // del Diseñador (Cotizador/Plantillas), que se oculta completo como
+      // "Usuarios y Permisos" para quien no es Administrador.
+      const SECCIONES_PARAMETRIZAR = ["parametros","plantillas"];
+      const MOTIVOS_SIN_PERMISO = {
+        puede_crear:"Su rol no permite crear cotizaciones.",
+        puede_editar_borrador:"Su rol no permite editar cotizaciones (solo lectura).",
+        puede_crear_version:"Su rol no permite crear versiones nuevas.",
+        puede_aprobar:"Su rol no permite marcar como Aceptada o Ganada."
+      };
+      const ESTADOS_QUE_EXIGEN_APROBAR = ["Aceptada","Ganada"];
+
+      function tienePermiso(bandera){
+        return !!(state.usuario && state.usuario[bandera] === true);
+      }
+
+      // Deshabilita el botón y deja la nota al lado si falta el permiso.
+      // Si el permiso está, solo deshace lo que esta misma función hizo
+      // (data-permiso-bloqueado): no rehabilita un botón que otra regla
+      // (por ejemplo, el estado de la cotización) dejó deshabilitado.
+      function aplicarPermisoBoton_(el, bandera){
+        if(!el) return;
+        let nota = el.nextElementSibling;
+        if(!(nota && nota.classList.contains("permiso-nota"))) nota = null;
+        if(!tienePermiso(bandera)){
+          el.disabled = true;
+          el.title = MOTIVOS_SIN_PERMISO[bandera];
+          el.dataset.permisoBloqueado = "1";
+          if(!nota){
+            nota = document.createElement("small");
+            nota.className = "permiso-nota";
+            el.insertAdjacentElement("afterend", nota);
+          }
+          nota.textContent = MOTIVOS_SIN_PERMISO[bandera];
+          return;
+        }
+        if(nota) nota.remove();
+        if(el.dataset.permisoBloqueado){
+          delete el.dataset.permisoBloqueado;
+          el.disabled = false;
+          el.title = "";
+        }
+      }
+
+      // Para botones que se arman como texto HTML (acciones del detalle).
+      function atributosPermiso_(bandera){
+        return tienePermiso(bandera) ? "" : ' disabled title="' + escapeHtml(MOTIVOS_SIN_PERMISO[bandera]) + '"';
+      }
+      function notaPermiso_(bandera){
+        return tienePermiso(bandera) ? "" : '<small class="permiso-nota">' + escapeHtml(MOTIVOS_SIN_PERMISO[bandera]) + '</small>';
+      }
+
+      function aplicarPermisosInterfaz_(){
+        document.querySelectorAll(".nav button").forEach(function(btn){
+          if(SECCIONES_PARAMETRIZAR.indexOf(btn.dataset.section) >= 0){
+            btn.classList.toggle("hidden", !tienePermiso("puede_parametrizar"));
+          }
+        });
+        aplicarPermisoBoton_(byId("btnNuevaCotizacion"), "puede_crear");
+        aplicarPermisoBoton_(byId("btnGuardarRuntimeCotizador"), "puede_editar_borrador");
+
+        // Alcance propio: el listado ya viene filtrado del servidor, así
+        // que el filtro "Responsable" no tiene sentido (y el servidor lo
+        // ignora igual). Para el resto de los roles sigue disponible.
+        const filtroUsuario = byId("filtroUsuario");
+        if(filtroUsuario){
+          const restringido = tienePermiso("alcance_propio");
+          if(restringido) filtroUsuario.value = "";
+          const campo = filtroUsuario.closest(".field");
+          if(campo) campo.classList.toggle("hidden", restringido);
+        }
       }
 
       // Cierra la sesión también del lado del servidor (borra la fila
@@ -1227,7 +1307,7 @@ window.CotizaApp = (function(){
           busqueda:(byId("filtroBusqueda") && byId("filtroBusqueda").value ? byId("filtroBusqueda").value : "").trim(),
           estado:byId("filtroEstado") ? byId("filtroEstado").value : "",
           calculadora_id:byId("filtroCalculadora") ? byId("filtroCalculadora").value : "",
-          filtro_usuario_id:byId("filtroUsuario") ? byId("filtroUsuario").value : "",
+          filtro_usuario_id:(byId("filtroUsuario") && !tienePermiso("alcance_propio")) ? byId("filtroUsuario").value : "",
           fecha_desde:byId("filtroFechaDesde") ? byId("filtroFechaDesde").value : ""
         });
 
@@ -1290,6 +1370,7 @@ window.CotizaApp = (function(){
       }
 
       function abrirModalCalculadoras(){
+        if(!tienePermiso("puede_crear")){ mostrarToast(MOTIVOS_SIN_PERMISO.puede_crear); return; }
         if(byId("modalCalculadoras")) byId("modalCalculadoras").classList.add("open");
         if(byId("nuevaCotizacionClienteNuevo")) byId("nuevaCotizacionClienteNuevo").value="";
         if(byId("nuevaCotizacionRazonSocial")) byId("nuevaCotizacionRazonSocial").value="";
@@ -1441,9 +1522,9 @@ window.CotizaApp = (function(){
         let acciones='<div class="gestor-state-editor"><label>Acciones disponibles</label>';
         if(c.estado==="Borrador"&&c.puede_editar!==false)acciones+='<button class="btn btn-primary" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'LIBERAR_COTIZACION\')">Liberar cotización</button>';
         if(c.estado==="Liberada"){acciones+='<button class="btn btn-light" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'DEVOLVER_CONSTRUCCION\')">Devolver a construcción</button><button class="btn btn-secondary" type="button" onclick="CotizaApp.generarLinkGestor()">Generar enlace</button>';if(linkActivo)acciones+='<button class="btn btn-primary" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'MARCAR_ENVIADA\')">Marcar como enviada</button>';}
-        if(c.estado==="Aceptada"&&String(c.version||"")===versionAceptada)acciones+='<button class="btn btn-primary" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'MARCAR_GANADA\')">Marcar como ganada</button>';
-        if(["Enviada al Cliente","Vista por el Cliente"].indexOf(c.estado)>=0)acciones+='<button class="btn btn-light" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'REGISTRAR_ACEPTACION\')">Registrar aceptación manual</button>';
-        if(["Enviada al Cliente","Vista por el Cliente","Aceptada"].indexOf(c.estado)>=0)acciones+='<button class="btn btn-secondary" type="button" onclick="CotizaApp.crearNuevaVersion()">Crear nueva versión</button>';
+        if(c.estado==="Aceptada"&&String(c.version||"")===versionAceptada)acciones+='<button class="btn btn-primary" type="button"'+atributosPermiso_("puede_aprobar")+' onclick="CotizaApp.ejecutarAccionCotizacion(\'MARCAR_GANADA\')">Marcar como ganada</button>'+notaPermiso_("puede_aprobar");
+        if(["Enviada al Cliente","Vista por el Cliente"].indexOf(c.estado)>=0)acciones+='<button class="btn btn-light" type="button"'+atributosPermiso_("puede_aprobar")+' onclick="CotizaApp.ejecutarAccionCotizacion(\'REGISTRAR_ACEPTACION\')">Registrar aceptación manual</button>'+notaPermiso_("puede_aprobar");
+        if(["Enviada al Cliente","Vista por el Cliente","Aceptada"].indexOf(c.estado)>=0)acciones+='<button class="btn btn-secondary" type="button"'+atributosPermiso_("puede_crear_version")+' onclick="CotizaApp.crearNuevaVersion()">Crear nueva versión</button>'+notaPermiso_("puede_crear_version");
         if(!/button/.test(acciones))acciones+='<p>Esta versión está en modo consulta.</p>';
         acciones+='</div>';
         let html='<div class="gestor-detail-hero"><div><span class="gestor-eyebrow">'+escapeHtml(c.calculadora_nombre||c.calculadora_id||"COTIZACIÓN")+'</span><h1>'+escapeHtml(c.codigo_oferta||c.cotizacion_id||"")+'</h1><p>'+escapeHtml(c.cliente||"")+' · '+escapeHtml(c.empresa||"")+' · '+escapeHtml('V'+(c.version||'')+(c.nombre_version?' — '+c.nombre_version:''))+'</p>'+(c.resumen_cambios?'<small class="gestor-version-summary">'+escapeHtml(c.resumen_cambios)+'</small>':'')+'</div><div>'+badgeEstado(c.estado||"")+'<strong class="gestor-detail-total">'+formatoMoneda(c.total_precio||0,c.moneda||"USD")+'</strong></div></div>';
@@ -1456,6 +1537,7 @@ window.CotizaApp = (function(){
         const box=byId("gestorDetalleContenido");if(box)box.innerHTML=html;
         const edit=byId("btnEditarCotizacionGestor");if(edit)edit.disabled=c.puede_editar===false;
         const nueva=byId("btnNuevaVersionGestor");if(nueva)nueva.disabled=["Enviada al Cliente","Vista por el Cliente","Aceptada"].indexOf(c.estado)<0;
+        aplicarPermisoBoton_(nueva,"puede_crear_version");
         const link=byId("btnGenerarLinkGestor");if(link)link.disabled=versiones.length<1;
 
         // Control genérico de cambio de estado — los estados válidos
@@ -1463,10 +1545,15 @@ window.CotizaApp = (function(){
         // ESTADOS que usa el filtro de la lista).
         const selectorEstado=byId("gestorEstadoNuevo");
         if(selectorEstado){
+          // Aceptada/Ganada exigen puede_aprobar: quedan visibles pero
+          // deshabilitadas, con el motivo en el propio texto.
+          const puedeAprobar=tienePermiso("puede_aprobar");
           selectorEstado.innerHTML=ESTADOS.map(function(e){
-            return '<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>';
+            const bloqueado=!puedeAprobar&&ESTADOS_QUE_EXIGEN_APROBAR.indexOf(e)>=0&&e!==c.estado;
+            return '<option value="'+escapeHtml(e)+'"'+(bloqueado?' disabled':'')+'>'+escapeHtml(e)+(bloqueado?' (requiere permiso de aprobación)':'')+'</option>';
           }).join("");
           selectorEstado.value=c.estado||"";
+          selectorEstado.title=puedeAprobar?"":MOTIVOS_SIN_PERMISO.puede_aprobar;
         }
         const selectorVersionAceptada=byId("gestorVersionAceptada");
         if(selectorVersionAceptada){
@@ -1554,6 +1641,7 @@ window.CotizaApp = (function(){
 
       function programarAutoguardadoRuntime_(){
         if(!state.cotizadorRuntime) return;
+        if(!tienePermiso("puede_editar_borrador")){ setTextoEstadoGuardadoRuntime_("Solo lectura"); return; }
         setTextoEstadoGuardadoRuntime_("Escribiendo...");
         if(runtimeAutoguardadoTimer) clearTimeout(runtimeAutoguardadoTimer);
         runtimeAutoguardadoTimer = setTimeout(function(){
@@ -2252,6 +2340,11 @@ window.CotizaApp = (function(){
         opciones = opciones || {};
         const rt = state.cotizadorRuntime;
         if(!rt) return;
+        if(!tienePermiso("puede_editar_borrador")){
+          setTextoEstadoGuardadoRuntime_("Solo lectura");
+          if(!opciones.silencioso) mostrarToast(MOTIVOS_SIN_PERMISO.puede_editar_borrador);
+          return;
+        }
         if(runtimeAutoguardadoTimer){ clearTimeout(runtimeAutoguardadoTimer); runtimeAutoguardadoTimer = null; }
         leerValoresFormularioActual();
         if(!opciones.silencioso) setTextoEstadoGuardadoRuntime_("Guardando...");
@@ -2313,6 +2406,7 @@ window.CotizaApp = (function(){
       // del motor de ejecución (editarCotizacionDesdeDetalleV2()).
       async function crearNuevaVersionDesdeDetalleV2(){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
+        if(!tienePermiso("puede_crear_version")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_crear_version);return;}
         if(c.estado==="Aceptada"&&!window.confirm("Esta versión fue aceptada por el cliente. La aceptación quedará conservada y bloqueada. ¿Desea crear una nueva versión?"))return;
         const nombre=window.prompt("Nombre breve de la nueva versión (ejemplo: 10 licencias Full):","");if(nombre===null)return;if(!String(nombre||"").trim()){mostrarToast("Debe indicar un nombre para la nueva versión.");return;}const resumen=window.prompt("Resumen del cambio (opcional):","");if(resumen===null)return;
         try{
@@ -2377,6 +2471,7 @@ window.CotizaApp = (function(){
         }
 
         let estadoNuevo="";let aceptadaPor="";let versionAceptada="";let comentario="";
+        if((accion==="REGISTRAR_ACEPTACION"||accion==="MARCAR_GANADA")&&!tienePermiso("puede_aprobar")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_aprobar);return;}
         if(accion==="REGISTRAR_ACEPTACION"){
           aceptadaPor=window.prompt("Nombre de la persona que aceptó la propuesta:","");if(aceptadaPor===null)return;if(!String(aceptadaPor).trim()){mostrarToast("Debe indicar quién aceptó la propuesta.");return;}
           if(!window.confirm("La versión quedará registrada como Aceptada y bloqueada. ¿Desea continuar?"))return;
@@ -2413,7 +2508,7 @@ window.CotizaApp = (function(){
       // MIGRADA en el Sprint 4 — antes usaba
       // google.script.run.webActualizarEstadoCotizacion(payload).
       async function actualizarEstadoGestorV2(){
-        const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;const estado=byId("gestorEstadoNuevo")?byId("gestorEstadoNuevo").value:"";const versionAceptada=byId("gestorVersionAceptada")?byId("gestorVersionAceptada").value:(c&&c.version_aceptada)||"";if(!c||!estado)return;if(estado==="Ganada"&&!versionAceptada){mostrarToast("Seleccione la versión que aceptó el cliente.");return;}
+        const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;const estado=byId("gestorEstadoNuevo")?byId("gestorEstadoNuevo").value:"";const versionAceptada=byId("gestorVersionAceptada")?byId("gestorVersionAceptada").value:(c&&c.version_aceptada)||"";if(!c||!estado)return;if(ESTADOS_QUE_EXIGEN_APROBAR.indexOf(estado)>=0&&estado!==c.estado&&!tienePermiso("puede_aprobar")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_aprobar);return;}if(estado==="Ganada"&&!versionAceptada){mostrarToast("Seleccione la versión que aceptó el cliente.");return;}
         try{
           const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/estado",{
             method:"POST",
@@ -2442,6 +2537,7 @@ window.CotizaApp = (function(){
       }
 
       function cambiarSeccion(section,omitirCarga){
+        if(SECCIONES_PARAMETRIZAR.indexOf(section)>=0&&!tienePermiso("puede_parametrizar")) section="dashboard";
         document.querySelectorAll(".nav button").forEach(function(btn){
           btn.classList.toggle("active", btn.dataset.section === section);
         });
@@ -7122,6 +7218,7 @@ window.CotizaApp = (function(){
       return {
         init:init,
         login:login,
+        tienePermiso:tienePermiso,
         mostrarProcesoGlobal:mostrarProcesoGlobal,
         ocultarProcesoGlobal:function(){ ocultarProcesoGlobal(true); },
         logout:logout,

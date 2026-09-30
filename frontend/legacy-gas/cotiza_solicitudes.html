@@ -294,7 +294,7 @@
       acciones = '<div class="sol-detail-actions">'+selector+
         (item.estado !== "En revisión" ? '<button class="btn btn-light" type="button" data-sol-accion="revision">Marcar en revisión</button>' : '')+
         '<button class="btn btn-light sol-danger" type="button" data-sol-accion="descartar">Descartar</button>'+
-        '<button class="btn btn-primary" type="button" data-sol-accion="convertir">Convertir en cotización</button></div>';
+        botonConvertir()+'</div>';
     }else if(item.cotizacion_id_generada){
       acciones = '<div class="sol-detail-actions"><button class="btn btn-primary" type="button" data-sol-cotizacion="'+escapar(item.cotizacion_id_generada)+'">Ir a la cotización</button></div>';
     }
@@ -335,7 +335,19 @@
     }catch(error){ toast(error.message); }
   }
 
+  // Convertir crea una cotización: exige puede_crear (permisos.go). Sin
+  // el permiso el botón queda deshabilitado con el motivo al lado.
+  function puedeCrearCotizacion(){
+    return !!(window.CotizaApp && window.CotizaApp.tienePermiso && window.CotizaApp.tienePermiso("puede_crear"));
+  }
+  function botonConvertir(){
+    if(puedeCrearCotizacion()) return '<button class="btn btn-primary" type="button" data-sol-accion="convertir">Convertir en cotización</button>';
+    const motivo = "Su rol no permite crear cotizaciones.";
+    return '<button class="btn btn-primary" type="button" data-sol-accion="convertir" disabled title="'+escapar(motivo)+'">Convertir en cotización</button><small class="permiso-nota">'+escapar(motivo)+'</small>';
+  }
+
   async function convertir(){
+    if(!puedeCrearCotizacion()){ toast("Su rol no permite crear cotizaciones."); return; }
     if(!estado.detalle) return;
     const selector = porId("solDetalleCalculadora");
     const calculadoraID = estado.detalle.calculadora_id || (selector ? selector.value : "");

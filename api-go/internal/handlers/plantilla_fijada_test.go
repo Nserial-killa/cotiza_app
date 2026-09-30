@@ -22,14 +22,14 @@ type respuestaOfertaFijada struct {
 
 // routerOfertaFijada monta enlace, lectura pública y Vista Previa en un
 // solo router, como en main.go (sin el middleware de sesión).
-func routerOfertaFijada(e *entornoPlantillasPrueba) http.Handler {
+func routerOfertaFijada(t *testing.T, e *entornoPlantillasPrueba) http.Handler {
 	enlaces := &EnlacesPublicosHandler{DB: e.pool}
 	vista := &VistaPreviaOfertaHandler{DB: e.pool}
 	router := chi.NewRouter()
 	router.Post("/api/cotizaciones/{id}/enlace", enlaces.GenerarEnlace)
 	router.Get("/api/publico/cotizacion/{token}", enlaces.VerCotizacion)
 	router.Get("/api/cotizaciones/{id}/vista-previa-oferta", vista.Ver)
-	return router
+	return conAdminCompartido(t, e.pool, router)
 }
 
 func generarEnlaceFijada(t *testing.T, router http.Handler, cotizacionID string) (token string, versionUsada *int) {
@@ -136,7 +136,7 @@ func TestPlantillaFijada_EnlaceSigueEnLaVersionConLaQueSeGenero(t *testing.T) {
 	f := crearFixtureRenderizadorPlantilla(t)
 	f.fijarUsaTelefonia(t, "Sí")
 	e := &entornoPlantillasPrueba{pool: f.pool, plantillas: &PlantillasHandler{DB: f.pool}, estilo: &PlantillaEstiloHandler{DB: f.pool}}
-	router := routerOfertaFijada(e)
+	router := routerOfertaFijada(t, e)
 	rutaVista := "/api/cotizaciones/" + f.cotizacionID + "/vista-previa-oferta?version=1"
 
 	v1 := plantillaPublicadaDeCotizacion(t, e, f.cotizacionID)
@@ -219,7 +219,7 @@ func TestPlantillaFijada_SinPlantillaNoFijaNada(t *testing.T) {
 	if _, err := e.pool.Exec(context.Background(), `UPDATE cotizaciones SET calculadora_id=$1 WHERE cotizacion_id=$2`, e.calculadora, cotizacionID); err != nil {
 		t.Fatal(err)
 	}
-	_, versionUsada := generarEnlaceFijada(t, routerOfertaFijada(e), cotizacionID)
+	_, versionUsada := generarEnlaceFijada(t, routerOfertaFijada(t, e), cotizacionID)
 	if versionUsada != nil {
 		t.Fatalf("sin plantilla publicada no debía fijarse ninguna, dio v%d", *versionUsada)
 	}
@@ -235,7 +235,7 @@ func TestPlantillaFijada_EnlaceTraeElEstiloDeLaPlantilla(t *testing.T) {
 	f := crearFixtureRenderizadorPlantilla(t)
 	f.fijarUsaTelefonia(t, "Sí")
 	e := &entornoPlantillasPrueba{pool: f.pool, plantillas: &PlantillasHandler{DB: f.pool}, estilo: &PlantillaEstiloHandler{DB: f.pool}}
-	router := routerOfertaFijada(e)
+	router := routerOfertaFijada(t, e)
 
 	// v1 sin estilo configurado: colores del tema, sin logo, con el nombre
 	// de la organización asociada a la plantilla.
@@ -294,7 +294,7 @@ func TestPlantillaFijada_LogoOcultoNoViaja(t *testing.T) {
 	publicarVersionNueva(t, e, v1, "Logo oculto", map[string]any{
 		"logo_url": "https://example.com/oculto.png", "mostrar_logo": false,
 	})
-	estilo := getOfertaFijada(t, routerOfertaFijada(e), "/api/cotizaciones/"+f.cotizacionID+"/vista-previa-oferta?version=1").Plantilla.Estilo
+	estilo := getOfertaFijada(t, routerOfertaFijada(t, e), "/api/cotizaciones/"+f.cotizacionID+"/vista-previa-oferta?version=1").Plantilla.Estilo
 	if estilo == nil || estilo.LogoURL != nil {
 		t.Fatalf("con mostrar_logo=false no debía viajar logo_url: %+v", estilo)
 	}

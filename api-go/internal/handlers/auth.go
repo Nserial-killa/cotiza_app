@@ -38,6 +38,16 @@ type usuarioSesion struct {
 	Rol            string `json:"rol"`
 	PuedeVerGestor bool   `json:"puede_ver_gestor"`
 	PuedeVerPrice  bool   `json:"puede_ver_price"`
+	// Banderas del rol para que el frontend oculte/deshabilite lo que el
+	// backend igual va a rechazar con 403 (permisos.go). Son solo
+	// cosméticas del lado del cliente: la fuente de verdad sigue siendo
+	// el servidor en cada petición.
+	PuedeCrear          bool `json:"puede_crear"`
+	PuedeEditarBorrador bool `json:"puede_editar_borrador"`
+	PuedeCrearVersion   bool `json:"puede_crear_version"`
+	PuedeAprobar        bool `json:"puede_aprobar"`
+	PuedeParametrizar   bool `json:"puede_parametrizar"`
+	AlcancePropio       bool `json:"alcance_propio"`
 }
 
 type loginResponse struct {
@@ -98,7 +108,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	const consulta = `
 		SELECT u.usuario_id, u.nombre, u.correo, u.pin_hash, u.rol,
 		       u.estado, u.puede_ver_gestor,
-		       COALESCE(rl.puede_ver_price, false)
+		       COALESCE(rl.puede_ver_price, false),
+		       COALESCE(rl.puede_crear, false), COALESCE(rl.puede_editar_borrador, false),
+		       COALESCE(rl.puede_crear_version, false), COALESCE(rl.puede_aprobar, false),
+		       COALESCE(rl.puede_parametrizar, false), COALESCE(rl.alcance_propio, false)
 		  FROM usuarios u
 		  LEFT JOIN roles rl ON rl.rol = u.rol
 		 WHERE lower(u.correo) = $1`
@@ -113,6 +126,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	err := h.DB.QueryRow(ctx, consulta, correo).Scan(
 		&usuario.UsuarioID, &usuario.Nombre, &usuario.Correo, &pinHash,
 		&usuario.Rol, &estado, &usuario.PuedeVerGestor, &puedeVerPrice,
+		&usuario.PuedeCrear, &usuario.PuedeEditarBorrador, &usuario.PuedeCrearVersion,
+		&usuario.PuedeAprobar, &usuario.PuedeParametrizar, &usuario.AlcancePropio,
 	)
 
 	switch {

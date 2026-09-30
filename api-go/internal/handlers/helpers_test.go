@@ -16,11 +16,15 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cotiza/api/internal/middleware"
 )
 
 // setupTestDB conecta a DATABASE_URL. Si no está seteada, salta el
@@ -151,4 +155,65 @@ func assertJSON(t *testing.T, bodyBytes []byte, out any) {
 	if err := json.Unmarshal(bodyBytes, out); err != nil {
 		t.Fatalf("la respuesta no es el JSON esperado: %v\nbody crudo: %s", err, string(bodyBytes))
 	}
+}
+
+// actoresAdminPorTest guarda un Administrador descartable por test.
+var actoresAdminPorTest sync.Map // *testing.T -> usuario_id
+
+// actorAdminCompartido devuelve (creándolo la primera vez) un
+// Administrador de prueba para el test en curso. Desde la ronda de
+// permisos por rol, los handlers de cotizaciones y del motor de
+// ejecución resuelven las banderas del rol de la sesión (permisos.go):
+// sin un usuario en el contexto responden 500 "no se pudo validar". Los
+// helpers de petición que no reciben un actor explícito usan este, con
+// todas las banderas en true y sin alcance propio, para que las pruebas
+// que no son de permisos sigan probando lo que probaban.
+func actorAdminCompartido(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	if id, ok := actoresAdminPorTest.Load(t); ok {
+		return id.(string)
+	}
+	id := crearUsuarioPrueba(t, pool, "admin.compartido."+sufijoUnico()+"@exceltecgroup.com", "0000", "Administrador", "Activo")
+	desvincularAlLimpiar(t, pool, id)
+	actoresAdminPorTest.Store(t, id)
+	t.Cleanup(func() { actoresAdminPorTest.Delete(t) })
+	return id
+}
+
+// conAdminCompartido envuelve un handler para que la petición llegue con
+// actorAdminCompartido en el contexto, salvo que ya traiga un actor.
+func conAdminCompartido(t *testing.T, pool *pgxpool.Pool, next http.Handler) http.HandlerFunc {
+	t.Helper()
+	actorID := actorAdminCompartido(t, pool)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if actual, _ := r.Context().Value(middleware.UsuarioIDKey).(string); actual == "" {
+			r = conActor(r, actorID)
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+// desvincularAlLimpiar registra (después de crearUsuarioPrueba) una
+// limpieza que suelta las referencias de un actor antes de que se borre.
+// t.Cleanup corre en orden inverso, así que esta corre justo antes del
+// DELETE de crearUsuarioPrueba. Hace falta porque los actores que se
+// crean DESPUÉS de las fixtures se limpian ANTES que ellas: sin esto, el
+// historial, los enlaces o las cotizaciones que el actor tocó todavía lo
+// referencian y el DELETE falla en silencio, dejando el usuario en la base.
+func desvincularAlLimpiar(t *testing.T, pool *pgxpool.Pool, usuarioID string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx := context.Background()
+		pool.Exec(ctx, `DELETE FROM cotizacion_usuarios WHERE usuario_id = $1`, usuarioID)
+		for _, sentencia := range []string{
+			`UPDATE cotizacion_historial SET usuario_id = NULL WHERE usuario_id = $1`,
+			`UPDATE cotizacion_enlaces_publicos SET creado_por = NULL WHERE creado_por = $1`,
+			`UPDATE clientes SET usuario_creador_id = NULL WHERE usuario_creador_id = $1`,
+			`UPDATE solicitudes SET vendedor_id = NULL WHERE vendedor_id = $1`,
+			`UPDATE solicitudes SET analista_id = NULL WHERE analista_id = $1`,
+			`UPDATE solicitudes SET creado_por = NULL WHERE creado_por = $1`,
+		} {
+			pool.Exec(ctx, sentencia, usuarioID)
+		}
+	})
 }

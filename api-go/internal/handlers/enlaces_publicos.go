@@ -25,8 +25,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"cotiza/api/internal/middleware"
 )
 
 type EnlacesPublicosHandler struct {
@@ -67,6 +65,13 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 
+	// Alcance propio (permisos.go): enviar al cliente la cotización de
+	// otro es tan acceso como abrirla.
+	permisos, ok := exigirAccesoCotizacion(ctx, w, r, h.DB, cotizacionID)
+	if !ok {
+		return
+	}
+
 	if version <= 0 {
 		resuelta, err := resolverVersionCotizacion(ctx, h.DB, cotizacionID)
 		if err != nil {
@@ -95,11 +100,7 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-	var creadoPor any
-	if usuarioID != "" {
-		creadoPor = usuarioID
-	}
+	usuarioID := permisos.UsuarioID
 
 	// generarToken() es la misma función que auth.go usa para el token
 	// de sesión (crypto/rand, 32 bytes en hex) — no se reinventa acá.
@@ -129,7 +130,7 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (cotizacion_id, version) DO UPDATE SET cotizacion_id = EXCLUDED.cotizacion_id
 		RETURNING token`,
-		nuevoToken, cotizacionID, version, creadoPor,
+		nuevoToken, cotizacionID, version, usuarioID,
 	).Scan(&token)
 	if err != nil {
 		log.Printf("enlaces_publicos: error guardando enlace de %s v%d: %v", cotizacionID, version, err)

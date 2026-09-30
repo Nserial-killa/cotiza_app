@@ -2011,3 +2011,8 @@ table tr:last-child td { border-bottom: none; }
 #section-plantillas .tpl-review-issue.ok strong { color:#137345; }
 #section-plantillas .tpl-review-issue span { color:#44546a; font-size:10px; line-height:1.45; }
 #section-plantillas .tpl-review-publish-info .btn { width:auto; margin-top:10px; }
+
+/* Permisos por rol: nota breve junto a un botón deshabilitado por falta
+   de permiso (aplicarPermisoBoton_ en cotiza_scripts.html). */
+.permiso-nota { display:inline-block; margin-left:6px; max-width:220px; color:#8a5a00; font-size:11px; line-height:1.3; vertical-align:middle; }
+button:disabled[data-permiso-bloqueado], button:disabled[title] { cursor:not-allowed; }

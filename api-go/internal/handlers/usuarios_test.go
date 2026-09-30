@@ -35,7 +35,9 @@ import (
 func crearAdminActorPrueba(t *testing.T, pool *pgxpool.Pool) string {
 	t.Helper()
 	correo := "admin.actor." + sufijoUnico() + "@exceltecgroup.com"
-	return crearUsuarioPrueba(t, pool, correo, "0000", "Administrador", "Activo")
+	id := crearUsuarioPrueba(t, pool, correo, "0000", "Administrador", "Activo")
+	desvincularAlLimpiar(t, pool, id)
+	return id
 }
 
 func conActor(req *http.Request, actorID string) *http.Request {

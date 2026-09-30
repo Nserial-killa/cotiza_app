@@ -99,7 +99,7 @@ func rnGetRuntime(t *testing.T, handler *CotizadorRuntimeHandler, cotizacionID, 
 		ruta += "?" + query
 	}
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ruta, nil))
+	conAdminCompartido(t, handler.DB, router)(rec, httptest.NewRequest(http.MethodGet, ruta, nil))
 	return rec
 }
 

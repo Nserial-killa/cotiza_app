@@ -114,6 +114,9 @@ func autoRecomendarUnicaOpcion(ctx context.Context, tx pgx.Tx, opciones []cotiza
 // compilada fijada para esta cotización, no contra el diseñador mutable.
 func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *http.Request) {
 	cotizacionID := strings.TrimSpace(chi.URLParam(r, "cotizacion_id"))
+	if !h.exigirEdicion(w, r, cotizacionID) {
+		return
+	}
 	var req administrarOpcionRuntimeRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})

@@ -52,7 +52,7 @@ func TestCotizacion_TotalConDescuentoCoincideEnGestorYOferta(t *testing.T) {
 				t.Fatalf("importe del historial de versiones incorrecto: %+v", res.Versiones)
 			}
 			lista := httptest.NewRecorder()
-			cotizaciones.Listar(lista, httptest.NewRequest(http.MethodGet, "/api/cotizaciones?calculadora_id="+url.QueryEscape(f.calculadoraID), nil))
+			conAdminCompartido(t, f.handler.DB, http.HandlerFunc(cotizaciones.Listar))(lista, httptest.NewRequest(http.MethodGet, "/api/cotizaciones?calculadora_id="+url.QueryEscape(f.calculadoraID), nil))
 			var listado struct {
 				Cotizaciones []map[string]any `json:"cotizaciones"`
 			}

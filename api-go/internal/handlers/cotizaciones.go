@@ -79,6 +79,13 @@ func (h *CotizacionesHandler) ListarClientes(w http.ResponseWriter, r *http.Requ
 // Crear responde POST /api/cotizaciones y deja lista la primera versión
 // para que el motor runtime pueda abrirla inmediatamente.
 func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	permisos, ok := exigirPuedeCrear(ctx, w, r, h.DB)
+	if !ok {
+		return
+	}
+
 	var entrada crearCotizacionEntrada
 	if err := decodificarJSON(r, &entrada); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Datos inválidos: " + err.Error()})
@@ -97,14 +104,8 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe seleccionar un cotizador."})
 		return
 	}
-	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-	if usuarioID == "" {
-		escribirJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "No fue posible identificar al usuario de la sesión."})
-		return
-	}
+	usuarioID := permisos.UsuarioID
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
 	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		log.Printf("cotizaciones: error iniciando alta: %v", err)
@@ -113,7 +114,7 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	cotizacionID, codigoOferta, ok := h.crearCotizacionEnTx(w, ctx, tx, entrada, usuarioID, "Cotización creada desde el Gestor.")
+	cotizacionID, codigoOferta, ok := h.crearCotizacionEnTx(w, ctx, tx, entrada, usuarioID, funcionResponsablePorRol(permisos.Rol), "Cotización creada desde el Gestor.")
 	if !ok {
 		return
 	}
@@ -135,7 +136,11 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 // cada uno abre y confirma su propia transacción; acá solo se agregan
 // las operaciones. Si devuelve ok=false, ya escribió la respuesta de
 // error en w y el caller debe hacer return sin escribir nada más.
-func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx context.Context, tx pgx.Tx, entrada crearCotizacionEntrada, usuarioID, comentarioHistorial string) (cotizacionID, codigoOferta string, ok bool) {
+// funcionCreador es la función con la que queda registrado quien la
+// crea en cotizacion_usuarios (ver funcionResponsablePorRol en
+// permisos.go: un Consultor queda como Analista, para que el alcance
+// propio le deje ver lo que él mismo creó).
+func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx context.Context, tx pgx.Tx, entrada crearCotizacionEntrada, usuarioID, funcionCreador, comentarioHistorial string) (cotizacionID, codigoOferta string, ok bool) {
 	var calculadoraExiste bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM calculadoras WHERE calculadora_id=$1 AND estado IN ('Activo','Publicado'))`, entrada.CalculadoraID).Scan(&calculadoraExiste); err != nil {
 		log.Printf("cotizaciones: error validando cotizador: %v", err)
@@ -197,7 +202,7 @@ func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx con
 		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_versiones (cotizacion_id, numero_version, nombre_version, estado, moneda, total_precio) VALUES ($1,1,'Versión inicial','Borrador','US$',0)`, cotizacionID)
 	}
 	if err == nil {
-		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_usuarios (cotizacion_id, usuario_id, funcion) VALUES ($1,$2,'Vendedor')`, cotizacionID, usuarioID)
+		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_usuarios (cotizacion_id, usuario_id, funcion) VALUES ($1,$2,$3)`, cotizacionID, usuarioID, funcionCreador)
 	}
 	if err == nil {
 		version := 1
@@ -329,6 +334,22 @@ func (h *CotizacionesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Alcance propio (permisos.go): un Vendedor/Consultor solo ve las
+	// cotizaciones donde figura con la función que le corresponde. Para
+	// ese rol el filtro "Responsable" (filtro_usuario_id) queda sin
+	// efecto: no puede pedir las de otro usuario.
+	permisos, ok := cargarPermisos(ctx, w, r, h.DB)
+	if !ok {
+		return
+	}
+	usuarioAlcance := ""
+	funcionesAlcance := []string{}
+	if permisos.AlcancePropio {
+		usuarioAlcance = permisos.UsuarioID
+		funcionesAlcance = permisos.funcionesAlcance()
+		filtroUsuarioID = ""
+	}
+
 	rows, err := h.DB.Query(ctx, `
 		SELECT c.cotizacion_id, c.version_actual, cv.nombre_version, c.version_aceptada,
 		       c.codigo_oferta, cl.nombre_comercial, COALESCE(cl.razon_social, cl.nombre_comercial),
@@ -352,12 +373,16 @@ func (h *CotizacionesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		        SELECT 1 FROM cotizacion_usuarios cu2
 		         WHERE cu2.cotizacion_id = c.cotizacion_id AND cu2.usuario_id = $4))
 		   AND ($5 = '' OR c.fecha_creacion::date >= $5::date)
+		   AND ($6 = '' OR EXISTS (
+		        SELECT 1 FROM cotizacion_usuarios cu3
+		         WHERE cu3.cotizacion_id = c.cotizacion_id AND cu3.usuario_id = $6
+		           AND cu3.funcion = ANY($7)))
 		 GROUP BY c.cotizacion_id, c.version_actual, cv.nombre_version, c.version_aceptada,
 		          c.codigo_oferta, cl.nombre_comercial, cl.razon_social, calc.nombre_calculadora,
 		          c.calculadora_id, c.tipo_propuesta, c.estado, cv.total_precio, cv.moneda,
 		          c.fecha_actualizacion
 		 ORDER BY c.fecha_actualizacion DESC`,
-		busqueda, estado, calculadoraID, filtroUsuarioID, fechaDesde)
+		busqueda, estado, calculadoraID, filtroUsuarioID, fechaDesde, usuarioAlcance, funcionesAlcance)
 	if err != nil {
 		log.Printf("cotizaciones: error listando: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar las cotizaciones."})
@@ -408,6 +433,13 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+
+	// Alcance propio: el acceso directo por ID también se bloquea, no
+	// solo el listado.
+	permisos, ok := exigirAccesoCotizacion(ctx, w, r, h.DB, cotizacionID)
+	if !ok {
+		return
+	}
 
 	var (
 		calculadoraID, calculadoraNombre                    string
@@ -509,13 +541,7 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 	// JSON crudo. Si el rol no tiene el permiso, se borran las claves
 	// del mapa antes de responder — no se mandan en 0 ni en null,
 	// directamente no existen en el JSON.
-	puedeVerPrice, err := h.sesionPuedeVerPrice(ctx, r)
-	if err != nil {
-		log.Printf("cotizaciones: error validando permiso de precio: %v", err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
-		return
-	}
-	if !puedeVerPrice {
+	if !permisos.PuedeVerPrice {
 		delete(cotizacion, "total_costo")
 		delete(cotizacion, "total_ganancia")
 		delete(cotizacion, "margen_total")
@@ -661,6 +687,13 @@ func (h *CotizacionesHandler) CrearVersion(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	defer cancel()
+	permisos, ok := exigirPuedeCrearVersion(ctx, w, r, h.DB)
+	if !ok || !exigirAlcanceCotizacion(ctx, w, h.DB, permisos, cotizacionID) {
+		return
+	}
+
 	var req crearVersionRequest
 	if err := decodificarJSON(r, &req); err != nil {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -673,10 +706,7 @@ func (h *CotizacionesHandler) CrearVersion(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-
-	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
-	defer cancel()
+	usuarioID := permisos.UsuarioID
 
 	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -802,10 +832,24 @@ func (h *CotizacionesHandler) CambiarEstado(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
+
+	// puede_aprobar solo cuenta para Aceptada/Ganada; el resto de las
+	// transiciones (Enviada al Cliente, Perdida, Cancelada...) no lo
+	// piden. El estado se valida antes para que este chequeo sepa a qué
+	// destino se quiere ir.
+	var permisos permisosSesion
+	var ok bool
+	if estadosQueExigenAprobar[req.Estado] {
+		permisos, ok = exigirPuedeAprobar(ctx, w, r, h.DB)
+	} else {
+		permisos, ok = cargarPermisos(ctx, w, r, h.DB)
+	}
+	if !ok || !exigirAlcanceCotizacion(ctx, w, h.DB, permisos, cotizacionID) {
+		return
+	}
+	usuarioID := permisos.UsuarioID
 
 	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {

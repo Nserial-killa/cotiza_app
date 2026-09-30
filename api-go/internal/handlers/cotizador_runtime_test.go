@@ -70,7 +70,7 @@ func getRuntime(t *testing.T, fixture fixtureRuntime, query string) *httptest.Re
 		ruta += "?" + query
 	}
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ruta, nil))
+	conAdminCompartido(t, fixture.Handler.DB, router)(rec, httptest.NewRequest(http.MethodGet, ruta, nil))
 	return rec
 }
 
@@ -79,7 +79,7 @@ func postValoresRuntime(t *testing.T, fixture fixtureRuntime, body any) *httptes
 	router := chi.NewRouter()
 	router.Post("/api/cotizador/runtime/{cotizacion_id}/valores", fixture.Handler.GuardarValores)
 	ruta := "/api/cotizador/runtime/" + fixture.CotizacionID + "/valores"
-	return postCatalogos(t, func(w http.ResponseWriter, r *http.Request) { router.ServeHTTP(w, r) }, ruta, body)
+	return postCatalogos(t, conAdminCompartido(t, fixture.Handler.DB, router), ruta, body)
 }
 
 func postOpcionesRuntime(t *testing.T, fixture fixtureRuntime, body any) *httptest.ResponseRecorder {
@@ -87,7 +87,7 @@ func postOpcionesRuntime(t *testing.T, fixture fixtureRuntime, body any) *httpte
 	router := chi.NewRouter()
 	router.Post("/api/cotizador/runtime/{cotizacion_id}/opciones", fixture.Handler.AdministrarOpciones)
 	ruta := "/api/cotizador/runtime/" + fixture.CotizacionID + "/opciones"
-	return postCatalogos(t, func(w http.ResponseWriter, r *http.Request) { router.ServeHTTP(w, r) }, ruta, body)
+	return postCatalogos(t, conAdminCompartido(t, fixture.Handler.DB, router), ruta, body)
 }
 
 func fixtureRuntimeOpciones(t *testing.T, permitirDuplicar bool) (fixtureRuntime, string, string, string) {

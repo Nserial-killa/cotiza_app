@@ -54,6 +54,10 @@ func (h *VistaPreviaOfertaHandler) Ver(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 
+	if _, ok := exigirAccesoCotizacion(ctx, w, r, h.DB, cotizacionID); !ok {
+		return
+	}
+
 	doc, err := construirDocumentoOferta(ctx, h.DB, cotizacionID, version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Cotización o versión no encontrada."})

@@ -398,11 +398,15 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar la solicitud."})
 		return
 	}
-	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-	if usuarioID == "" {
-		escribirJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "No fue posible identificar al usuario de la sesión."})
+	// Convertir crea una cotización nueva: misma bandera que POST
+	// /api/cotizaciones.
+	ctxPermiso, cancelPermiso := context.WithTimeout(r.Context(), 5*time.Second)
+	permisos, ok := exigirPuedeCrear(ctxPermiso, w, r, h.DB)
+	cancelPermiso()
+	if !ok {
 		return
 	}
+	usuarioID := permisos.UsuarioID
 
 	var req convertirSolicitudRequest
 	if r.ContentLength != 0 {
@@ -429,12 +433,17 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 		clienteRazonSocial *string
 		calculadoraID      *string
 		estadoActual       string
+		vendedorID         *string
+		analistaID         *string
+		liderProductoID    *string
 	)
 	err = tx.QueryRow(ctx, `
-		SELECT cliente_id, cliente_nombre, cliente_razon_social, calculadora_id, estado
+		SELECT cliente_id, cliente_nombre, cliente_razon_social, calculadora_id, estado,
+		       vendedor_id, analista_id, lider_producto_id
 		  FROM solicitudes WHERE solicitud_id::text = $1
 		  FOR UPDATE`, id,
-	).Scan(&clienteID, &clienteNombre, &clienteRazonSocial, &calculadoraID, &estadoActual)
+	).Scan(&clienteID, &clienteNombre, &clienteRazonSocial, &calculadoraID, &estadoActual,
+		&vendedorID, &analistaID, &liderProductoID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "Solicitud no encontrada."})
 		return
@@ -470,9 +479,29 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 		entrada.ClienteID = *clienteID
 	}
 
-	cotizacionID, codigoOferta, ok := h.Cotizaciones.crearCotizacionEnTx(w, ctx, tx, entrada, usuarioID, "Cotización creada a partir de la solicitud "+id+".")
+	cotizacionID, codigoOferta, ok := h.Cotizaciones.crearCotizacionEnTx(w, ctx, tx, entrada, usuarioID, funcionResponsablePorRol(permisos.Rol), "Cotización creada a partir de la solicitud "+id+".")
 	if !ok {
 		return
+	}
+
+	// Los responsables asignados en la Solicitud pasan a la cotización:
+	// es lo que define "propia" para el alcance de Vendedor (función
+	// Vendedor) y Consultor (función Analista) — ver permisos.go.
+	responsables := []struct {
+		usuarioID *string
+		funcion   string
+	}{{vendedorID, "Vendedor"}, {analistaID, "Analista"}, {liderProductoID, "Líder de producto"}}
+	for _, resp := range responsables {
+		if resp.usuarioID == nil || *resp.usuarioID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO cotizacion_usuarios (cotizacion_id, usuario_id, funcion) VALUES ($1, $2, $3)
+			ON CONFLICT DO NOTHING`, cotizacionID, *resp.usuarioID, resp.funcion); err != nil {
+			log.Printf("solicitudes: error asignando responsables de %s a %s: %v", id, cotizacionID, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible convertir la solicitud."})
+			return
+		}
 	}
 
 	if _, err := tx.Exec(ctx, `UPDATE solicitudes SET estado = 'Convertida', cotizacion_id_generada = $1 WHERE solicitud_id::text = $2`, cotizacionID, id); err != nil {

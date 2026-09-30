@@ -27,7 +27,7 @@ func getVistaPreviaOferta(t *testing.T, handler *VistaPreviaOfertaHandler, cotiz
 		ruta += "?version=" + version
 	}
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ruta, nil))
+	conAdminCompartido(t, handler.DB, router)(rec, httptest.NewRequest(http.MethodGet, ruta, nil))
 	return rec
 }
 

@@ -97,14 +97,15 @@ func postEnlace(t *testing.T, handler *EnlacesPublicosHandler, cotizacionID stri
 	t.Helper()
 	router := chi.NewRouter()
 	router.Post("/api/cotizaciones/{id}/enlace", handler.GenerarEnlace)
+	conActorAdmin := conAdminCompartido(t, handler.DB, router)
 	ruta := "/api/cotizaciones/" + cotizacionID + "/enlace"
 	if body == nil {
 		req := httptest.NewRequest(http.MethodPost, ruta, nil)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
+		conActorAdmin(rec, req)
 		return rec
 	}
-	return postCatalogos(t, func(w http.ResponseWriter, r *http.Request) { router.ServeHTTP(w, r) }, ruta, body)
+	return postCatalogos(t, conActorAdmin, ruta, body)
 }
 
 func getPublico(t *testing.T, handler *EnlacesPublicosHandler, token string) *httptest.ResponseRecorder {
