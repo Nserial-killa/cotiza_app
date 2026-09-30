@@ -1426,6 +1426,11 @@ func valorColumnaFuncionCampo(columna string, valorCrudo any) (any, bool) {
 		if texto == "" {
 			return nil, false
 		}
+		// Los compilados legados pueden tener un importe mal asignado a
+		// MONEDA_OFERTA. No sobrescribir la divisa con "10000" al guardar.
+		if _, esNumero := numeroDesdeValor(valorCrudo); esNumero {
+			return nil, false
+		}
 		return texto, true
 	}
 	return numeroDesdeValor(valorCrudo)

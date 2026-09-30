@@ -272,6 +272,11 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 			funcion = ""
 		}
 		el := elementoCompilado{ElementoID: *elementoID, Tipo: valorString(tipo), Etiqueta: etiqueta, CatalogoID: catalogoID, FuncionCampo: funcion, ColumnasAncho: valorInt(columnasAncho), Orden: valorInt(elementoOrden), Requerido: valorBool(requerido), Configuracion: cfg, componentePadreID: valorString(componentePadreID)}
+		if el.FuncionCampo == "MONEDA_OFERTA" {
+			if err := validarCampoMonedaOferta(el.Tipo, cfg); err != nil {
+				resultado.Errores = append(resultado.Errores, fmt.Sprintf("%s: %s", el.ElementoID, err))
+			}
+		}
 		if el.Tipo == "CAJA_VALOR" {
 			if fuente := valorString(campoFuenteID); fuente != "" {
 				el.Configuracion["campo_fuente_id"] = fuente

@@ -544,6 +544,12 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "funcion_campo solo aplica a Campo, Campo Catálogo o Campo Calculado."})
 		return
 	}
+	if req.FuncionCampo == "MONEDA_OFERTA" {
+		if err := validarCampoMonedaOferta(req.Tipo, configuracion); err != nil {
+			escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
@@ -1020,6 +1026,18 @@ func (h *CotizadorTabsHandler) GuardarElemento(w http.ResponseWriter, r *http.Re
 		return
 	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "mensaje": "Elemento guardado.", "elemento_id": req.ElementoID})
+}
+
+// Moneda identifica la divisa (USD, CRC...), no el importe de la oferta.
+// Mantener esta validación también en el compilador cubre diseños antiguos.
+func validarCampoMonedaOferta(tipo string, configuracion map[string]any) error {
+	tipoCampo := strings.ToUpper(strings.TrimSpace(fmt.Sprint(configuracion["tipo_campo"])))
+	noEsTexto := map[string]bool{"NUMERO": true, "MONEDA": true, "PORCENTAJE": true,
+		"FECHA": true, "CHECK": true, "SI_NO": true, "BOOLEAN": true}
+	if (tipo != "CAMPO" && tipo != "CAMPO_CATALOGO") || noEsTexto[tipoCampo] {
+		return fmt.Errorf("Moneda de la oferta requiere un campo de texto o catálogo con la divisa (USD, CRC...), no un importe. Para el monto final seleccione Precio total de la oferta o configure la salida TOTAL_PRECIO")
+	}
+	return nil
 }
 
 // operandosDesdeConfiguracion lee configuracion["operandos"] (un array de
