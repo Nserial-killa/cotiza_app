@@ -47,6 +47,7 @@ CALC_NOMBRE="Consultoría de Implementación TI"
 TAB1_ID="CTZ-TAB-DEMO-GENERAL"
 TAB2_ID="CTZ-TAB-DEMO-ALCANCE"
 EL_HORAS_ID="CTZ-ELE-DEMO-HORAS"
+EL_MONTO_ID="CTZ-ELE-DEMO-MONTO"
 
 CLIENTE1_NOMBRE="Distribuidora Comercial del Pacífico S.A."
 CLIENTE1_RAZON="Distribuidora Comercial del Pacífico Sociedad Anónima"
@@ -174,15 +175,20 @@ crear_tab() {
   requerir_ok "$resp" "guardando la sección $tab_id"
 }
 
+# $9 (función de campo) y $10 (configuración JSON) son opcionales: sin
+# ellos el elemento queda NORMAL y con configuración {}, como siempre.
 crear_elemento() {
   local elemento_id="$1" tab_id="$2" tipo="$3" etiqueta="$4" catalogo_id="$5"
   local columnas="$6" orden="$7" requerido="$8"
+  local funcion_campo="${9:-NORMAL}" configuracion="${10:-{\}}"
   local body resp
   body="$(jq -n --arg eid "$elemento_id" --arg tid "$tab_id" --arg tipo "$tipo" \
     --arg etiqueta "$etiqueta" --arg catid "$catalogo_id" \
     --argjson columnas "$columnas" --argjson orden "$orden" --argjson requerido "$requerido" \
+    --arg funcion "$funcion_campo" --argjson configuracion "$configuracion" \
     '{elemento_id:$eid, tab_id:$tid, tipo:$tipo, etiqueta:$etiqueta, catalogo_id:$catid,
-      columnas_ancho:$columnas, orden:$orden, requerido:$requerido, configuracion:{}, activo:true}')"
+      columnas_ancho:$columnas, orden:$orden, requerido:$requerido, funcion_campo:$funcion,
+      configuracion:$configuracion, activo:true}')"
   resp="$(api POST /api/cotizador/elementos "$body")"
   requerir_ok "$resp" "guardando el elemento $elemento_id"
 }
@@ -192,10 +198,17 @@ calculadora_estado() {
   psql "$DATABASE_URL" -tAc "SELECT estado FROM calculadoras WHERE calculadora_id = '$id'" 2>/dev/null | tr -d '[:space:]'
 }
 
+compilado_tiene_total() {
+  local id="$1"
+  psql "$DATABASE_URL" -tAc "SELECT EXISTS (SELECT 1 FROM cotizadores_compilados WHERE calculadora_id = '$id' AND estado = 'ACTIVA' AND jsonb_path_exists(configuracion, '\$.** ? (@.funcion_campo == \"TOTAL_PRECIO_OFERTA\")'))" 2>/dev/null | tr -d '[:space:]'
+}
+
 compilar_cotizador_si_hace_falta() {
   local estado_actual
   estado_actual="$(calculadora_estado "$CALC_ID")"
-  if [ "$estado_actual" = "Publicado" ]; then
+  # Una base sembrada antes de existir el monto tiene el cotizador
+  # Publicado pero sin TOTAL_PRECIO en el compilado: se vuelve a publicar.
+  if [ "$estado_actual" = "Publicado" ] && [ "$(compilado_tiene_total "$CALC_ID")" = "t" ]; then
     log "El cotizador ya está Publicado (corrida anterior) — no se vuelve a compilar."
     return 0
   fi
@@ -233,12 +246,16 @@ ensure_cotizador() {
   crear_tab "$TAB1_ID" "Información General" 0
   crear_tab "$TAB2_ID" "Alcance y Condiciones" 1
 
-  # 5 elementos en 2 secciones, cubriendo los 4 tipos simples.
+  # 6 elementos en 2 secciones, cubriendo los 4 tipos simples. El monto
+  # lleva funcion_campo=TOTAL_PRECIO_OFERTA: sin un TOTAL_PRECIO
+  # configurado no se puede crear ninguna cotización del cotizador.
   crear_elemento "CTZ-ELE-DEMO-TIPOSERV" "$TAB1_ID" "CAMPO_CATALOGO" "Tipo de Servicio" "$CATALOGO_ID" 2 0 true
   crear_elemento "$EL_HORAS_ID" "$TAB1_ID" "CAMPO" "Horas Estimadas de Consultoría" "" 2 1 true
   crear_elemento "CTZ-ELE-DEMO-LEYENDA" "$TAB1_ID" "LEYENDA" "Complete la información general del proyecto antes de continuar." "" 4 2 false
   crear_elemento "CTZ-ELE-DEMO-ALCANCE" "$TAB2_ID" "CAMPO" "Alcance del Proyecto" "" 4 0 false
   crear_elemento "CTZ-ELE-DEMO-INFO" "$TAB2_ID" "TEXTO_INFORMATIVO" "Los precios no incluyen impuestos de ley." "" 4 1 false
+  crear_elemento "$EL_MONTO_ID" "$TAB2_ID" "CAMPO" "Monto Total de la Propuesta (USD)" "" 2 2 false \
+    "TOTAL_PRECIO_OFERTA" '{"tipo_campo":"MONEDA"}'
 
   compilar_cotizador_si_hace_falta
 }
@@ -306,10 +323,12 @@ ensure_cotizacion() {
 }
 
 llenar_valores() {
-  local cid="$1" tiposvc="$2" horas="$3" alcance="$4"
+  local cid="$1" tiposvc="$2" horas="$3" alcance="$4" monto="$5"
   local body resp
   body="$(jq -n --arg tiposvc "$tiposvc" --argjson horas "$horas" --arg alcance "$alcance" \
-    '{version:1, valores:{"CTZ-ELE-DEMO-TIPOSERV":$tiposvc, "CTZ-ELE-DEMO-HORAS":$horas, "CTZ-ELE-DEMO-ALCANCE":$alcance}}')"
+    --arg monto_id "$EL_MONTO_ID" --argjson monto "$monto" \
+    '{version:1, valores:{"CTZ-ELE-DEMO-TIPOSERV":$tiposvc, "CTZ-ELE-DEMO-HORAS":$horas,
+      "CTZ-ELE-DEMO-ALCANCE":$alcance, ($monto_id):$monto}}')"
   resp="$(api POST "/api/cotizador/runtime/$cid/valores" "$body")"
   requerir_ok "$resp" "guardando los valores del cotizador para $cid"
 }
@@ -356,7 +375,7 @@ ensure_cotizaciones() {
   if [ "$existia2" = "0" ]; then
     log "Llenando el cotizador y enviando la cotización de '$CLIENTE2_NOMBRE' al cliente..."
     llenar_valores "$COTIZACION2_ID" "CONSULTORIA" 220 \
-      "Implementación de ERP corporativo con migración de datos y capacitación de usuarios clave."
+      "Implementación de ERP corporativo con migración de datos y capacitación de usuarios clave." 26400
     cambiar_estado_cotizacion "$COTIZACION2_ID" "Enviada al Cliente" "Cotización enviada al cliente para su revisión."
   fi
   # Idempotente de por sí: reutiliza el enlace ya emitido si lo hubiera.
@@ -365,7 +384,7 @@ ensure_cotizaciones() {
   if [ "$existia3" = "0" ]; then
     log "Llenando el cotizador y marcando como Aceptada la cotización de '$CLIENTE3_NOMBRE'..."
     llenar_valores "$COTIZACION3_ID" "IMPLEMENTACION" 340 \
-      "Implementación completa de plataforma de gestión documental y flujos de aprobación."
+      "Implementación completa de plataforma de gestión documental y flujos de aprobación." 47600
     cambiar_estado_cotizacion "$COTIZACION3_ID" "Aceptada" "Cliente aceptó la propuesta."
   fi
 }

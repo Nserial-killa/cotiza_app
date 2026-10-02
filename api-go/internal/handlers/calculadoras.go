@@ -62,12 +62,12 @@ func (h *CalculadorasHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		       c.descripcion, c.estado, cc.compilado_id::text, cc.version,
 		       (c.estado='Publicado' AND cc.compilado_id IS NOT NULL AND (EXISTS (
 		          SELECT 1
-		            FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) salida
+		            FROM jsonb_array_elements(CASE WHEN jsonb_typeof(cc.configuracion->'salidas')='array' THEN cc.configuracion->'salidas' ELSE '[]'::jsonb END) salida
 		           WHERE salida->>'clave_salida'='TOTAL_PRECIO'
 		             AND COALESCE((salida->>'activo')::boolean, false)
 		             AND COALESCE(salida->>'fuente_id','')<>''
 		       ) OR (NOT EXISTS (
-		          SELECT 1 FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) configurada
+		          SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(cc.configuracion->'salidas')='array' THEN cc.configuracion->'salidas' ELSE '[]'::jsonb END) configurada
 		           WHERE configurada->>'clave_salida'='TOTAL_PRECIO'
 		       ) AND jsonb_path_exists(cc.configuracion, '$.** ? (@.funcion_campo == "TOTAL_PRECIO_OFERTA")'))))
 		       AS disponible_cotizacion
@@ -78,12 +78,12 @@ func (h *CalculadorasHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		   AND ($1::text <> 'cotizacion' OR
 		        (c.estado='Publicado' AND cc.compilado_id IS NOT NULL AND (EXISTS (
 		          SELECT 1
-		            FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) salida
+		            FROM jsonb_array_elements(CASE WHEN jsonb_typeof(cc.configuracion->'salidas')='array' THEN cc.configuracion->'salidas' ELSE '[]'::jsonb END) salida
 		           WHERE salida->>'clave_salida'='TOTAL_PRECIO'
 		             AND COALESCE((salida->>'activo')::boolean, false)
 		             AND COALESCE(salida->>'fuente_id','')<>''
 		        ) OR (NOT EXISTS (
-		          SELECT 1 FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) configurada
+		          SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(cc.configuracion->'salidas')='array' THEN cc.configuracion->'salidas' ELSE '[]'::jsonb END) configurada
 		           WHERE configurada->>'clave_salida'='TOTAL_PRECIO'
 		        ) AND jsonb_path_exists(cc.configuracion, '$.** ? (@.funcion_campo == "TOTAL_PRECIO_OFERTA")')))))
 		 ORDER BY c.nombre_calculadora`, uso)

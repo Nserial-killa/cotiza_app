@@ -167,12 +167,12 @@ func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx con
 		 WHERE cc.calculadora_id=$1 AND cc.estado='ACTIVA'
 		   AND (EXISTS (
 		     SELECT 1
-		       FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) salida
+		       FROM jsonb_array_elements(CASE WHEN jsonb_typeof(cc.configuracion->'salidas')='array' THEN cc.configuracion->'salidas' ELSE '[]'::jsonb END) salida
 		      WHERE salida->>'clave_salida'='TOTAL_PRECIO'
 		        AND COALESCE((salida->>'activo')::boolean, false)
 		        AND COALESCE(salida->>'fuente_id','')<>''
 		   ) OR (NOT EXISTS (
-		     SELECT 1 FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) configurada
+		     SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(cc.configuracion->'salidas')='array' THEN cc.configuracion->'salidas' ELSE '[]'::jsonb END) configurada
 		      WHERE configurada->>'clave_salida'='TOTAL_PRECIO'
 		   ) AND jsonb_path_exists(cc.configuracion, '$.** ? (@.funcion_campo == "TOTAL_PRECIO_OFERTA")')))
 		 FOR SHARE OF cc`, entrada.CalculadoraID).Scan(&compiladoID)

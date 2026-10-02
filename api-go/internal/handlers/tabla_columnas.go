@@ -285,7 +285,7 @@ func (h *TablaColumnasHandler) Eliminar(w http.ResponseWriter, r *http.Request) 
 	var tieneDatos bool
 	err = h.DB.QueryRow(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM cotizacion_valores cv, jsonb_array_elements(COALESCE(cv.valor->'filas', '[]'::jsonb)) AS fila
+			SELECT 1 FROM cotizacion_valores cv, jsonb_array_elements(CASE WHEN jsonb_typeof(cv.valor->'filas')='array' THEN cv.valor->'filas' ELSE '[]'::jsonb END) AS fila
 			WHERE cv.elemento_id = $1 AND fila ? $2
 		)`, elementoID, columnaID).Scan(&tieneDatos)
 	if err != nil {
