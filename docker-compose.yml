@@ -23,10 +23,11 @@ services:
       # SOLO la primera vez que se crea el volumen (base nueva).
       - ./api-go/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cotiza_admin} -d ${POSTGRES_DB:-cotiza}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-cotiza_admin} -d ${POSTGRES_DB:-cotiza}"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 60s
     networks:
       - cotiza_net
 
