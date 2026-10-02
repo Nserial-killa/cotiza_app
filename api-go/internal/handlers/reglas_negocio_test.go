@@ -191,7 +191,7 @@ func TestReglaCotizaciones_ClienteInactivoNoSePuedeCotizar(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &CotizacionesHandler{DB: pool}
 	actorID := crearAdminActorPrueba(t, pool)
-	calculadoraID := rnCalculadoraConEstado(t, pool, "Activo")
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
 	clienteID := rnClienteConEstado(t, pool, "Inactivo")
 
 	rec, _ := postCrearCotizacion(t, handler, actorID, map[string]any{
@@ -211,8 +211,8 @@ func TestReglaCotizaciones_ClienteInactivoNoSePuedeCotizar(t *testing.T) {
 	}
 }
 
-// Regla: solo se puede cotizar con un cotizador que exista y esté en
-// un estado publicable (Activo o Publicado).
+// Regla: solo se puede cotizar con un cotizador que tenga una versión
+// publicada, compilada y con TOTAL_PRECIO normalizado.
 func TestReglaCotizaciones_CotizadorInexistenteONoPublicableSeRechaza(t *testing.T) {
 	pool := setupTestDB(t)
 	handler := &CotizacionesHandler{DB: pool}
@@ -222,16 +222,18 @@ func TestReglaCotizaciones_CotizadorInexistenteONoPublicableSeRechaza(t *testing
 	casos := []struct {
 		nombre        string
 		calculadoraID string
+		estadoHTTP    int
 	}{
-		{"cotizador inexistente", "TEST-RN-CALC-QUE-NO-EXISTE"},
-		{"cotizador Inactivo", rnCalculadoraConEstado(t, pool, "Inactivo")},
+		{"cotizador inexistente", "TEST-RN-CALC-QUE-NO-EXISTE", http.StatusBadRequest},
+		{"cotizador Activo sin publicar", rnCalculadoraConEstado(t, pool, "Activo"), http.StatusConflict},
+		{"cotizador Inactivo", rnCalculadoraConEstado(t, pool, "Inactivo"), http.StatusConflict},
 	}
 	for _, caso := range casos {
 		t.Run(caso.nombre, func(t *testing.T) {
 			rec, _ := postCrearCotizacion(t, handler, actorID, map[string]any{
 				"cliente_id": clienteID, "calculadora_id": caso.calculadoraID,
 			})
-			if rec.Code != http.StatusBadRequest {
+			if rec.Code != caso.estadoHTTP {
 				t.Fatalf("se rompió la regla: %s no debería poder usarse para cotizar, respondió %d: %s",
 					caso.nombre, rec.Code, rec.Body.String())
 			}
@@ -420,7 +422,7 @@ func TestReglaSolicitudes_DescartadaNoSeConvierte(t *testing.T) {
 	cotizaciones := &CotizacionesHandler{DB: pool}
 	handler := &SolicitudesHandler{DB: pool, Cotizaciones: cotizaciones}
 	actorID := crearAdminActorPrueba(t, pool)
-	calculadoraID := rnCalculadoraConEstado(t, pool, "Activo")
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
 	solicitudID := crearSolicitudPrueba(t, pool, "Cliente descartado", "", calculadoraID, "Descartada")
 
 	rec, res := postConvertirSolicitud(t, handler, actorID, solicitudID, map[string]any{})
@@ -450,7 +452,7 @@ func TestReglaSolicitudes_RazonSocialLlegaAlClienteAlConvertir(t *testing.T) {
 	handler := &SolicitudesHandler{DB: pool, Cotizaciones: cotizaciones}
 	actorID := crearAdminActorPrueba(t, pool)
 	vendedorID := crearUsuarioPrueba(t, pool, "rn.vendedor."+sufijoUnico()+"@exceltecgroup.com", "1234", "Vendedor", "Activo")
-	calculadoraID := rnCalculadoraConEstado(t, pool, "Activo")
+	calculadoraID, _ := crearBaseAltaCotizacion(t, pool, false)
 
 	nombre := "Empresa Solicitud " + sufijoUnico()
 	razon := "Razón Social Solicitud S.A. " + sufijoUnico()

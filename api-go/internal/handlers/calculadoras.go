@@ -24,11 +24,15 @@ type CalculadorasHandler struct {
 }
 
 type calculadoraSimple struct {
-	CalculadoraID string  `json:"calculadora_id"`
-	NombreCalc    string  `json:"nombre_calculadora"`
-	LineaNegocio  *string `json:"linea_negocio,omitempty"`
-	ServicioBase  *string `json:"servicio_base,omitempty"`
-	Descripcion   *string `json:"descripcion,omitempty"`
+	CalculadoraID        string  `json:"calculadora_id"`
+	NombreCalc           string  `json:"nombre_calculadora"`
+	LineaNegocio         *string `json:"linea_negocio,omitempty"`
+	ServicioBase         *string `json:"servicio_base,omitempty"`
+	Descripcion          *string `json:"descripcion,omitempty"`
+	Estado               string  `json:"estado"`
+	CompiladoID          *string `json:"compilado_id,omitempty"`
+	VersionConfiguracion *int    `json:"version_configuracion,omitempty"`
+	DisponibleCotizacion bool    `json:"disponible_cotizacion"`
 }
 
 type crearCalculadoraRequest struct {
@@ -39,18 +43,50 @@ type crearCalculadoraRequest struct {
 	Descripcion       string `json:"descripcion"`
 }
 
-// Listar devuelve las calculadoras disponibles, ordenadas por nombre.
-// El compilador cambia una calculadora de Activo a Publicado; ambos
-// estados deben seguir disponibles para crear y llenar cotizaciones.
+// Listar devuelve los cotizadores ordenados por nombre. El listado general
+// conserva Activo/Publicado porque también alimenta el Diseñador y filtros.
+// ?uso=cotizacion es deliberadamente más estricto: solo expone versiones
+// publicadas, compiladas y con TOTAL_PRECIO normalizado; una cotización real
+// nunca debe nacer apuntando a un borrador o a una fórmula sin salida.
 func (h *CalculadorasHandler) Listar(w http.ResponseWriter, r *http.Request) {
+	uso := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("uso")))
+	if uso != "" && uso != "cotizacion" {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El uso solicitado para los cotizadores no es válido."})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
 	rows, err := h.DB.Query(ctx, `
-		SELECT calculadora_id, nombre_calculadora, linea_negocio, servicio_base, descripcion
-		  FROM calculadoras
-		 WHERE estado IN ('Activo', 'Publicado')
-		 ORDER BY nombre_calculadora`)
+		SELECT c.calculadora_id, c.nombre_calculadora, c.linea_negocio, c.servicio_base,
+		       c.descripcion, c.estado, cc.compilado_id::text, cc.version,
+		       (c.estado='Publicado' AND cc.compilado_id IS NOT NULL AND (EXISTS (
+		          SELECT 1
+		            FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) salida
+		           WHERE salida->>'clave_salida'='TOTAL_PRECIO'
+		             AND COALESCE((salida->>'activo')::boolean, false)
+		             AND COALESCE(salida->>'fuente_id','')<>''
+		       ) OR (NOT EXISTS (
+		          SELECT 1 FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) configurada
+		           WHERE configurada->>'clave_salida'='TOTAL_PRECIO'
+		       ) AND jsonb_path_exists(cc.configuracion, '$.** ? (@.funcion_campo == "TOTAL_PRECIO_OFERTA")'))))
+		       AS disponible_cotizacion
+		  FROM calculadoras c
+		  LEFT JOIN cotizadores_compilados cc
+		    ON cc.calculadora_id=c.calculadora_id AND cc.estado='ACTIVA'
+		 WHERE c.estado IN ('Activo', 'Publicado')
+		   AND ($1::text <> 'cotizacion' OR
+		        (c.estado='Publicado' AND cc.compilado_id IS NOT NULL AND (EXISTS (
+		          SELECT 1
+		            FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) salida
+		           WHERE salida->>'clave_salida'='TOTAL_PRECIO'
+		             AND COALESCE((salida->>'activo')::boolean, false)
+		             AND COALESCE(salida->>'fuente_id','')<>''
+		        ) OR (NOT EXISTS (
+		          SELECT 1 FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) configurada
+		           WHERE configurada->>'clave_salida'='TOTAL_PRECIO'
+		        ) AND jsonb_path_exists(cc.configuracion, '$.** ? (@.funcion_campo == "TOTAL_PRECIO_OFERTA")')))))
+		 ORDER BY c.nombre_calculadora`, uso)
 	if err != nil {
 		log.Printf("calculadoras: error listando: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los cotizadores."})
@@ -61,7 +97,9 @@ func (h *CalculadorasHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	calculadoras := make([]calculadoraSimple, 0)
 	for rows.Next() {
 		var item calculadoraSimple
-		if err := rows.Scan(&item.CalculadoraID, &item.NombreCalc, &item.LineaNegocio, &item.ServicioBase, &item.Descripcion); err != nil {
+		if err := rows.Scan(&item.CalculadoraID, &item.NombreCalc, &item.LineaNegocio, &item.ServicioBase,
+			&item.Descripcion, &item.Estado, &item.CompiladoID, &item.VersionConfiguracion,
+			&item.DisponibleCotizacion); err != nil {
 			log.Printf("calculadoras: error leyendo fila: %v", err)
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los cotizadores."})
 			return

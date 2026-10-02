@@ -363,6 +363,14 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	if err != nil {
 		return resultado, err
 	}
+	// Compatibilidad con los cotizadores construidos antes de existir el
+	// mapa explícito de Salidas: una Función del campo ya expresa de forma
+	// inequívoca qué valor corporativo produce el componente. La publicación
+	// congela esa relación dentro del compilado cuando todavía no hay una fila
+	// explícita para la misma clave. Así TOTAL_PRECIO_OFERTA no queda solo en
+	// la caché de cotizacion_versiones: también genera TOTAL_PRECIO normalizado,
+	// que es la fuente única del Gestor, Dashboard y Reportes.
+	mapa = completarSalidasDesdeFunciones(calculadoraID, mapa, resultado.Tabs)
 	resultado.Salidas = mapa
 	// Validar contra el contenido realmente compilado, incluidas secciones asociadas.
 	raw, err := json.Marshal(configuracionCompilada{Tabs: resultado.Tabs})
@@ -381,6 +389,62 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	}
 	resultado.Valido = len(resultado.Errores) == 0
 	return resultado, nil
+}
+
+var salidaPorFuncionCampo = map[string]string{
+	"MONEDA_OFERTA":          "MONEDA",
+	"SUBTOTAL_OFERTA":        "SUBTOTAL",
+	"DESCUENTO_OFERTA":       "DESCUENTO",
+	"IMPUESTOS_OFERTA":       "IMPUESTOS",
+	"TOTAL_PRECIO_OFERTA":    "TOTAL_PRECIO",
+	"TOTAL_COSTO_INTERNO":    "TOTAL_COSTO",
+	"TOTAL_GANANCIA_INTERNA": "TOTAL_GANANCIA",
+	"MARGEN_TOTAL":           "MARGEN_TOTAL",
+}
+
+// completarSalidasDesdeFunciones traduce el mecanismo legado
+// funcion_campo al mapa normalizado sin pisar ninguna decisión explícita
+// hecha en el paso Salidas. Las relaciones derivadas viven en la versión
+// compilada inmutable; una recompilación vuelve a tomar el diseño vigente.
+func completarSalidasDesdeFunciones(calculadoraID string, mapa []salidaCotizador, tabs []tabCompilado) []salidaCotizador {
+	resultado := append([]salidaCotizador(nil), mapa...)
+	configuradas := make(map[string]bool, len(mapa))
+	for _, salida := range mapa {
+		configuradas[salida.ClaveSalida] = true
+	}
+
+	var agregarElemento func(elementoCompilado, bool)
+	agregarElemento = func(elemento elementoCompilado, dentroOpciones bool) {
+		clave := salidaPorFuncionCampo[strings.ToUpper(strings.TrimSpace(elemento.FuncionCampo))]
+		if clave != "" && !configuradas[clave] {
+			tipoFuente := "CAMPO"
+			if dentroOpciones {
+				tipoFuente = "ESCENARIO"
+			} else {
+				switch elemento.Tipo {
+				case "CAMPO_CALCULADO":
+					tipoFuente = "CALCULADO"
+				case "LISTA_PRECIOS":
+					tipoFuente = "LISTA_PRECIO"
+				}
+			}
+			resultado = append(resultado, salidaCotizador{
+				CalculadoraID: calculadoraID, ClaveSalida: clave, TipoFuente: tipoFuente, FuenteID: elemento.ElementoID,
+				Requerido: clave == "TOTAL_PRECIO", Activo: true,
+			})
+			configuradas[clave] = true
+		}
+		hijosEnOpciones := dentroOpciones || elemento.Tipo == "OPCIONES_PROPUESTA"
+		for _, hijo := range elemento.Hijos {
+			agregarElemento(hijo, hijosEnOpciones)
+		}
+	}
+	for _, tab := range tabs {
+		for _, elemento := range tab.Elementos {
+			agregarElemento(elemento, false)
+		}
+	}
+	return resultado
 }
 
 // incluirItemsListaPrecios agrega, a la configuracion de cada elemento

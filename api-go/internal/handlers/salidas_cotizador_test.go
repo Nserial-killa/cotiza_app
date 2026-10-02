@@ -26,6 +26,23 @@ func mapearSalidaPrueba(t *testing.T, f fixtureFormulaAvanzada, clave, tipo, fue
 	})
 }
 
+func TestMapaSalidasEstructura_DerivaTotalDeCompiladoLegado(t *testing.T) {
+	estructura := map[string]any{
+		"calculadora_id": "CALC-LEGADA",
+		"tabs": []any{map[string]any{"elementos": []any{map[string]any{
+			"elemento_id": "TOTAL-AVANZADO", "tipo": "CAMPO_CALCULADO",
+			"funcion_campo": "TOTAL_PRECIO_OFERTA",
+		}}}},
+	}
+	mapa, err := mapaSalidasEstructura(estructura)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mapa) != 1 || mapa[0].ClaveSalida != "TOTAL_PRECIO" || mapa[0].TipoFuente != "CALCULADO" || mapa[0].FuenteID != "TOTAL-AVANZADO" || !mapa[0].Requerido || !mapa[0].Activo {
+		t.Fatalf("mapa legado inesperado: %+v", mapa)
+	}
+}
+
 func crearFixtureSalidasISA(t *testing.T) fixtureSalidas {
 	t.Helper()
 	f := crearFixtureFormulaAvanzada(t)

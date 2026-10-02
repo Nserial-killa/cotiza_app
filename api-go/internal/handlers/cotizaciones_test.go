@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,8 +24,17 @@ func crearBaseAltaCotizacion(t *testing.T, pool *pgxpool.Pool, conCliente bool) 
 	t.Helper()
 	sufijo := sufijoUnico()
 	calculadoraID = "TEST-CALC-ALTA-" + sufijo
-	if _, err := pool.Exec(context.Background(), `INSERT INTO calculadoras (calculadora_id, nombre_calculadora, estado) VALUES ($1,'Cotizador alta','Activo')`, calculadoraID); err != nil {
+	if _, err := pool.Exec(context.Background(), `INSERT INTO calculadoras (calculadora_id, nombre_calculadora, estado, version_actual) VALUES ($1,'Cotizador alta','Publicado','1')`, calculadoraID); err != nil {
 		t.Fatalf("no se pudo crear cotizador para alta: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO cotizadores_compilados (calculadora_id,version,estado,configuracion)
+		VALUES ($1,1,'ACTIVA',jsonb_build_object(
+			'calculadora_id',$1::text,'version',1,'tabs',jsonb_build_array(),
+			'salidas',jsonb_build_array(jsonb_build_object(
+				'clave_salida','TOTAL_PRECIO','tipo_fuente','CALCULADO',
+				'fuente_id','TEST-TOTAL','requerido',true,'activo',true))))`, calculadoraID); err != nil {
+		t.Fatalf("no se pudo publicar el cotizador para alta: %v", err)
 	}
 	if conCliente {
 		clienteID = "TEST-CLI-ALTA-" + sufijo
@@ -36,6 +46,7 @@ func crearBaseAltaCotizacion(t *testing.T, pool *pgxpool.Pool, conCliente bool) 
 		if clienteID != "" {
 			pool.Exec(context.Background(), `DELETE FROM clientes WHERE cliente_id=$1`, clienteID)
 		}
+		pool.Exec(context.Background(), `DELETE FROM cotizadores_compilados WHERE calculadora_id=$1`, calculadoraID)
 		pool.Exec(context.Background(), `DELETE FROM calculadoras WHERE calculadora_id=$1`, calculadoraID)
 	})
 	return calculadoraID, clienteID
@@ -79,21 +90,50 @@ func TestCotizacionesCrear_ClienteExistenteYUsuarioSesion(t *testing.T) {
 	cotizacionID, _ := res["cotizacion_id"].(string)
 	limpiarCotizacionCreada(t, pool, cotizacionID)
 
-	var clienteGuardado, estado, moneda, vendedor, accion string
+	var clienteGuardado, estado, moneda, vendedor, accion, compiladoID string
 	var version int
 	var total float64
 	err := pool.QueryRow(context.Background(), `
-		SELECT c.cliente_id,c.estado,cv.numero_version,cv.moneda,cv.total_precio,cu.usuario_id,ch.accion
+		SELECT c.cliente_id,c.estado,cv.numero_version,cv.moneda,cv.total_precio,cu.usuario_id,ch.accion,c.compilado_id_usado::text
 		FROM cotizaciones c
 		JOIN cotizacion_versiones cv ON cv.cotizacion_id=c.cotizacion_id AND cv.numero_version=1
 		JOIN cotizacion_usuarios cu ON cu.cotizacion_id=c.cotizacion_id AND cu.funcion='Vendedor'
 		JOIN cotizacion_historial ch ON ch.cotizacion_id=c.cotizacion_id
-		WHERE c.cotizacion_id=$1`, cotizacionID).Scan(&clienteGuardado, &estado, &version, &moneda, &total, &vendedor, &accion)
+		WHERE c.cotizacion_id=$1`, cotizacionID).Scan(&clienteGuardado, &estado, &version, &moneda, &total, &vendedor, &accion, &compiladoID)
 	if err != nil {
 		t.Fatalf("no se pudo comprobar el alta completa: %v", err)
 	}
 	if clienteGuardado != clienteID || estado != "Borrador" || version != 1 || moneda != "US$" || total != 0 || vendedor != actorID || accion != "creada" {
 		t.Fatalf("alta inconsistente: cliente=%s estado=%s version=%d moneda=%s total=%v vendedor=%s accion=%s", clienteGuardado, estado, version, moneda, total, vendedor, accion)
+	}
+	if compiladoID == "" {
+		t.Fatal("la cotización nació sin fijar la versión compilada del cotizador")
+	}
+}
+
+func TestCotizacionesCrear_RechazaCotizadorPublicadoSinSalidaTotal(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CotizacionesHandler{DB: pool}
+	actorID := crearAdminActorPrueba(t, pool)
+	sufijo := sufijoUnico()
+	calculadoraID, clienteID := "TEST-CALC-BORRADOR-"+sufijo, "TEST-CLI-BORRADOR-"+sufijo
+	if _, err := pool.Exec(context.Background(), `INSERT INTO calculadoras(calculadora_id,nombre_calculadora,estado,version_actual) VALUES($1,'Sin total','Publicado','1')`, calculadoraID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `INSERT INTO cotizadores_compilados(calculadora_id,version,estado,configuracion) VALUES($1,1,'ACTIVA','{"tabs":[],"salidas":[]}'::jsonb)`, calculadoraID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `INSERT INTO clientes(cliente_id,nombre_comercial,estado) VALUES($1,'Cliente','Activo')`, clienteID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM clientes WHERE cliente_id=$1`, clienteID)
+		pool.Exec(context.Background(), `DELETE FROM cotizadores_compilados WHERE calculadora_id=$1`, calculadoraID)
+		pool.Exec(context.Background(), `DELETE FROM calculadoras WHERE calculadora_id=$1`, calculadoraID)
+	})
+	rec, _ := postCrearCotizacion(t, handler, actorID, map[string]any{"cliente_id": clienteID, "calculadora_id": calculadoraID})
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "TOTAL_PRECIO") {
+		t.Fatalf("esperaba 409 accionable para cotizador sin publicar, dio %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

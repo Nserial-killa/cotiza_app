@@ -20,7 +20,25 @@ func TestCotizacion_TotalConDescuentoCoincideEnGestorYOferta(t *testing.T) {
 	total := f.crear(t, "CAMPO_CALCULADO", "precio_con_descuento", configFormulaPrueba("precio_base - (precio_base * descuento / 100)"), map[string]any{"funcion_campo": "TOTAL_PRECIO_OFERTA"})
 	exigirGuardadoSalida(t, mapearSalidaPrueba(t, f, "TOTAL_PRECIO", "CALCULADO", total, "", true))
 	exigirGuardadoSalida(t, mapearSalidaPrueba(t, f, "MONEDA", "CAMPO", moneda, "", true))
-	rt := f.runtime(t)
+	compilado := postCompilador(t, (&CompiladorHandler{DB: f.handler.DB}).Compilar, f.calculadoraID)
+	if !compilado.OK || !compilado.Compilado || compilado.CompiladoID == "" {
+		t.Fatalf("no se pudo publicar el cotizador: %+v", compilado)
+	}
+	clienteID := "TEST-CLI-TOTAL-" + sufijoUnico()
+	if _, err := f.handler.DB.Exec(context.Background(), `INSERT INTO clientes(cliente_id,nombre_comercial,estado) VALUES($1,'Cliente total','Activo')`, clienteID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { f.handler.DB.Exec(context.Background(), `DELETE FROM clientes WHERE cliente_id=$1`, clienteID) })
+	cotizaciones := &CotizacionesHandler{DB: f.handler.DB}
+	recCrear, alta := postCrearCotizacion(t, cotizaciones, actor, map[string]any{
+		"cliente_id": clienteID, "calculadora_id": f.calculadoraID, "tipo_propuesta": "Prueba fórmula avanzada",
+	})
+	if recCrear.Code != http.StatusCreated {
+		t.Fatalf("crear cotización real: %d %s", recCrear.Code, recCrear.Body.String())
+	}
+	cotizacionID := alta["cotizacion_id"].(string)
+	limpiarCotizacionCreada(t, f.handler.DB, cotizacionID)
+	rt := fixtureRuntime{Handler: &CotizadorRuntimeHandler{DB: f.handler.DB}, CotizacionID: cotizacionID}
 	for _, caso := range []struct {
 		descuento string
 		total     float64
@@ -38,7 +56,6 @@ func TestCotizacion_TotalConDescuentoCoincideEnGestorYOferta(t *testing.T) {
 			if el := elementoPorIDEnEstructura(runtime.Estructura, total); el["valor_resuelto"] != caso.total {
 				t.Fatalf("campo calculado=%v; esperado=%v", el["valor_resuelto"], caso.total)
 			}
-			cotizaciones := &CotizacionesHandler{DB: f.handler.DB}
 			detalle := getDetalleCotizacion(t, cotizaciones, actor, rt.CotizacionID, "version=1")
 			var res struct {
 				Cotizacion map[string]any   `json:"cotizacion"`
@@ -47,6 +64,9 @@ func TestCotizacion_TotalConDescuentoCoincideEnGestorYOferta(t *testing.T) {
 			assertJSON(t, detalle.Body.Bytes(), &res)
 			if detalle.Code != 200 || res.Cotizacion["total_precio"] != caso.total || res.Cotizacion["moneda"] != "USD" {
 				t.Fatalf("detalle: %d %s", detalle.Code, detalle.Body.String())
+			}
+			if res.Cotizacion["compilado_id"] != compilado.CompiladoID || res.Cotizacion["cotizador_version"] != float64(1) {
+				t.Fatalf("la cotización perdió la versión de origen: %+v", res.Cotizacion)
 			}
 			if len(res.Versiones) != 1 || res.Versiones[0]["total_precio"] != caso.total {
 				t.Fatalf("importe del historial de versiones incorrecto: %+v", res.Versiones)
@@ -65,6 +85,11 @@ func TestCotizacion_TotalConDescuentoCoincideEnGestorYOferta(t *testing.T) {
 			assertJSON(t, preview.Body.Bytes(), &oferta)
 			if preview.Code != 200 || oferta["total_precio"] != caso.total || oferta["moneda"] != "USD" {
 				t.Fatalf("cabecera oferta: %d %s", preview.Code, preview.Body.String())
+			}
+			dashboard := llamarDashboard(t, (&DashboardHandler{DB: f.handler.DB}).Resumen, actor, "/api/dashboard/resumen", url.Values{"calculadora_id": {f.calculadoraID}})
+			resumen := dashboard["resumen"].(map[string]any)
+			if obtenido := montoDashboard(t, resumen["montos_cotizados"], "USD"); obtenido != caso.total {
+				t.Fatalf("dashboard=%v; esperado=%v", obtenido, caso.total)
 			}
 		})
 	}

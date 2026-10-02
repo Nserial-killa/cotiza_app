@@ -141,19 +141,52 @@ func (h *CotizacionesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 // permisos.go: un Consultor queda como Analista, para que el alcance
 // propio le deje ver lo que él mismo creó).
 func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx context.Context, tx pgx.Tx, entrada crearCotizacionEntrada, usuarioID, funcionCreador, comentarioHistorial string) (cotizacionID, codigoOferta string, ok bool) {
-	var calculadoraExiste bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM calculadoras WHERE calculadora_id=$1 AND estado IN ('Activo','Publicado'))`, entrada.CalculadoraID).Scan(&calculadoraExiste); err != nil {
+	// Fijar la versión compilada en el mismo momento del alta evita una
+	// carrera: antes, compilado_id_usado quedaba NULL y el primer GET del
+	// runtime elegía la versión que estuviera activa en ese instante. Una
+	// recompilación entre ambos pasos podía cambiar fórmulas y estructura.
+	var estadoCotizador string
+	err := tx.QueryRow(ctx, `SELECT estado FROM calculadoras WHERE calculadora_id=$1 FOR SHARE`, entrada.CalculadoraID).Scan(&estadoCotizador)
+	if errors.Is(err, pgx.ErrNoRows) {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cotizador seleccionado no existe."})
+		return "", "", false
+	}
+	if err != nil {
 		log.Printf("cotizaciones: error validando cotizador: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el cotizador seleccionado."})
 		return "", "", false
 	}
-	if !calculadoraExiste {
-		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El cotizador seleccionado no existe o no está disponible."})
+	if estadoCotizador != "Publicado" {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "El cotizador seleccionado todavía no está publicado. Valídelo y publíquelo desde el Diseñador antes de crear la cotización."})
+		return "", "", false
+	}
+	var compiladoID string
+	err = tx.QueryRow(ctx, `
+		SELECT cc.compilado_id::text
+		  FROM cotizadores_compilados cc
+		 WHERE cc.calculadora_id=$1 AND cc.estado='ACTIVA'
+		   AND (EXISTS (
+		     SELECT 1
+		       FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) salida
+		      WHERE salida->>'clave_salida'='TOTAL_PRECIO'
+		        AND COALESCE((salida->>'activo')::boolean, false)
+		        AND COALESCE(salida->>'fuente_id','')<>''
+		   ) OR (NOT EXISTS (
+		     SELECT 1 FROM jsonb_array_elements(COALESCE(cc.configuracion->'salidas','[]'::jsonb)) configurada
+		      WHERE configurada->>'clave_salida'='TOTAL_PRECIO'
+		   ) AND jsonb_path_exists(cc.configuracion, '$.** ? (@.funcion_campo == "TOTAL_PRECIO_OFERTA")')))
+		 FOR SHARE OF cc`, entrada.CalculadoraID).Scan(&compiladoID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		log.Printf("cotizaciones: error validando cotizador: %v", err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar el cotizador seleccionado."})
+		return "", "", false
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		escribirJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "El cotizador seleccionado no tiene una versión compilada con TOTAL_PRECIO configurado. Complete la salida y vuelva a publicarlo antes de crear la cotización."})
 		return "", "", false
 	}
 
 	clienteID := entrada.ClienteID
-	var err error
 	if clienteID == "" {
 		clienteID, err = generarIDDisponible(ctx, tx, "cli", "clientes", "cliente_id")
 		if err == nil {
@@ -198,7 +231,7 @@ func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx con
 	if entrada.TipoPropuesta != "" {
 		tipoPropuesta = entrada.TipoPropuesta
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO cotizaciones (cotizacion_id, calculadora_id, cliente_id, codigo_oferta, tipo_propuesta, estado, version_actual) VALUES ($1,$2,$3,$4,$5,'Borrador',1)`, cotizacionID, entrada.CalculadoraID, clienteID, codigoOferta, tipoPropuesta); err == nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO cotizaciones (cotizacion_id, calculadora_id, cliente_id, codigo_oferta, tipo_propuesta, estado, version_actual, compilado_id_usado) VALUES ($1,$2,$3,$4,$5,'Borrador',1,$6::uuid)`, cotizacionID, entrada.CalculadoraID, clienteID, codigoOferta, tipoPropuesta, compiladoID); err == nil {
 		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_versiones (cotizacion_id, numero_version, nombre_version, estado, moneda, total_precio) VALUES ($1,1,'Versión inicial','Borrador','US$',0)`, cotizacionID)
 	}
 	if err == nil {
@@ -453,6 +486,8 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		fechaAceptacion                                     *time.Time
 		aceptadaPor, origenAceptacion                       *string
 		fechaActualizacion                                  time.Time
+		compiladoID                                         *string
+		versionConfiguracion                                *int
 	)
 
 	err := h.DB.QueryRow(ctx, `
@@ -461,9 +496,11 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		       c.version_actual, c.version_aceptada,
 		       cv.numero_version, cv.nombre_version, cv.resumen_cambios, cv.estado, cv.moneda,
 		       cv.total_precio, cv.total_costo, cv.total_ganancia, cv.margen_total,
-		       cv.fecha_aceptacion, cv.aceptada_por, cv.origen_aceptacion, cv.fecha_actualizacion
+		       cv.fecha_aceptacion, cv.aceptada_por, cv.origen_aceptacion, cv.fecha_actualizacion,
+		       c.compilado_id_usado::text, cc.version
 		  FROM cotizaciones c
 		  JOIN calculadoras calc ON calc.calculadora_id = c.calculadora_id
+		  LEFT JOIN cotizadores_compilados cc ON cc.compilado_id = c.compilado_id_usado
 		  LEFT JOIN clientes cl ON cl.cliente_id = c.cliente_id
 		  JOIN cotizacion_versiones cv ON cv.cotizacion_id = c.cotizacion_id
 		       AND cv.numero_version = CASE WHEN $2 = '' THEN c.version_actual ELSE $2::int END
@@ -473,7 +510,8 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		&versionActual, &versionAceptada,
 		&numeroVersion, &nombreVersion, &resumenCambios, &estado, &moneda,
 		&totalPrecio, &totalCosto, &totalGanancia, &margenTotal,
-		&fechaAceptacion, &aceptadaPor, &origenAceptacion, &fechaActualizacion)
+		&fechaAceptacion, &aceptadaPor, &origenAceptacion, &fechaActualizacion,
+		&compiladoID, &versionConfiguracion)
 
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -510,6 +548,8 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		"cotizacion_id":       cotizacionID,
 		"calculadora_id":      calculadoraID,
 		"calculadora_nombre":  calculadoraNombre,
+		"cotizador_version":   valorIntPtr(versionConfiguracion),
+		"compilado_id":        valorTexto(compiladoID),
 		"codigo_oferta":       valorTexto(codigoOferta),
 		"tipo_propuesta":      valorTexto(tipoPropuesta),
 		"cliente":             valorTexto(cliente),

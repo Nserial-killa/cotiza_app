@@ -149,6 +149,30 @@ func TestCompilador_CatalogoSinValorNoTraeValorCalculo(t *testing.T) {
 	}
 }
 
+func TestCompilador_DerivaTotalNormalizadoDesdeFuncionCampo(t *testing.T) {
+	tabsHandler, calculadoraID := crearCalculadoraTabsPrueba(t)
+	tabID := "TEST-COMP-SALIDA-" + sufijoUnico()
+	postCatalogos(t, tabsHandler.GuardarTab, "/api/cotizador/tabs", map[string]any{
+		"tab_id": tabID, "calculadora_id": calculadoraID, "nombre": "Totales", "activo": true,
+	})
+	elementoID := "TEST-COMP-TOTAL-" + sufijoUnico()
+	rec := postCatalogos(t, tabsHandler.GuardarElemento, "/api/cotizador/elementos", map[string]any{
+		"elemento_id": elementoID, "tab_id": tabID, "tipo": "CAMPO", "etiqueta": "Total",
+		"funcion_campo": "TOTAL_PRECIO_OFERTA", "activo": true,
+		"configuracion": map[string]any{"tipo_campo": "MONEDA"},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("crear total: %s", rec.Body.String())
+	}
+	resultado, err := (&CompiladorHandler{DB: tabsHandler.DB}).validarConfiguracion(context.Background(), calculadoraID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resultado.Salidas) != 1 || resultado.Salidas[0].ClaveSalida != "TOTAL_PRECIO" || resultado.Salidas[0].FuenteID != elementoID || resultado.Salidas[0].TipoFuente != "CAMPO" || !resultado.Salidas[0].Requerido {
+		t.Fatalf("salida derivada inesperada: %+v", resultado.Salidas)
+	}
+}
+
 // TestCompilador_IncluyeReglasCotizador cubre la tarea 5 de la migración
 // 0024: el JSON compilado debe traer las reglas_cotizador activas de la
 // calculadora, con sus campos_objetivo ya resueltos, para que el frontend

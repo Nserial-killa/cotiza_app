@@ -91,6 +91,58 @@ func TestCalculadoras_IncluyePublicadas(t *testing.T) {
 	t.Fatal("la calculadora publicada no apareció en el selector")
 }
 
+func TestCalculadoras_UsoCotizacionSoloIncluyePublicadasConTotal(t *testing.T) {
+	pool := setupTestDB(t)
+	handler := &CalculadorasHandler{DB: pool}
+	sufijo := sufijoUnico()
+	listaID, legadoID := "TEST-CALC-LISTA-"+sufijo, "TEST-CALC-LEGADO-"+sufijo
+	sinTotalID, borradorID := "TEST-CALC-SINTOTAL-"+sufijo, "TEST-CALC-DRAFT-"+sufijo
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO calculadoras(calculadora_id,nombre_calculadora,estado,version_actual) VALUES
+		($1,'A lista','Publicado','3'),($2,'B legado','Publicado','2'),
+		($3,'C sin total','Publicado','1'),($4,'D borrador','Activo',NULL)`, listaID, legadoID, sinTotalID, borradorID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO cotizadores_compilados(calculadora_id,version,estado,configuracion) VALUES
+		($1,3,'ACTIVA',jsonb_build_object('salidas',jsonb_build_array(jsonb_build_object('clave_salida','TOTAL_PRECIO','fuente_id','TOTAL','activo',true)))),
+		($2,2,'ACTIVA','{"salidas":[],"tabs":[{"elementos":[{"elemento_id":"TOTAL-LEGADO","tipo":"CAMPO_CALCULADO","funcion_campo":"TOTAL_PRECIO_OFERTA"}]}]}'::jsonb),
+		($3,1,'ACTIVA',jsonb_build_object('salidas',jsonb_build_array()))`, listaID, legadoID, sinTotalID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM cotizadores_compilados WHERE calculadora_id=ANY($1)`, []string{listaID, legadoID, sinTotalID})
+		pool.Exec(context.Background(), `DELETE FROM calculadoras WHERE calculadora_id=ANY($1)`, []string{listaID, legadoID, sinTotalID, borradorID})
+	})
+	rec := httptest.NewRecorder()
+	handler.Listar(rec, httptest.NewRequest(http.MethodGet, "/api/calculadoras?uso=cotizacion", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperaba 200: %s", rec.Body.String())
+	}
+	var res struct {
+		Calculadoras []calculadoraSimple `json:"calculadoras"`
+	}
+	assertJSON(t, rec.Body.Bytes(), &res)
+	encontradas := map[string]bool{}
+	for _, item := range res.Calculadoras {
+		if item.CalculadoraID == sinTotalID || item.CalculadoraID == borradorID {
+			t.Fatalf("el selector incluyó un cotizador no utilizable: %+v", item)
+		}
+		if item.CalculadoraID == listaID {
+			encontradas[listaID] = true
+			if !item.DisponibleCotizacion || item.VersionConfiguracion == nil || *item.VersionConfiguracion != 3 || item.CompiladoID == nil {
+				t.Fatalf("metadatos de versión incompletos: %+v", item)
+			}
+		}
+		if item.CalculadoraID == legadoID {
+			encontradas[legadoID] = true
+		}
+	}
+	if !encontradas[listaID] || !encontradas[legadoID] {
+		t.Fatalf("el selector omitió cotizadores utilizables: %+v", encontradas)
+	}
+}
+
 func postCalculadora(t *testing.T, handler *CalculadorasHandler, body map[string]any) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
 	raw, err := json.Marshal(body)

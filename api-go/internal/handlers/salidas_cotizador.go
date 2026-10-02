@@ -344,14 +344,71 @@ func validarMapaSalidas(mapa []salidaCotizador, els map[string]map[string]any, m
 }
 
 func mapaSalidasEstructura(estructura map[string]any) ([]salidaCotizador, error) {
-	if estructura["salidas"] == nil {
-		return []salidaCotizador{}, nil
-	}
+	mapa := []salidaCotizador{}
 	raw, err := json.Marshal(estructura["salidas"])
 	if err != nil {
 		return nil, err
 	}
-	var mapa []salidaCotizador
-	err = json.Unmarshal(raw, &mapa)
-	return mapa, err
+	if string(raw) != "null" {
+		if err := json.Unmarshal(raw, &mapa); err != nil {
+			return nil, err
+		}
+	}
+
+	// Un compilado anterior al paso Salidas puede traer funcion_campo pero
+	// no el arreglo normalizado. Derivarlo al leer mantiene esas versiones
+	// históricas ejecutables y hace que el próximo guardado materialice
+	// cotizacion_salidas, sin consultar el diseño vivo ni cambiar el JSON.
+	type elementoSalidaCompilada struct {
+		ElementoID   string                    `json:"elemento_id"`
+		Tipo         string                    `json:"tipo"`
+		FuncionCampo string                    `json:"funcion_campo"`
+		Hijos        []elementoSalidaCompilada `json:"hijos"`
+	}
+	type tabSalidaCompilada struct {
+		Elementos []elementoSalidaCompilada `json:"elementos"`
+	}
+	var tabs []tabSalidaCompilada
+	rawTabs, err := json.Marshal(estructura["tabs"])
+	if err != nil {
+		return nil, err
+	}
+	if string(rawTabs) != "null" {
+		if err := json.Unmarshal(rawTabs, &tabs); err != nil {
+			return nil, err
+		}
+	}
+	configuradas := map[string]bool{}
+	for _, salida := range mapa {
+		configuradas[salida.ClaveSalida] = true
+	}
+	calculadoraID := strings.TrimSpace(fmt.Sprint(estructura["calculadora_id"]))
+	var recorrer func(elementoSalidaCompilada, bool)
+	recorrer = func(elemento elementoSalidaCompilada, dentroOpciones bool) {
+		clave := salidaPorFuncionCampo[strings.ToUpper(strings.TrimSpace(elemento.FuncionCampo))]
+		if clave != "" && !configuradas[clave] {
+			tipoFuente := "CAMPO"
+			if dentroOpciones {
+				tipoFuente = "ESCENARIO"
+			} else if elemento.Tipo == "CAMPO_CALCULADO" {
+				tipoFuente = "CALCULADO"
+			} else if elemento.Tipo == "LISTA_PRECIOS" {
+				tipoFuente = "LISTA_PRECIO"
+			}
+			mapa = append(mapa, salidaCotizador{CalculadoraID: calculadoraID, ClaveSalida: clave,
+				TipoFuente: tipoFuente, FuenteID: elemento.ElementoID,
+				Requerido: clave == "TOTAL_PRECIO", Activo: true})
+			configuradas[clave] = true
+		}
+		hijosEnOpciones := dentroOpciones || elemento.Tipo == "OPCIONES_PROPUESTA"
+		for _, hijo := range elemento.Hijos {
+			recorrer(hijo, hijosEnOpciones)
+		}
+	}
+	for _, tab := range tabs {
+		for _, elemento := range tab.Elementos {
+			recorrer(elemento, false)
+		}
+	}
+	return mapa, nil
 }

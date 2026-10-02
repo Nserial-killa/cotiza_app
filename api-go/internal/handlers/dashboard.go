@@ -147,8 +147,8 @@ const dashboardFiltradoCTE = `
 	)`
 
 const dashboardFiltroFechas = `
-	 WHERE ($4='' OR fecha_creacion >= $4::date)
-	   AND ($5='' OR fecha_creacion < ($5::date + INTERVAL '1 day'))`
+	 WHERE ($4='' OR fecha_creacion AT TIME ZONE 'America/Costa_Rica' >= $4::date)
+	   AND ($5='' OR fecha_creacion AT TIME ZONE 'America/Costa_Rica' < ($5::date + INTERVAL '1 day'))`
 
 func leerFiltrosDashboard(r *http.Request) (dashboardFiltros, error) {
 	calculadoraID := strings.TrimSpace(r.URL.Query().Get("calculadora_id"))

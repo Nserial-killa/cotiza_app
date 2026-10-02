@@ -78,14 +78,14 @@ func fixtureFuncionCampoPorOpcion(t *testing.T) (fixture fixtureRuntime, padreID
 	return fixtureRuntime{Handler: &CotizadorRuntimeHandler{DB: pool}, CotizacionID: cotizacionID, CompiladoID: compiladoID}, padreID, precioID, calculadoID
 }
 
-// TestCotizadorRuntime_FuncionCampoPorOpcion_SeGuardaPorOpcionNoEnVersion
+// TestCotizadorRuntime_FuncionCampoPorOpcion_UsaRecomendadaEnVersion
 // verifica el arreglo del Paso 0 (migración 0026): antes, un CAMPO_CALCULADO
 // con funcion_campo anidado bajo Opciones de Propuesta no actualizaba nada
 // — ni cotizacion_versiones (recibía un mapa donde esperaba un escalar) ni
 // ninguna otra parte. Ahora debe guardar un total DISTINTO por cada opción
-// en cotizacion_opciones, sin tocar cotizacion_versiones.total_precio (que
-// sigue siendo NULL/0: no hay un único total cuando el campo es por opción).
-func TestCotizadorRuntime_FuncionCampoPorOpcion_SeGuardaPorOpcionNoEnVersion(t *testing.T) {
+// en cotizacion_opciones y usar solamente la recomendada como TOTAL_PRECIO
+// normalizado de la versión, tal como exige el Dashboard.
+func TestCotizadorRuntime_FuncionCampoPorOpcion_UsaRecomendadaEnVersion(t *testing.T) {
 	fixture, padreID, precioID, _ := fixtureFuncionCampoPorOpcion(t)
 
 	rec := getRuntime(t, fixture, "")
@@ -144,16 +144,16 @@ func TestCotizadorRuntime_FuncionCampoPorOpcion_SeGuardaPorOpcionNoEnVersion(t *
 		t.Fatalf("totales incorrectos o mezclados entre opciones: opcion1=%v (esperado 200) opcion2=%v (esperado 1000)", *totalOpcion1, *totalOpcion2)
 	}
 
-	// crearCotizacionPrueba siembra cotizacion_versiones con total_precio=1000
-	// como dato de relleno (lo usan pruebas de otros archivos que no les
-	// importa el valor exacto) — acá sirve justo para lo contrario: confirmar
-	// que un funcion_campo por opción NO lo toca ni lo pisa (no cabe un solo
-	// total en una fila que es por versión, no por escenario).
-	var totalVersion float64
+	// La primera opción nace recomendada; por eso el agregado de la versión y
+	// la salida corporativa deben tomar 200, nunca sumar ambas ni elegir 1000.
+	var totalVersion, totalNormalizado float64
 	if err := fixture.Handler.DB.QueryRow(context.Background(), `SELECT total_precio FROM cotizacion_versiones WHERE cotizacion_id=$1 AND numero_version=1`, fixture.CotizacionID).Scan(&totalVersion); err != nil {
 		t.Fatal(err)
 	}
-	if totalVersion != 1000 {
-		t.Fatalf("un funcion_campo por opción no debe escribir en cotizacion_versiones (fila única por versión); el valor sembrado por crearCotizacionPrueba cambió a %v", totalVersion)
+	if err := fixture.Handler.DB.QueryRow(context.Background(), `SELECT valor_numero FROM cotizacion_salidas WHERE cotizacion_id=$1 AND numero_version=1 AND clave_salida='TOTAL_PRECIO'`, fixture.CotizacionID).Scan(&totalNormalizado); err != nil {
+		t.Fatal(err)
+	}
+	if totalVersion != 200 || totalNormalizado != 200 {
+		t.Fatalf("la opción recomendada no alimentó el total único de la versión: caché=%v salida=%v", totalVersion, totalNormalizado)
 	}
 }
