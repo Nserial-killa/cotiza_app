@@ -1291,7 +1291,7 @@ window.CotizaApp = (function(){
             '<td>' + escapeHtml(c.empresa || "") + '</td>' +
             '<td>' + escapeHtml(c.calculadora_nombre || c.calculadora_id || "") + '</td>' +
             '<td>' + badgeEstado(c.estado || "") + '</td>' +
-            '<td>' + formatoMoneda(c.total_precio || 0, c.moneda || "USD") + '</td>' +
+            '<td>' + formatoMoneda(c.total_precio || 0, c.moneda || "USD") + notaPrecioPendienteGestor_(c) + '</td>' +
             '<td>' + escapeHtml(c.vendedor || "") + '</td>' +
             '<td>' + escapeHtml(c.fecha_actualizacion || "") + '</td>' +
           '</tr>';
@@ -1354,7 +1354,7 @@ window.CotizaApp = (function(){
             '<td><div class="gestor-client"><strong>' + escapeHtml(c.cliente || "Sin contacto") + '</strong><span>' + escapeHtml(c.empresa || "Sin empresa") + '</span></div></td>' +
             '<td><div class="gestor-client"><strong>' + escapeHtml(c.calculadora_nombre || c.calculadora_id || "") + '</strong><span>' + escapeHtml(c.tipo_propuesta || "Sin tipo") + '</span></div></td>' +
             '<td>' + badgeEstado(c.estado || "") + '</td>' +
-            '<td><strong class="gestor-amount">' + formatoMoneda(c.total_precio || 0, c.moneda || "USD") + '</strong></td>' +
+            '<td><strong class="gestor-amount">' + formatoMoneda(c.total_precio || 0, c.moneda || "USD") + '</strong>' + notaPrecioPendienteGestor_(c) + '</td>' +
             '<td><div class="gestor-people"><span><b>V</b>' + escapeHtml(c.vendedor || "—") + '</span><span><b>A</b>' + escapeHtml(c.analista || "—") + '</span></div></td>' +
             '<td>' + escapeHtml(c.fecha_actualizacion || "") + '</td>' +
             '<td><button class="mini mini-primary" type="button" onclick="CotizaApp.verCotizacion(decodeURIComponent(\'' + cotId + '\'),decodeURIComponent(\'' + version + '\'))">Gestionar</button></td>' +
@@ -1428,7 +1428,7 @@ window.CotizaApp = (function(){
         const elegido=(state.cotizadoresCotizacion||[]).find(function(c){return c.calculadora_id===id;});
         detalle.textContent=elegido
           ? "Se usará la versión publicada "+String(elegido.version_configuracion||"")+". La estructura y sus fórmulas quedarán fijadas en esta cotización."
-          : "Solo se muestran cotizadores publicados con la salida TOTAL_PRECIO lista para el Gestor y el Dashboard.";
+          : "Solo aparecen cotizadores publicados que tengan un campo marcado como «Total precio de la oferta». Si falta uno, márquelo en el Diseñador y vuelva a publicar.";
       }
 
       async function cargarClientesNuevaCotizacion(){
@@ -1649,7 +1649,9 @@ window.CotizaApp = (function(){
             tabActivoId: tabs.length ? tabs[0].tab_id : "",
             opcionActivaPorPadre: {},
             opcionesCotizacionId: res.opciones_cotizacion_id || "",
-            erroresRegla: []
+            erroresRegla: [],
+            pendientes: Array.isArray(res.pendientes) ? res.pendientes : [],
+            precioPendiente: Array.isArray(res.precio_pendiente) ? res.precio_pendiente : []
           };
           inicializarOpcionesActivasRuntime_();
           renderRuntimeCotizador();
@@ -1717,6 +1719,10 @@ window.CotizaApp = (function(){
         rt.estructura = res.estructura || {tabs:[]};
         rt.valores = res.valores || {};
         rt.opcionesCotizacionId = res.opciones_cotizacion_id || "";
+        // Lo que le falta al Borrador según el último guardado (ver
+        // renderPendientesRuntime_).
+        rt.pendientes = Array.isArray(res.pendientes) ? res.pendientes : [];
+        rt.precioPendiente = Array.isArray(res.precio_pendiente) ? res.precio_pendiente : [];
         rt.tabActivoId = tabActivo;
         rt.opcionActivaPorPadre = opcionesActivas;
         inicializarOpcionesActivasRuntime_();
@@ -1757,6 +1763,7 @@ window.CotizaApp = (function(){
           (padreCotizacion ? renderSelectorOpcionesCotizacion_(padreCotizacion, opcionGlobal) : '') +
           '<div class="runtime-tabs">' + tiraTabs + '</div>' +
           renderMensajesReglaRuntime_(rt.erroresRegla) +
+          (rt.erroresRegla && rt.erroresRegla.length ? '' : renderPendientesRuntime_(rt)) +
           '<div class="card runtime-grid">' + (campos || '<p>Esta sección no tiene elementos.</p>') + '</div>';
 
         // Autoguardado con debounce: CAMPO (texto) reacciona a "input"
@@ -1878,6 +1885,22 @@ window.CotizaApp = (function(){
         if(!Array.isArray(errores) || !errores.length) return "";
         const items = errores.map(function(e){ return "<li>" + escapeHtml(e && e.mensaje ? e.mensaje : "No se pudo guardar.") + "</li>"; }).join("");
         return '<div class="runtime-mensajes-regla">No se guardaron los últimos cambios:<ul>' + items + '</ul></div>';
+      }
+
+      // renderPendientesRuntime_ es el aviso SUAVE de un Borrador guardado
+      // incompleto (docs/DECISION_GUARDADO_BORRADOR.md): el guardado salió
+      // bien, pero todavía faltan datos para el precio o hay obligatorios
+      // vacíos. No es un error — eso queda para renderMensajesReglaRuntime_
+      // (400/500) — y se exige recién al enviar la cotización.
+      function renderPendientesRuntime_(rt){
+        const pendientes = (rt && Array.isArray(rt.pendientes)) ? rt.pendientes : [];
+        if(!pendientes.length) return "";
+        const precio = (rt && Array.isArray(rt.precioPendiente)) ? rt.precioPendiente : [];
+        const titulo = precio.length
+          ? "Guardado. Faltan datos para el precio: " + precio.map(function(c){ return "«" + c + "»"; }).join(", ") + "."
+          : "Guardado. Todavía faltan datos para poder enviar la cotización.";
+        const items = pendientes.map(function(p){ return "<li>" + escapeHtml(p) + "</li>"; }).join("");
+        return '<div class="runtime-pendientes" role="status"><strong>' + escapeHtml(titulo) + '</strong><ul>' + items + '</ul></div>';
       }
 
       // Ronda F2: componente Opciones de Propuesta con alcance COTIZACION (a
@@ -2421,10 +2444,13 @@ window.CotizaApp = (function(){
           // Reglas en tiempo real: recargar trae el estado_regla y los
           // valores ya corregidos por el backend (ocultos/forzados a
           // 0 o null — sección 6.1 del documento), no solo lo que se
-          // acaba de mandar.
+          // acaba de mandar. También trae los pendientes del guardado.
           await recargarRuntimeCotizador_();
-          setTextoEstadoGuardadoRuntime_("Guardado");
-          if(!opciones.silencioso) mostrarToast("Cotización guardada correctamente.");
+          // Guardado con pendientes: se guardó igual, el aviso suave lo
+          // pinta renderPendientesRuntime_; el indicador lo resume.
+          const conPendientes = Array.isArray(res.pendientes) && res.pendientes.length > 0;
+          setTextoEstadoGuardadoRuntime_(conPendientes ? "Guardado · faltan datos" : "Guardado");
+          if(!opciones.silencioso) mostrarToast(conPendientes ? "Cotización guardada. Todavía faltan datos para poder enviarla." : "Cotización guardada correctamente.");
         }catch(error){
           setTextoEstadoGuardadoRuntime_("Sin guardar");
           if(!opciones.silencioso) mostrarToast(error && error.message ? error.message : "No se pudo guardar el formulario.");
@@ -2467,6 +2493,7 @@ window.CotizaApp = (function(){
         try{
           const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/enlace",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:Number(c.version||1)})});
           let res=null;try{res=await resp.json();}catch(e){res=null;}
+          if(resp.status===409&&res&&res.error){mostrarRechazoAvanceGestor_(res.error);return;}
           if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible generar el enlace.");
           const url=new URL(res.url||("/publico.html?token="+encodeURIComponent(res.token||"")),window.location.origin).toString();
           state.enlaceClienteUrl=url;if(byId("enlaceClienteUrl"))byId("enlaceClienteUrl").value=url;setText("enlaceClienteMensaje","");
@@ -2494,6 +2521,24 @@ window.CotizaApp = (function(){
       // DEVOLVER_CONSTRUCCION y MARCAR_ENVIADA dependen del estado
       // "Liberada", que no existe en el CHECK de la tabla — se dejan
       // en "disponible próximamente" en vez de forzarlas a medias.
+      // mostrarRechazoAvanceGestor_: el servidor rechazó avanzar la
+      // cotización (409: falta el precio o un campo obligatorio, ver
+      // docs/DECISION_GUARDADO_BORRADOR.md). El mensaje lista lo que falta,
+      // así que se muestra completo arriba del detalle y queda ahí hasta que
+      // la persona lo cierre o el detalle se vuelva a cargar — un toast
+      // desaparece antes de que se pueda leer la lista.
+      function mostrarRechazoAvanceGestor_(mensaje){
+        const cont=byId("gestorDetalleContenido");
+        if(!cont){mostrarToast(mensaje);return;}
+        const previo=byId("gestorRechazoAvance");if(previo)previo.remove();
+        const aviso=document.createElement("div");
+        aviso.id="gestorRechazoAvance";aviso.className="runtime-mensajes-regla gestor-rechazo-avance";aviso.setAttribute("role","alert");
+        aviso.innerHTML='<button type="button" class="modal-close" aria-label="Cerrar aviso" style="float:right">×</button>'+escapeHtml(mensaje);
+        aviso.querySelector("button").addEventListener("click",function(){aviso.remove();});
+        cont.insertBefore(aviso,cont.firstChild);
+        aviso.scrollIntoView({block:"nearest"});
+      }
+
       async function ejecutarAccionCotizacionV1006(accion){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
 
@@ -2525,6 +2570,7 @@ window.CotizaApp = (function(){
           let res=null;
           try{ res=await resp.json(); }catch(e){ res=null; }
           if(!resp.ok||!res||!res.ok){
+            if(resp.status===409&&res&&res.error){mostrarRechazoAvanceGestor_(res.error);return;}
             mostrarToast((res&&res.error)||"No se pudo ejecutar la acción.");
             return;
           }
@@ -2550,6 +2596,7 @@ window.CotizaApp = (function(){
           let res=null;
           try{ res=await resp.json(); }catch(e){ res=null; }
           if(!resp.ok||!res||!res.ok){
+            if(resp.status===409&&res&&res.error){mostrarRechazoAvanceGestor_(res.error);return;}
             mostrarToast((res&&res.error)||"No se pudo cambiar el estado.");
             return;
           }
@@ -5874,6 +5921,18 @@ window.CotizaApp = (function(){
       function badgeEstado(estado){
         const clase = "badge-" + slugEstado(estado);
         return '<span class="badge ' + clase + '">' + escapeHtml(estado || "Sin estado") + '</span>';
+      }
+
+      // notaPrecioPendienteGestor_: nota corta junto al $0,00 de un Borrador
+      // guardado sin precio (GET /api/cotizaciones trae precio_pendiente con
+      // las etiquetas de lo que falta, o precio_sin_calcular si nunca se
+      // guardó). Ver docs/DECISION_GUARDADO_BORRADOR.md.
+      function notaPrecioPendienteGestor_(c){
+        const campos = (c && Array.isArray(c.precio_pendiente)) ? c.precio_pendiente : [];
+        let texto = "";
+        if(campos.length) texto = "Precio pendiente: complete " + campos.map(function(x){ return "«" + x + "»"; }).join(", ");
+        else if(c && c.precio_sin_calcular) texto = "Precio pendiente: complete el cotizador";
+        return texto ? '<small class="gestor-precio-pendiente">' + escapeHtml(texto) + '</small>' : "";
       }
 
       function slugEstado(estado){

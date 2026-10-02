@@ -1864,6 +1864,13 @@
             #section-parametros .cotizador-topbar-v50 .cotizador-mini-status small{font-size:9px;color:#6b7c93;}
             #section-parametros .cotizador-topbar-v50 .cotizador-mini-status span{font-size:13px;color:#0b2450;}
 
+            #section-parametros .cotizador-filter-row{display:flex;align-items:center;gap:8px;}
+            #section-parametros .cotizador-filter-row .select{flex:1 1 auto;min-width:0;}
+            #section-parametros .cotizador-filter-row .btn{flex:0 0 auto;min-height:40px;padding:6px 12px;font-size:12px;white-space:nowrap;}
+            #section-parametros .cotizador-topbar-v50 .cotizador-filter-field-v50{flex-basis:380px;}
+            #section-parametros .cotizador-nuevo-detalles summary{cursor:pointer;font-size:12px;font-weight:700;color:#28507e;}
+            #section-parametros .cotizador-nuevo-detalles[open] summary{margin-bottom:10px;}
+
             /* 2. Panel "Estructura" */
             #section-parametros .cotizador-tree-panel .designer-panel-head{margin-bottom:12px;}
             #section-parametros .cotizador-tree-panel .designer-panel-head h2,
@@ -1966,9 +1973,12 @@
               <div class="cotizador-info-strip card cotizador-info-strip-compact cotizador-topbar-v50">
                 <div class="field cotizador-filter-field cotizador-filter-field-v50">
                   <label for="designerCotizadorActualFiltro">Cotizador actual</label>
-                  <select id="designerCotizadorActualFiltro" class="select">
-                    <option value="">Cargando cotizadores...</option>
-                  </select>
+                  <div class="cotizador-filter-row">
+                    <select id="designerCotizadorActualFiltro" class="select">
+                      <option value="">Cargando cotizadores...</option>
+                    </select>
+                    <button id="btnDesignerNuevoCotizador" class="btn btn-light-blue btn-mini" type="button" title="Crear un cotizador nuevo">+ Nuevo cotizador</button>
+                  </div>
                 </div>
                 <div class="cotizador-status-line-v50" aria-label="Estado informativo del cotizador">
                   <div class="cotizador-mini-status">
@@ -2981,6 +2991,45 @@
               <div class="modal-actions">
                 <button id="btnCancelarDesignerAplicabilidad" class="btn btn-ghost" type="button">Cancelar</button>
                 <button id="btnGuardarDesignerAplicabilidad" class="btn btn-primary" type="button">Guardar aplicabilidad</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="modalDesignerNuevoCotizador" class="modal" role="dialog" aria-modal="true" aria-labelledby="designerNuevoCotizadorTitulo">
+            <div class="modal-card cotizador-config-modal-card">
+              <div class="modal-head">
+                <div>
+                  <h2 id="designerNuevoCotizadorTitulo">Nuevo cotizador</h2>
+                  <p>Nace como borrador: queda disponible para cotizar después de Validar y Publicar.</p>
+                </div>
+                <button id="btnCerrarModalDesignerNuevoCotizador" class="modal-close" type="button">×</button>
+              </div>
+              <div class="cotizador-config-form">
+                <div class="field">
+                  <label for="designerNuevoCotizadorNombre">Nombre del cotizador *</label>
+                  <input id="designerNuevoCotizadorNombre" class="input" type="text" maxlength="200" autocomplete="off" placeholder="Ej. ISA Custom Nuevo">
+                  <span id="designerNuevoCotizadorCodigo" class="param-field-help">Código: —</span>
+                </div>
+                <div id="designerNuevoCotizadorError" class="hidden" role="alert" style="padding:10px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"></div>
+                <details class="field cotizador-nuevo-detalles">
+                  <summary>Más detalles (opcional)</summary>
+                  <div class="field">
+                    <label for="designerNuevoCotizadorLinea">Línea de negocio</label>
+                    <input id="designerNuevoCotizadorLinea" class="input" type="text" maxlength="200">
+                  </div>
+                  <div class="field">
+                    <label for="designerNuevoCotizadorServicio">Servicio base</label>
+                    <input id="designerNuevoCotizadorServicio" class="input" type="text" maxlength="200">
+                  </div>
+                  <div class="field">
+                    <label for="designerNuevoCotizadorDescripcion">Descripción</label>
+                    <textarea id="designerNuevoCotizadorDescripcion" class="input" rows="3"></textarea>
+                  </div>
+                </details>
+              </div>
+              <div class="modal-actions">
+                <button id="btnCancelarDesignerNuevoCotizador" class="btn btn-ghost" type="button">Cancelar</button>
+                <button id="btnGuardarDesignerNuevoCotizador" class="btn btn-primary" type="button">Crear cotizador</button>
               </div>
             </div>
           </div>

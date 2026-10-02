@@ -30,9 +30,11 @@ func crearBaseAltaCotizacion(t *testing.T, pool *pgxpool.Pool, conCliente bool) 
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO cotizadores_compilados (calculadora_id,version,estado,configuracion)
 		VALUES ($1,1,'ACTIVA',jsonb_build_object(
-			'calculadora_id',$1::text,'version',1,'tabs',jsonb_build_array(),
+			'calculadora_id',$1::text,'version',1,
+			'tabs',jsonb_build_array(jsonb_build_object('tab_id','TEST-TAB-ALTA','nombre','Datos','elementos',jsonb_build_array(
+				jsonb_build_object('elemento_id','TEST-TOTAL','tipo','CAMPO','etiqueta','Total de prueba','configuracion',jsonb_build_object('tipo_campo','MONEDA'))))),
 			'salidas',jsonb_build_array(jsonb_build_object(
-				'clave_salida','TOTAL_PRECIO','tipo_fuente','CALCULADO',
+				'clave_salida','TOTAL_PRECIO','tipo_fuente','CAMPO',
 				'fuente_id','TEST-TOTAL','requerido',true,'activo',true))))`, calculadoraID); err != nil {
 		t.Fatalf("no se pudo publicar el cotizador para alta: %v", err)
 	}
@@ -50,6 +52,19 @@ func crearBaseAltaCotizacion(t *testing.T, pool *pgxpool.Pool, conCliente bool) 
 		pool.Exec(context.Background(), `DELETE FROM calculadoras WHERE calculadora_id=$1`, calculadoraID)
 	})
 	return calculadoraID, clienteID
+}
+
+// cargarPrecioAltaPrueba guarda el Precio total (el campo TEST-TOTAL de
+// crearBaseAltaCotizacion) para que la cotización pueda avanzar de estado:
+// avanzar exige el precio resuelto (pendientes_avance.go).
+func cargarPrecioAltaPrueba(t *testing.T, pool *pgxpool.Pool, cotizacionID string, monto float64) {
+	t.Helper()
+	rec := postValoresRuntime(t, fixtureRuntime{Handler: &CotizadorRuntimeHandler{DB: pool}, CotizacionID: cotizacionID}, map[string]any{
+		"version": 1, "valores": map[string]any{"TEST-TOTAL": monto},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("no se pudo cargar el precio de prueba: %d %s", rec.Code, rec.Body.String())
+	}
 }
 
 func postCrearCotizacion(t *testing.T, handler *CotizacionesHandler, actorID string, body map[string]any) (*httptest.ResponseRecorder, map[string]any) {

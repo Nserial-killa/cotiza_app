@@ -153,8 +153,16 @@ func (h *CotizadorRuntimeHandler) Obtener(w http.ResponseWriter, r *http.Request
 	incluirValoresCajaValor(runtime.Estructura, valores)
 	incluirEstadoReglas(runtime.Estructura, evaluarEstadoCamposRegla(valores, reglasSinCondicionPorOpcion(reglas, runtime.Elementos)))
 
+	// Lo que le faltaba al último guardado (salidas_runtime.go), para que el
+	// Motor muestre el aviso apenas se abre la cotización y no recién al
+	// próximo autoguardado.
+	pendientes, precioPendiente := []string{}, []string{}
+	if runtime.Snapshot != nil {
+		pendientes = append(pendientes, runtime.Snapshot.Pendientes...)
+		precioPendiente = append(precioPendiente, runtime.Snapshot.PrecioPendiente...)
+	}
 	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "estructura": runtime.Estructura, "valores": valores, "version": runtime.Version,
-		"opciones_cotizacion_id": padreOpcionesCotizacion(runtime.Estructura)})
+		"opciones_cotizacion_id": padreOpcionesCotizacion(runtime.Estructura), "pendientes": pendientes, "precio_pendiente": precioPendiente})
 }
 
 // exigirEdicion aplica puede_editar_borrador y el alcance propio a los
@@ -468,8 +476,11 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 	}
 	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
 	comentario := fmt.Sprintf("Se actualizaron %d valor(es) del cotizador.", len(pendientes))
+	// faltantes: lo que todavía le falta al Borrador (precio sin calcular,
+	// campos obligatorios vacíos). No impide guardar; se exige al avanzar.
+	var faltantes []pendienteCotizacion
 	if err == nil {
-		err = h.persistirSalidasSnapshot(ctx, tx, &runtime, reglas)
+		faltantes, err = h.persistirSalidasSnapshot(ctx, tx, &runtime, reglas)
 	}
 	if err == nil {
 		err = insertarHistorial(ctx, tx, cotizacionID, &req.Version, "valores_actualizados", nil, nil, comentario, usuarioID)
@@ -481,7 +492,8 @@ func (h *CotizadorRuntimeHandler) GuardarValores(w http.ResponseWriter, r *http.
 		h.responderError(w, "guardando valores y salidas", cotizacionID, err)
 		return
 	}
-	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "version": req.Version, "valores_guardados": len(pendientes)})
+	escribirJSON(w, http.StatusOK, map[string]any{"ok": true, "cotizacion_id": cotizacionID, "version": req.Version, "valores_guardados": len(pendientes),
+		"pendientes": mensajesPendientes(faltantes), "precio_pendiente": camposPrecioPendiente(faltantes)})
 }
 
 func (h *CotizadorRuntimeHandler) cargarContexto(ctx context.Context, cotizacionID string, versionSolicitada int, fijar bool) (contextoRuntime, error) {
@@ -1518,7 +1530,13 @@ func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context
 			}
 			valor, ok := valorColumnaFuncionCampo(columna, valorCrudo)
 			if !ok {
-				continue
+				// Sin valor (operando vacío, cálculo pendiente): una columna
+				// numérica vuelve a 0 para que no quede circulando el total
+				// de un guardado anterior. La moneda (texto) se conserva.
+				if columnasFuncionCampoTexto[columna] {
+					continue
+				}
+				valor = 0
 			}
 			if err := actualizarColumnaCotizacionVersion(ctx, tx, cotizacionID, version, columna, valor); err != nil {
 				return err
@@ -1535,7 +1553,11 @@ func (h *CotizadorRuntimeHandler) actualizarTotalesCotizacionVersion(ctx context
 		for opcionID, valorCrudo := range porOpcion {
 			valor, ok := valorColumnaFuncionCampo(columna, valorCrudo)
 			if !ok {
-				continue
+				// Mismo criterio que arriba, por opción.
+				if columnasFuncionCampoTexto[columna] {
+					continue
+				}
+				valor = 0
 			}
 			if err := actualizarColumnaCotizacionOpcion(ctx, tx, opcionID, columna, valor); err != nil {
 				return err

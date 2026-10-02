@@ -111,7 +111,7 @@ func (h *SalidasCotizadorHandler) Guardar(w http.ResponseWriter, r *http.Request
 	req.FuenteID = strings.TrimSpace(req.FuenteID)
 	req.PropiedadFuente = strings.ToLower(strings.TrimSpace(req.PropiedadFuente))
 	if tiposSalidas[req.ClaveSalida] == "" || !map[string]bool{"CAMPO": true, "CALCULADO": true, "TOTAL_TABLA": true, "LISTA_PRECIO": true, "ESCENARIO": true, "SALIDA": true}[req.TipoFuente] {
-		escribirJSON(w, 400, map[string]any{"ok": false, "error": "Indique una clave_salida estándar y un tipo_fuente válido."})
+		escribirJSON(w, 400, map[string]any{"ok": false, "error": "Indique qué salida configura y de qué tipo de fuente toma su valor."})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -197,7 +197,7 @@ func (h *SalidasCotizadorHandler) Eliminar(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if usada {
-		escribirJSON(w, 409, map[string]any{"ok": false, "error": "Otra salida depende de esta clave. Cambie o quite esa asociación primero."})
+		escribirJSON(w, 409, map[string]any{"ok": false, "error": "Otra salida toma su valor de esta. Cambie o quite esa asociación primero."})
 		return
 	}
 	res, err := tx.Exec(ctx, `DELETE FROM mapa_salidas_cotizador WHERE calculadora_id=$1 AND clave_salida=$2`, id, clave)
@@ -222,7 +222,7 @@ func (h *SalidasCotizadorHandler) error(w http.ResponseWriter, err error) {
 }
 
 func fuentesSalidasDiseno(ctx context.Context, q consultadorRuntime, id string) (map[string]map[string]any, map[string]elementoRuntime, error) {
-	rows, err := q.Query(ctx, `SELECT e.elemento_id,e.tipo,e.configuracion,COALESCE(p.tipo,''),COALESCE(e.componente_padre_id,'')
+	rows, err := q.Query(ctx, `SELECT e.elemento_id,e.tipo,e.configuracion,COALESCE(p.tipo,''),COALESCE(e.componente_padre_id,''),COALESCE(e.etiqueta,'')
 		FROM elementos_tab_cotizador e JOIN tabs_cotizador t ON t.tab_id=e.tab_id
 		LEFT JOIN elementos_tab_cotizador p ON p.elemento_id=e.componente_padre_id AND p.activo
 		WHERE e.activo AND t.activo AND (t.calculadora_id=$1 OR EXISTS(SELECT 1 FROM tabs_cotizador_asociaciones a WHERE a.tab_id=t.tab_id AND a.calculadora_id=$1))`, id)
@@ -233,12 +233,13 @@ func fuentesSalidasDiseno(ctx context.Context, q consultadorRuntime, id string) 
 	els := map[string]map[string]any{}
 	metas := map[string]elementoRuntime{}
 	for rows.Next() {
-		var id, tipo, padreTipo, padre string
+		var id, tipo, padreTipo, padre, etiqueta string
 		var cfg map[string]any
-		if err := rows.Scan(&id, &tipo, &cfg, &padreTipo, &padre); err != nil {
+		if err := rows.Scan(&id, &tipo, &cfg, &padreTipo, &padre, &etiqueta); err != nil {
 			return nil, nil, err
 		}
-		els[id] = map[string]any{"tipo": tipo, "configuracion": cfg}
+		// La etiqueta solo sirve para los mensajes de validarMapaSalidas.
+		els[id] = map[string]any{"tipo": tipo, "configuracion": cfg, "etiqueta": etiqueta}
 		meta := elementoRuntime{Tipo: tipo}
 		if padreTipo == "OPCIONES_PROPUESTA" {
 			meta.PadreOpcionesID = padre
@@ -262,6 +263,24 @@ func fuentesSalidasDiseno(ctx context.Context, q consultadorRuntime, id string) 
 	return els, metas, nil
 }
 
+// nombreTipoElemento: nombre del tipo de componente tal como lo muestra el Diseñador.
+func nombreTipoElemento(tipo string) string {
+	nombres := map[string]string{"CAMPO": "Campo", "CAMPO_CATALOGO": "Campo de catálogo", "CAMPO_CALCULADO": "Campo calculado", "TABLA": "Tabla", "LISTA_PRECIOS": "Lista de precios"}
+	if n := nombres[tipo]; n != "" {
+		return n
+	}
+	return "componente"
+}
+
+// descripcionTipoSalida: qué clase de valor espera la salida, sin el código
+// técnico (MONEDA/TEXTO/PORCENTAJE).
+func descripcionTipoSalida(clave string) string {
+	if tiposSalidas[clave] == "TEXTO" {
+		return "un campo de texto o de catálogo"
+	}
+	return "un valor numérico"
+}
+
 func validarMapaSalidas(mapa []salidaCotizador, els map[string]map[string]any, metas map[string]elementoRuntime, permitirPendientes bool) error {
 	porClave := map[string]salidaCotizador{}
 	for _, s := range mapa {
@@ -273,7 +292,7 @@ func validarMapaSalidas(mapa []salidaCotizador, els map[string]map[string]any, m
 	var validar func(string) error
 	validar = func(clave string) error {
 		if estados[clave] == 1 {
-			return fmt.Errorf("referencia circular entre salidas: %s depende de sí misma", clave)
+			return fmt.Errorf("Hay una referencia circular entre salidas: %s termina dependiendo de su propio valor; elija otra fuente", nombreSalida(clave, false))
 		}
 		if estados[clave] == 2 {
 			return nil
@@ -281,18 +300,18 @@ func validarMapaSalidas(mapa []salidaCotizador, els map[string]map[string]any, m
 		estados[clave] = 1
 		s, existe := porClave[clave]
 		if !existe {
-			return fmt.Errorf("la salida %s no está mapeada o está inactiva; configure su fuente", clave)
+			return fmt.Errorf("%s no está configurada o está inactiva; configure su fuente en Salidas", nombreSalida(clave, false))
 		}
 		if s.FuenteID == "" {
 			if permitirPendientes {
 				estados[clave] = 2
 				return nil
 			}
-			return fmt.Errorf("la salida %s (requerida=%t) no tiene fuente; seleccione una fuente válida antes de publicar", clave, s.Requerido)
+			return fmt.Errorf("%s no tiene fuente; seleccione de dónde toma su valor en Salidas antes de publicar", nombreSalida(clave, false))
 		}
 		if s.TipoFuente == "SALIDA" {
 			if tiposSalidas[clave] != tiposSalidas[s.FuenteID] || s.PropiedadFuente != "" {
-				return fmt.Errorf("%s: la salida fuente debe tener el mismo tipo y no admite propiedad_fuente", clave)
+				return fmt.Errorf("%s solo puede tomar su valor de otra salida del mismo tipo (número con número, texto con texto)", nombreSalida(clave, false))
 			}
 			if err := validar(s.FuenteID); err != nil {
 				return err
@@ -300,24 +319,24 @@ func validarMapaSalidas(mapa []salidaCotizador, els map[string]map[string]any, m
 		} else {
 			el := els[s.FuenteID]
 			if el == nil {
-				return fmt.Errorf("%s: la fuente %s no existe, está inactiva o no pertenece a este cotizador; seleccione otra fuente", clave, s.FuenteID)
+				return fmt.Errorf("La fuente elegida para %s ya no existe, está inactiva o no pertenece a este cotizador; seleccione otra fuente en Salidas", nombreSalida(clave, false))
 			}
 			tipo, _ := el["tipo"].(string)
 			cfg, _ := el["configuracion"].(map[string]any)
 			padre := metas[s.FuenteID].PadreOpcionesID
 			if s.TipoFuente == "ESCENARIO" && padre == "" {
-				return fmt.Errorf("%s: ESCENARIO requiere un elemento dentro de Opciones de Propuesta", clave)
+				return fmt.Errorf("%s: la fuente «Escenario» tiene que ser un campo dentro de Opciones de Propuesta, y «%s» no lo es", nombreSalida(clave, false), etiquetaElemento(els, s.FuenteID))
 			}
 			if s.TipoFuente != "ESCENARIO" && padre != "" {
-				return fmt.Errorf("%s: use tipo_fuente ESCENARIO para resolver únicamente la opción efectiva", clave)
+				return fmt.Errorf("%s: «%s» está dentro de Opciones de Propuesta; elija la fuente «Escenario» para usar solo la opción recomendada", nombreSalida(clave, false), etiquetaElemento(els, s.FuenteID))
 			}
 			if s.TipoFuente != "ESCENARIO" && !((s.TipoFuente == "CAMPO" && (tipo == "CAMPO" || tipo == "CAMPO_CATALOGO")) || (s.TipoFuente == "CALCULADO" && tipo == "CAMPO_CALCULADO") || (s.TipoFuente == "TOTAL_TABLA" && tipo == "TABLA") || (s.TipoFuente == "LISTA_PRECIO" && tipo == "LISTA_PRECIOS")) {
-				return fmt.Errorf("%s: tipo_fuente no corresponde al tipo %s del elemento seleccionado", clave, tipo)
+				return fmt.Errorf("%s: el tipo de fuente elegido no corresponde a «%s» (%s)", nombreSalida(clave, false), etiquetaElemento(els, s.FuenteID), nombreTipoElemento(tipo))
 			}
 			numerico := tipo == "CAMPO_CALCULADO" || tipo == "TABLA" || tipo == "LISTA_PRECIOS" || (tipo == "CAMPO" && map[string]bool{"NUMERO": true, "MONEDA": true, "PORCENTAJE": true}[strings.ToUpper(fmt.Sprint(cfg["tipo_campo"]))])
 			texto := (tipo == "CAMPO" || tipo == "CAMPO_CATALOGO") && !numerico && !map[string]bool{"NUMERO": true, "MONEDA": true, "PORCENTAJE": true, "FECHA": true, "CHECK": true}[strings.ToUpper(fmt.Sprint(cfg["tipo_campo"]))]
 			if (tiposSalidas[clave] == "TEXTO" && !texto) || (tiposSalidas[clave] != "TEXTO" && !numerico) {
-				return fmt.Errorf("%s requiere una fuente %s; %s es incompatible. Seleccione un campo del tipo correcto o un cálculo numérico", clave, tiposSalidas[clave], s.FuenteID)
+				return fmt.Errorf("%s necesita %s y «%s» no lo es. Seleccione un campo del tipo correcto o un cálculo numérico", nombreSalida(clave, false), descripcionTipoSalida(clave), etiquetaElemento(els, s.FuenteID))
 			}
 			permitida := s.PropiedadFuente == "" || s.PropiedadFuente == "valor"
 			if tipo == "LISTA_PRECIOS" {
@@ -327,7 +346,7 @@ func validarMapaSalidas(mapa []salidaCotizador, els map[string]map[string]any, m
 				permitida = permitida || s.PropiedadFuente == "total_precio"
 			}
 			if !permitida {
-				return fmt.Errorf("%s: propiedad_fuente %s no está disponible para %s", clave, s.PropiedadFuente, tipo)
+				return fmt.Errorf("%s: el dato elegido de «%s» no está disponible para un %s", nombreSalida(clave, false), etiquetaElemento(els, s.FuenteID), nombreTipoElemento(tipo))
 			}
 		}
 		estados[clave] = 2

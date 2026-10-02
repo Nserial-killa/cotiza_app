@@ -119,6 +119,12 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 	}
 	defer tx.Rollback(ctx)
 
+	// Mandarle al cliente una oferta sin precio no tiene sentido: misma
+	// exigencia que pasar a "Enviada al Cliente" (pendientes_avance.go).
+	if !responderErrorAvance(w, verificarVersionCompleta(ctx, tx, &CotizadorRuntimeHandler{DB: h.DB}, cotizacionID, version, "generar el enlace para el cliente"), "enlaces_publicos") {
+		return
+	}
+
 	// ON CONFLICT ... DO UPDATE (no-op) ... RETURNING es el truco
 	// estándar para "insertar o traer el existente" en una sola vuelta:
 	// si (cotizacion_id, version) ya tenía un enlace, el UPDATE no

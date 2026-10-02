@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -234,7 +236,9 @@ func TestCompilador_TabSinElementosEsAdvertencia(t *testing.T) {
 	}
 
 	res := postCompilador(t, (&CompiladorHandler{DB: tabsHandler.DB}).Validar, calculadoraID)
-	if !res.Valido || len(res.Errores) != 0 || len(res.Advertencias) != 1 {
+	// Dos advertencias: el tab vacío y, como este cotizador tampoco tiene
+	// precio, el aviso de que no aparecerá en "Nueva cotización".
+	if !res.Valido || len(res.Errores) != 0 || len(res.Advertencias) != 2 || !strings.Contains(fmt.Sprint(res.Advertencias), "Sección vacía") {
 		t.Fatalf("tab vacío debía ser válido con advertencia: %+v", res)
 	}
 }

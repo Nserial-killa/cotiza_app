@@ -206,20 +206,14 @@
         window.__cotizaDesignerCotizadorFase1Bound = true;
 
         bind("designerCotizadorActualFiltro","change",function(){
-          const st = getCotizadorFase1State_();
-          st.cotizadorId = String(byId("designerCotizadorActualFiltro") ? byId("designerCotizadorActualFiltro").value : "").trim().toUpperCase();
-          st.tabId = "";
-          st.elementoId = "";
-          actualizarEstadoDesdeCotizadorSeleccionadoFase1_();
-          st.cargado = false;
-          st.tabs = [];
-          st.elementos = [];
-          st.seccionesReutilizables = [];
-          st.relaciones = [];
-          renderCotizadorFase1_();
-          cargarDatosCotizadorFase1_(true);
-          cargarReglasCotizadorFase1_();
+          seleccionarCotizadorFase1_(byId("designerCotizadorActualFiltro") ? byId("designerCotizadorActualFiltro").value : "");
         });
+        bind("btnDesignerNuevoCotizador","click",abrirNuevoCotizadorFase1_);
+        bind("btnCerrarModalDesignerNuevoCotizador","click",cerrarNuevoCotizadorFase1_);
+        bind("btnCancelarDesignerNuevoCotizador","click",cerrarNuevoCotizadorFase1_);
+        bind("btnGuardarDesignerNuevoCotizador","click",guardarNuevoCotizadorFase1_);
+        bind("designerNuevoCotizadorNombre","input",actualizarCodigoNuevoCotizadorFase1_);
+        bind("designerNuevoCotizadorNombre","keydown",function(e){ if(e.key === "Enter"){ e.preventDefault(); guardarNuevoCotizadorFase1_(); } });
         bind("btnDesignerNuevaSeccionCotizador","click",nuevoTabCotizadorFase1_);
         bind("btnDesignerGuardarSeccionCotizador","click",guardarTabCotizadorFase1_);
         bind("btnDesignerEliminarSeccionCotizador","click",eliminarTabCotizadorFase1_);
@@ -301,6 +295,115 @@
         }
       }
 
+      function seleccionarCotizadorFase1_(id){
+        const st = getCotizadorFase1State_();
+        st.cotizadorId = String(id || "").trim().toUpperCase();
+        st.tabId = "";
+        st.elementoId = "";
+        actualizarEstadoDesdeCotizadorSeleccionadoFase1_();
+        st.cargado = false;
+        st.tabs = [];
+        st.elementos = [];
+        st.seccionesReutilizables = [];
+        st.relaciones = [];
+        renderCotizadorFase1_();
+        cargarDatosCotizadorFase1_(true);
+        cargarReglasCotizadorFase1_();
+      }
+
+      // "+ Nuevo cotizador". POST /api/calculadoras es un upsert
+      // (ON CONFLICT DO UPDATE, a propósito: seed_demo.sh depende de eso),
+      // así que la única protección contra pisar un cotizador existente es
+      // esta: nunca se manda un código o nombre que ya esté en el selector.
+      function codigoNuevoCotizadorFase1_(nombre){
+        return String(nombre || "")
+          .trim()
+          .toUpperCase()
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g,"")
+          .replace(/[^A-Z0-9]+/g,"-")
+          .replace(/^-+|-+$/g,"");
+      }
+
+      function cotizadorDuplicadoFase1_(codigo, nombre){
+        const nombreNormalizado = normalizarTextoBusquedaParam_(nombre);
+        return (getCotizadorFase1State_().cotizadores || []).some(function(c){
+          const id = String(c.calculadora_id || "").trim().toUpperCase();
+          return id === codigo || normalizarTextoBusquedaParam_(c.nombre_calculadora) === nombreNormalizado;
+        });
+      }
+
+      function mostrarErrorNuevoCotizadorFase1_(texto){
+        const el = byId("designerNuevoCotizadorError");
+        if(!el) return;
+        el.textContent = texto || "";
+        el.classList.toggle("hidden", !texto);
+      }
+
+      function actualizarCodigoNuevoCotizadorFase1_(){
+        const nombre = byId("designerNuevoCotizadorNombre") ? byId("designerNuevoCotizadorNombre").value : "";
+        const codigo = codigoNuevoCotizadorFase1_(nombre);
+        if(byId("designerNuevoCotizadorCodigo")) byId("designerNuevoCotizadorCodigo").textContent = "Código: " + (codigo || "—");
+        mostrarErrorNuevoCotizadorFase1_(codigo && cotizadorDuplicadoFase1_(codigo, nombre) ? "Ya existe un cotizador con ese nombre/código. Elegí otro nombre." : "");
+      }
+
+      function abrirNuevoCotizadorFase1_(){
+        ["designerNuevoCotizadorNombre","designerNuevoCotizadorLinea","designerNuevoCotizadorServicio","designerNuevoCotizadorDescripcion"].forEach(function(id){
+          if(byId(id)) byId(id).value = "";
+        });
+        const detalles = document.querySelector("#modalDesignerNuevoCotizador .cotizador-nuevo-detalles");
+        if(detalles) detalles.open = false;
+        if(byId("btnGuardarDesignerNuevoCotizador")) byId("btnGuardarDesignerNuevoCotizador").disabled = false;
+        actualizarCodigoNuevoCotizadorFase1_();
+        const modal = byId("modalDesignerNuevoCotizador");
+        if(modal){ modal.classList.add("open"); modal.classList.add("show"); }
+        if(byId("designerNuevoCotizadorNombre")) byId("designerNuevoCotizadorNombre").focus();
+      }
+
+      function cerrarNuevoCotizadorFase1_(){
+        const modal = byId("modalDesignerNuevoCotizador");
+        if(modal){ modal.classList.remove("open"); modal.classList.remove("show"); }
+      }
+
+      function guardarNuevoCotizadorFase1_(){
+        const st = getCotizadorFase1State_();
+        const btn = byId("btnGuardarDesignerNuevoCotizador");
+        if(btn && btn.disabled) return;
+        const valor = function(id){ return byId(id) ? String(byId(id).value || "").trim() : ""; };
+        const nombre = valor("designerNuevoCotizadorNombre");
+        const codigo = codigoNuevoCotizadorFase1_(nombre);
+        if(!nombre || !codigo){ mostrarErrorNuevoCotizadorFase1_("Indique un nombre con al menos una letra o número."); return; }
+        // Sin la lista cargada no hay contra qué comparar: mejor no enviar.
+        if(!st.cotizadoresCargados){ mostrarErrorNuevoCotizadorFase1_("No se pudo cargar la lista de cotizadores, así que no se puede confirmar que el código sea nuevo. Recargue la pantalla e intente de nuevo."); return; }
+        if(cotizadorDuplicadoFase1_(codigo, nombre)){ mostrarErrorNuevoCotizadorFase1_("Ya existe un cotizador con ese nombre/código. Elegí otro nombre."); return; }
+        mostrarErrorNuevoCotizadorFase1_("");
+        if(btn) btn.disabled = true;
+        fetchAutenticado("/api/calculadoras", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            calculadora_id: codigo, nombre_calculadora: nombre,
+            linea_negocio: valor("designerNuevoCotizadorLinea"),
+            servicio_base: valor("designerNuevoCotizadorServicio"),
+            descripcion: valor("designerNuevoCotizadorDescripcion")
+          })
+        }).then(function(resp){
+          return resp.json().catch(function(){ return null; }).then(function(res){ return {resp:resp, res:res}; });
+        }).then(function(pair){
+          if(!pair.resp.ok || !pair.res || !pair.res.ok){
+            throw new Error((pair.res && pair.res.error) || "No fue posible crear el cotizador.");
+          }
+          const nuevoId = String(pair.res.calculadora_id || codigo).trim().toUpperCase();
+          cerrarNuevoCotizadorFase1_();
+          mostrarToast("Cotizador \"" + nombre + "\" creado. Ya puede agregarle secciones.");
+          st.cotizadorId = nuevoId;
+          cargarCotizadoresFase1_(function(){ seleccionarCotizadorFase1_(nuevoId); });
+        }).catch(function(error){
+          mostrarErrorNuevoCotizadorFase1_(error && error.message ? error.message : "No fue posible crear el cotizador.");
+        }).then(function(){
+          if(btn) btn.disabled = false;
+        });
+      }
+
       function toggleDesignerPropsCotizadorFase1_(colapsar){
         const panel = byId("designerCotizadorProps");
         const ws = byId("designerCotizadorWorkspace");
@@ -334,12 +437,14 @@
           return { calculadora_id: c.calculadora_id, nombre: c.nombre_calculadora, nombre_calculadora: c.nombre_calculadora };
         });
         console.log("[DEBUG] st.cotizadores queda en:", st.cotizadores);
+        st.cotizadoresCargados = true;
         renderCotizadoresSelectFase1_();
         if(done) done();
         }).catch(function(error){
         console.log("[DEBUG] ERROR atrapado:", error);
         const st = getCotizadorFase1State_();
         st.cotizadores = [];
+        st.cotizadoresCargados = false;
         mostrarToast("No fue posible cargar los cotizadores: " + (error && error.message ? error.message : "error desconocido"));
         renderCotizadoresSelectFase1_();
         if(done) done();

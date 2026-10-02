@@ -46,6 +46,11 @@ type snapshotCotizacion struct {
 	FuentesExternas map[string][]map[string]any `json:"fuentes_externas"`
 	Salidas         []salidaNormalizada         `json:"salidas"`
 	Items           []itemCotizacionSnapshot    `json:"items"`
+	// Lo que le falta a un Borrador (mensajes legibles) y, de eso, las
+	// etiquetas de los campos que faltan para el Precio total. Viven en el
+	// snapshot para que el Gestor pueda mostrarlos sin recalcular nada.
+	Pendientes      []string `json:"pendientes,omitempty"`
+	PrecioPendiente []string `json:"precio_pendiente,omitempty"`
 }
 
 func estadoVersionEditable(estado string) bool {
@@ -75,33 +80,193 @@ func bloquearVersionEditable(ctx context.Context, tx pgx.Tx, id string, version 
 
 func errorSalida(mensaje string) error { return &errorRuntime{http.StatusBadRequest, mensaje} }
 
+// pendienteCotizacion es algo que le falta a la versión para poder avanzar
+// (ver salidas_pendientes.go). Mensaje es el texto legible que ve la
+// persona; Campos son las etiquetas de los campos de entrada que faltan y
+// EsPrecio marca los que impiden calcular el Precio total (el Gestor los
+// muestra al lado del $0,00).
+type pendienteCotizacion struct {
+	Mensaje  string
+	Campos   []string
+	EsPrecio bool
+}
+
+// resultadoSalidasVersion es lo que calcularSalidasVersion deja listo para
+// persistir (o, al avanzar de estado, solo para revisar sus pendientes).
+type resultadoSalidasVersion struct {
+	snapshot   snapshotCotizacion
+	mapa       []salidaCotizador
+	salidas    []salidaNormalizada
+	items      []itemCotizacionSnapshot
+	pendientes []pendienteCotizacion
+}
+
+// mensajesPendientes devuelve solo los textos, sin repetir, en orden.
+func mensajesPendientes(pendientes []pendienteCotizacion) []string {
+	vistos := map[string]bool{}
+	mensajes := []string{}
+	for _, p := range pendientes {
+		if !vistos[p.Mensaje] {
+			vistos[p.Mensaje] = true
+			mensajes = append(mensajes, p.Mensaje)
+		}
+	}
+	return mensajes
+}
+
+// camposPrecioPendiente devuelve las etiquetas de lo que falta para el
+// Precio total, sin repetir.
+func camposPrecioPendiente(pendientes []pendienteCotizacion) []string {
+	vistos := map[string]bool{}
+	campos := []string{}
+	for _, p := range pendientes {
+		if !p.EsPrecio {
+			continue
+		}
+		for _, c := range p.Campos {
+			if !vistos[c] {
+				vistos[c] = true
+				campos = append(campos, c)
+			}
+		}
+	}
+	return campos
+}
+
 // persistirSalidasSnapshot se invoca dentro de la transacción del guardado.
 // Las escrituras previas de campos solo son visibles aquí y se revierten si
 // falla cualquier validación, salida, desglose o actualización de la versión.
-func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, tx pgx.Tx, rt *contextoRuntime, reglas []reglaCotizadorEval) error {
+//
+// DECISIÓN DE DISEÑO (docs/DECISION_GUARDADO_BORRADOR.md, pendiente de
+// confirmar con el jefe): esto relaja el "guardado atómico" del Anexo
+// Técnico §7 SOLO para un caso. Si la versión está en Borrador, una salida
+// requerida cuya fuente está vacía o incompleta, o un campo obligatorio
+// vacío, ya NO revierte el guardado: los valores se guardan, la salida
+// queda sin fila en cotizacion_salidas (y su caché en 0) y se devuelve como
+// pendiente. Todo lo demás sigue siendo atómico y sigue bloqueando: valores
+// incompatibles, errores de cálculo (división entre cero), referencias
+// circulares y las reglas BLOQUEAR_GUARDADO/CAMPO_REQUERIDO. Fuera de
+// Borrador tampoco se relaja nada: el pendiente vuelve a ser un error.
+func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, tx pgx.Tx, rt *contextoRuntime, reglas []reglaCotizadorEval) ([]pendienteCotizacion, error) {
+	var estado string
+	if err := tx.QueryRow(ctx, `SELECT estado FROM cotizacion_versiones WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version).Scan(&estado); err != nil {
+		return nil, err
+	}
+	calculo, err := h.calcularSalidasVersion(ctx, tx, rt, reglas, estado == "Borrador")
+	if err != nil {
+		return nil, err
+	}
+	salidas, items, mapa := calculo.salidas, calculo.items, calculo.mapa
+	raw, err := json.Marshal(calculo.snapshot)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET snapshot_json=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version, raw); err != nil {
+		return nil, err
+	}
+	// Regenerar el conjunto completo elimina salidas que dejaron de
+	// resolverse (también una requerida que quedó pendiente en un
+	// Borrador: no puede quedar circulando el precio anterior); el UNIQUE
+	// de la BD protege también frente a duplicados.
+	if _, err = tx.Exec(ctx, `DELETE FROM cotizacion_salidas WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version); err != nil {
+		return nil, err
+	}
+	for _, s := range salidas {
+		if _, err = tx.Exec(ctx, `INSERT INTO cotizacion_salidas(cotizacion_id,numero_version,clave_salida,fuente_id,tipo_dato,valor_numero,valor_texto,valor_visible,moneda) VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''))`, rt.CotizacionID, rt.Version, s.ClaveSalida, s.FuenteID, s.TipoDato, s.ValorNumero, s.ValorTexto, s.ValorVisible, s.Moneda); err != nil {
+			return nil, err
+		}
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM cotizacion_items WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version); err != nil {
+		return nil, err
+	}
+	for i, item := range items {
+		detalle, err := json.Marshal(item.Detalle)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO cotizacion_items(cotizacion_id,numero_version,fuente_id,opcion_id,categoria,descripcion,cantidad,precio_unitario,total_precio,total_costo,moneda,detalle_json,orden)
+			VALUES($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,$10,$11,$12,$13)`, rt.CotizacionID, rt.Version, item.FuenteID, item.OpcionID, item.Categoria, item.Descripcion, item.Cantidad, item.PrecioUnitario, item.TotalPrecio, item.TotalCosto, item.Moneda, detalle, i+1); err != nil {
+			return nil, err
+		}
+	}
+	// Cachés legadas conviven con la tabla nueva. El mapa explícito prevalece
+	// sobre funcion_campo; no se cambia ningún consumidor del Dashboard.
+	if err = h.actualizarTotalesCotizacionVersion(ctx, tx, rt.Estructura, rt.Elementos, rt.CotizacionID, rt.Version, reglas); err != nil {
+		return nil, err
+	}
+	// Primero en 0 todas las columnas numéricas mapeadas y después el valor
+	// de las salidas que sí se resolvieron: una salida pendiente queda en 0,
+	// nunca con el valor de un guardado anterior.
+	columnas := map[string]string{"TOTAL_PRECIO": "total_precio", "TOTAL_COSTO": "total_costo", "TOTAL_GANANCIA": "total_ganancia", "MARGEN_TOTAL": "margen_total", "SUBTOTAL": "subtotal", "DESCUENTO": "descuento", "IMPUESTOS": "impuestos", "MONEDA": "moneda"}
+	for _, s := range mapa {
+		if !s.Activo || tiposSalidas[s.ClaveSalida] == "TEXTO" {
+			continue
+		}
+		if col := columnas[s.ClaveSalida]; col != "" {
+			if err := actualizarColumnaCotizacionVersion(ctx, tx, rt.CotizacionID, rt.Version, col, 0); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, s := range salidas {
+		col := columnas[s.ClaveSalida]
+		if col == "" {
+			continue
+		}
+		var v any
+		if s.ValorNumero != nil {
+			v = *s.ValorNumero
+		} else if s.ValorTexto != nil {
+			v = *s.ValorTexto
+		}
+		if err = actualizarColumnaCotizacionVersion(ctx, tx, rt.CotizacionID, rt.Version, col, v); err != nil {
+			return nil, err
+		}
+	}
+	return calculo.pendientes, nil
+}
+
+// calcularSalidasVersion hace todo el cálculo de salidas, desglose y
+// snapshot de una versión SIN escribir nada en la base: lo usan el
+// guardado (que después persiste el resultado) y la verificación previa a
+// avanzar de estado o generar el enlace público (que solo mira los
+// pendientes). permitirPendientes es true en un Borrador: lo incompleto se
+// acumula en pendientes en vez de devolverse como error.
+func (h *CotizadorRuntimeHandler) calcularSalidasVersion(ctx context.Context, tx pgx.Tx, rt *contextoRuntime, reglas []reglaCotizadorEval, permitirPendientes bool) (*resultadoSalidasVersion, error) {
 	valores, err := h.leerValores(ctx, tx, rt.CotizacionID, rt.Version)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	mapa, err := mapaSalidasEstructura(rt.Estructura)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	els := indexarElementosCompletoRuntime(rt.Estructura)
+	pendientes := []pendienteCotizacion{}
 	// En modo COTIZACION las reglas que leen un campo por opción se validan
-	// más abajo contra la opción efectiva (Ronda F2).
+	// más abajo contra la opción efectiva (Ronda F2). Las reglas explícitas
+	// (BLOQUEAR_GUARDADO, CAMPO_REQUERIDO) bloquean siempre, también en
+	// Borrador: son una decisión de quien diseñó el cotizador.
 	reglasGlobales := reglasSinCondicionPorOpcion(reglas, rt.Elementos)
 	if fallas := evaluarValidacionReglas(valores, reglasGlobales); len(fallas) > 0 {
 		mensajes := []string{}
 		for _, f := range fallas {
 			mensajes = append(mensajes, f.Mensaje)
 		}
-		return errorSalida(strings.Join(mensajes, " "))
+		return nil, errorSalida(strings.Join(mensajes, " "))
 	}
 	if len(mapa) > 0 {
+		// Campos marcados como obligatorios en el Diseñador. En Borrador un
+		// campo vacío es un pendiente; en cualquier otro estado, un error.
+		// Se recorren en orden para que el mensaje no cambie entre guardados.
 		estados := evaluarEstadoCamposRegla(valores, reglasGlobales)
-		for id, el := range els {
-			requerido, _ := el["requerido"].(bool)
+		ids := make([]string, 0, len(els))
+		for id := range els {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+		for _, id := range ids {
+			requerido, _ := els[id]["requerido"].(bool)
 			if !requerido || rt.Elementos[id].PadreOpcionesID != "" {
 				continue
 			}
@@ -109,7 +274,11 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 				continue
 			}
 			if valorVacioSalida(valores[id]) {
-				return errorSalida(fmt.Sprintf("Complete el campo obligatorio %s antes de guardar las salidas.", id))
+				mensaje := mensajeCampoObligatorio(els, id)
+				if !permitirPendientes {
+					return nil, errorSalida(mensaje)
+				}
+				pendientes = append(pendientes, pendienteCotizacion{Mensaje: mensaje, Campos: []string{etiquetaElemento(els, id)}})
 			}
 		}
 	}
@@ -122,7 +291,7 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 		}
 		opciones, err := listarOpcionesPropuesta(ctx, tx, rt.CotizacionID, rt.Version, padreID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		padre["opciones"] = opciones
 		if len(opciones) == 1 {
@@ -131,7 +300,7 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 			for _, op := range opciones {
 				if op.EsRecomendada {
 					if efectivas[padreID] != "" {
-						return errorSalida("Hay más de una opción recomendada; seleccione una sola.")
+						return nil, errorSalida("Hay más de una opción recomendada; seleccione una sola.")
 					}
 					efectivas[padreID] = op.OpcionID
 				}
@@ -147,17 +316,17 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 			for _, f := range fallas {
 				mensajes = append(mensajes, f.Mensaje)
 			}
-			return errorSalida(strings.Join(mensajes, " ") + " (opción recomendada)")
+			return nil, errorSalida(strings.Join(mensajes, " ") + " (opción recomendada)")
 		}
 	}
 	for _, s := range mapa {
 		if s.Activo && s.TipoFuente == "ESCENARIO" && efectivas[rt.Elementos[s.FuenteID].PadreOpcionesID] == "" {
-			return errorSalida(fmt.Sprintf("%s necesita una opción efectiva. Marque una opción como recomendada antes de guardar.", s.ClaveSalida))
+			return nil, errorSalida(fmt.Sprintf("Para calcular %s hay que marcar una opción como recomendada antes de guardar.", nombreSalida(s.ClaveSalida, true)))
 		}
 	}
 	externas, err := congelarFuentesSalidas(ctx, tx, els)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Una selección guardada anteriormente también debe seguir siendo válida;
 	// no sumar silenciosamente solo los ítems restantes de una lista múltiple.
@@ -185,14 +354,14 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 					}
 				}
 				if !existe {
-					return errorSalida(fmt.Sprintf("La selección del catálogo %s ya no está activa; vuelva a seleccionarla.", id))
+					return nil, errorSalida(fmt.Sprintf("La opción elegida en «%s» ya no está activa; vuelva a seleccionarla.", etiquetaElemento(els, id)))
 				}
 			} else {
 				cfg, _ := el["configuracion"].(map[string]any)
 				seleccion, _ := v.(map[string]any)
 				ids, e := itemIDsDesdeValorListaPrecios(fmt.Sprint(cfg["tipo_lista_precios"]), seleccion)
 				if e != nil {
-					return errorSalida(e.Error())
+					return nil, errorSalida(e.Error())
 				}
 				for _, itemID := range ids {
 					existe := false
@@ -202,7 +371,7 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 						}
 					}
 					if !existe {
-						return errorSalida(fmt.Sprintf("El ítem %s de %s ya no está disponible; vuelva a seleccionarlo.", itemID, id))
+						return nil, errorSalida(fmt.Sprintf("Un ítem elegido en «%s» ya no está disponible; vuelva a seleccionarlo.", etiquetaElemento(els, id)))
 					}
 				}
 			}
@@ -212,13 +381,14 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 	resolverCamposCalculadosPorOpcionConReglas(els, rt.Elementos, valores, reglas)
 	incluirValoresCajaValor(rt.Estructura, valores)
 	incluirEstadoReglas(rt.Estructura, evaluarEstadoCamposRegla(valores, reglasGlobales))
-	salidas, err := resolverSalidas(mapa, els, rt.Elementos, valores, efectivas, externas)
+	salidas, pendientesSalidas, err := resolverSalidas(mapa, els, rt.Elementos, valores, efectivas, externas, permitirPendientes)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	pendientes = append(pendientes, pendientesSalidas...)
 	var moneda string
 	if err := tx.QueryRow(ctx, `SELECT moneda FROM cotizacion_versiones WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version).Scan(&moneda); err != nil {
-		return err
+		return nil, err
 	}
 	for _, s := range salidas {
 		if s.ClaveSalida == "MONEDA" && s.ValorTexto != nil {
@@ -231,69 +401,8 @@ func (h *CotizadorRuntimeHandler) persistirSalidasSnapshot(ctx context.Context, 
 		}
 	}
 	items := generarItemsSalidas(els, rt.Elementos, valores, efectivas, externas, salidas, moneda)
-	snapshot := snapshotCotizacion{rt.Version, rt.CompiladoID, rt.Estructura, valores, efectivas, externas, salidas, items}
-	raw, err := json.Marshal(snapshot)
-	if err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE cotizacion_versiones SET snapshot_json=$3 WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version, raw); err != nil {
-		return err
-	}
-	// Regenerar el conjunto completo elimina salidas opcionales que dejaron de
-	// resolverse; el UNIQUE de la BD protege también frente a duplicados.
-	if _, err = tx.Exec(ctx, `DELETE FROM cotizacion_salidas WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version); err != nil {
-		return err
-	}
-	for _, s := range salidas {
-		if _, err = tx.Exec(ctx, `INSERT INTO cotizacion_salidas(cotizacion_id,numero_version,clave_salida,fuente_id,tipo_dato,valor_numero,valor_texto,valor_visible,moneda) VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''))`, rt.CotizacionID, rt.Version, s.ClaveSalida, s.FuenteID, s.TipoDato, s.ValorNumero, s.ValorTexto, s.ValorVisible, s.Moneda); err != nil {
-			return err
-		}
-	}
-	if _, err = tx.Exec(ctx, `DELETE FROM cotizacion_items WHERE cotizacion_id=$1 AND numero_version=$2`, rt.CotizacionID, rt.Version); err != nil {
-		return err
-	}
-	for i, item := range items {
-		detalle, err := json.Marshal(item.Detalle)
-		if err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO cotizacion_items(cotizacion_id,numero_version,fuente_id,opcion_id,categoria,descripcion,cantidad,precio_unitario,total_precio,total_costo,moneda,detalle_json,orden)
-			VALUES($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,$10,$11,$12,$13)`, rt.CotizacionID, rt.Version, item.FuenteID, item.OpcionID, item.Categoria, item.Descripcion, item.Cantidad, item.PrecioUnitario, item.TotalPrecio, item.TotalCosto, item.Moneda, detalle, i+1); err != nil {
-			return err
-		}
-	}
-	// Cachés legadas conviven con la tabla nueva. El mapa explícito prevalece
-	// sobre funcion_campo; no se cambia ningún consumidor del Dashboard.
-	if err = h.actualizarTotalesCotizacionVersion(ctx, tx, rt.Estructura, rt.Elementos, rt.CotizacionID, rt.Version, reglas); err != nil {
-		return err
-	}
-	columnas := map[string]string{"TOTAL_PRECIO": "total_precio", "TOTAL_COSTO": "total_costo", "TOTAL_GANANCIA": "total_ganancia", "MARGEN_TOTAL": "margen_total", "SUBTOTAL": "subtotal", "DESCUENTO": "descuento", "IMPUESTOS": "impuestos", "MONEDA": "moneda"}
-	for _, s := range mapa {
-		if !s.Activo || tiposSalidas[s.ClaveSalida] == "TEXTO" {
-			continue
-		}
-		if col := columnas[s.ClaveSalida]; col != "" {
-			if err := actualizarColumnaCotizacionVersion(ctx, tx, rt.CotizacionID, rt.Version, col, 0); err != nil {
-				return err
-			}
-		}
-	}
-	for _, s := range salidas {
-		col := columnas[s.ClaveSalida]
-		if col == "" {
-			continue
-		}
-		var v any
-		if s.ValorNumero != nil {
-			v = *s.ValorNumero
-		} else if s.ValorTexto != nil {
-			v = *s.ValorTexto
-		}
-		if err = actualizarColumnaCotizacionVersion(ctx, tx, rt.CotizacionID, rt.Version, col, v); err != nil {
-			return err
-		}
-	}
-	return nil
+	snapshot := snapshotCotizacion{rt.Version, rt.CompiladoID, rt.Estructura, valores, efectivas, externas, salidas, items, mensajesPendientes(pendientes), camposPrecioPendiente(pendientes)}
+	return &resultadoSalidasVersion{snapshot: snapshot, mapa: mapa, salidas: salidas, items: items, pendientes: pendientes}, nil
 }
 
 func valorVacioSalida(v any) bool { return v == nil || strings.TrimSpace(fmt.Sprint(v)) == "" }
@@ -402,10 +511,16 @@ func valorSeleccionFuente(id string, metas map[string]elementoRuntime, valores m
 	return valor
 }
 
-func resolverSalidas(mapa []salidaCotizador, els map[string]map[string]any, metas map[string]elementoRuntime, valores map[string]any, efectivas map[string]string, externas map[string][]map[string]any) ([]salidaNormalizada, error) {
+// resolverSalidas calcula cada salida activa del mapa. Con
+// permitirPendientes (Borrador), una salida requerida que no se pudo
+// resolver solo porque faltan datos de entrada se devuelve en pendientes en
+// vez de cortar el guardado; un valor incompatible o un error de cálculo
+// siguen siendo error en cualquier estado.
+func resolverSalidas(mapa []salidaCotizador, els map[string]map[string]any, metas map[string]elementoRuntime, valores map[string]any, efectivas map[string]string, externas map[string][]map[string]any, permitirPendientes bool) ([]salidaNormalizada, []pendienteCotizacion, error) {
 	if err := validarMapaSalidas(mapa, els, metas, false); err != nil {
-		return nil, errorSalida(err.Error())
+		return nil, nil, errorSalida(err.Error())
 	}
+	pendientes := []pendienteCotizacion{}
 	porClave := map[string]salidaCotizador{}
 	resueltos := map[string]salidaNormalizada{}
 	visitados := map[string]bool{}
@@ -413,6 +528,41 @@ func resolverSalidas(mapa []salidaCotizador, els map[string]map[string]any, meta
 		if s.Activo {
 			porClave[s.ClaveSalida] = s
 		}
+	}
+	// diagnosticar averigua por qué la salida clave quedó sin valor. Si su
+	// fuente es otra salida, el motivo es el de esa otra salida. Las fuentes
+	// dentro de Opciones de Propuesta se diagnostican con los valores de la
+	// opción efectiva, que es la única que alimenta las salidas.
+	var diagnosticar func(clave string, profundidad int) diagnosticoFuente
+	diagnosticar = func(clave string, profundidad int) diagnosticoFuente {
+		s, ok := porClave[clave]
+		if !ok || profundidad > len(mapa) {
+			return diagnosticoFuente{errorCalculo: true}
+		}
+		if s.TipoFuente == "SALIDA" {
+			return diagnosticar(s.FuenteID, profundidad+1)
+		}
+		valoresFuente := valores
+		if padre := metas[s.FuenteID].PadreOpcionesID; padre != "" {
+			valoresFuente = valoresPlanosOpcion(metas, valores, padre, efectivas[padre])
+		}
+		if s.PropiedadFuente == "total_costo" {
+			// Costo de una lista de precios: pendiente solo si todavía no
+			// hay nada elegido; un ítem sin costo cargado es un error.
+			if valorSinDatos(valoresFuente[s.FuenteID]) {
+				return diagnosticoFuente{faltantes: []string{s.FuenteID}}
+			}
+			return diagnosticoFuente{errorCalculo: true}
+		}
+		return diagnosticarFuente(s.FuenteID, els, valoresFuente)
+	}
+	// etiquetaFuente es la etiqueta visible del elemento del que sale la
+	// salida, o el nombre de la otra salida de la que depende.
+	etiquetaFuente := func(s salidaCotizador) string {
+		if s.TipoFuente == "SALIDA" {
+			return nombreSalida(s.FuenteID, false)
+		}
+		return etiquetaElemento(els, s.FuenteID)
 	}
 	var resolver func(string) (salidaNormalizada, error)
 	resolver = func(clave string) (salidaNormalizada, error) {
@@ -422,7 +572,7 @@ func resolverSalidas(mapa []salidaCotizador, els map[string]map[string]any, meta
 		s := porClave[clave]
 		resultado := salidaNormalizada{ClaveSalida: clave, FuenteID: s.FuenteID, TipoDato: tiposSalidas[clave]}
 		if visitados[clave] {
-			return resultado, errorSalida("Referencia circular de salidas.")
+			return resultado, errorSalida("Las salidas del cotizador dependen unas de otras en círculo; revise la pantalla Salidas del Diseñador.")
 		}
 		visitados[clave] = true
 		defer delete(visitados, clave)
@@ -482,10 +632,25 @@ func resolverSalidas(mapa []salidaCotizador, els map[string]map[string]any, meta
 		}
 		if resultado.ValorNumero == nil && resultado.ValorTexto == nil {
 			if !valorVacioSalida(valor) {
-				return resultado, errorSalida(fmt.Sprintf("La salida %s recibió un valor incompatible con %s; corrija la fuente %s.", clave, resultado.TipoDato, s.FuenteID))
+				// Hay algo escrito pero no sirve para esta salida: siempre error.
+				return resultado, errorSalida(fmt.Sprintf("El valor de «%s» no sirve para calcular %s; corríjalo.", etiquetaFuente(s), nombreSalida(clave, true)))
 			}
 			if s.Requerido {
-				return resultado, errorSalida(fmt.Sprintf("La salida requerida %s no pudo resolverse como %s. Complete la fuente %s y revise sus cálculos.", clave, resultado.TipoDato, s.FuenteID))
+				diag := diagnosticar(clave, 0)
+				if !diag.soloFaltanDatos() {
+					// Los datos están pero el cálculo falla (división entre
+					// cero, rango, dato no numérico): error en cualquier estado.
+					return resultado, errorSalida(fmt.Sprintf("No se pudo calcular %s con los valores ingresados; revise «%s» y los campos de los que depende (por ejemplo, una división entre cero).", nombreSalida(clave, true), etiquetaFuente(s)))
+				}
+				mensaje := mensajeFaltanDatosSalida(els, clave, diag.faltantes)
+				if !permitirPendientes {
+					return resultado, errorSalida(mensaje)
+				}
+				campos := []string{}
+				for _, id := range diag.faltantes {
+					campos = append(campos, etiquetaElemento(els, id))
+				}
+				pendientes = append(pendientes, pendienteCotizacion{Mensaje: mensaje, Campos: campos, EsPrecio: clave == "TOTAL_PRECIO"})
 			}
 			return resultado, nil
 		}
@@ -499,13 +664,13 @@ func resolverSalidas(mapa []salidaCotizador, els map[string]map[string]any, meta
 		}
 		r, err := resolver(s.ClaveSalida)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if r.ValorNumero != nil || r.ValorTexto != nil {
 			resultado = append(resultado, r)
 		}
 	}
-	return resultado, nil
+	return resultado, pendientes, nil
 }
 
 func generarItemsSalidas(els map[string]map[string]any, metas map[string]elementoRuntime, valores map[string]any, efectivas map[string]string, externas map[string][]map[string]any, salidas []salidaNormalizada, moneda string) []itemCotizacionSnapshot {

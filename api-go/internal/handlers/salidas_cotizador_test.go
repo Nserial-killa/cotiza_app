@@ -262,7 +262,9 @@ func TestSalidas_AT07_RequeridaSinFuenteBloqueaPublicacion(t *testing.T) {
 	f.crear(t, "CAMPO", "N", map[string]any{"tipo_campo": "NUMERO"}, nil)
 	exigirGuardadoSalida(t, mapearSalidaPrueba(t, f, "TOTAL_PRECIO", "CAMPO", "", "", true))
 	res := postCompilador(t, (&CompiladorHandler{DB: f.handler.DB}).Compilar, f.calculadoraID)
-	if res.Valido || res.Compilado || !strings.Contains(fmt.Sprint(res.Errores), "TOTAL_PRECIO") {
+	// El mensaje nombra la salida como la ve la persona ("Precio total"),
+	// no por su clave técnica; el bloqueo de la publicación no cambia.
+	if res.Valido || res.Compilado || !strings.Contains(fmt.Sprint(res.Errores), "Precio total") {
 		t.Fatalf("publicación incorrecta: %+v", res)
 	}
 }
@@ -271,7 +273,7 @@ func TestSalidas_AT08_TextoNoPuedeSerTotalPrecio(t *testing.T) {
 	f := crearFixtureFormulaAvanzada(t)
 	id := f.crear(t, "CAMPO", "TEXTO", map[string]any{"tipo_campo": "TEXTO"}, nil)
 	rec := mapearSalidaPrueba(t, f, "TOTAL_PRECIO", "CAMPO", id, "", true)
-	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "TOTAL_PRECIO requiere") {
+	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "Precio total necesita un valor numérico") {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }
@@ -342,7 +344,10 @@ func TestSalidas_AtomicidadSalidaRequerida(t *testing.T) {
 	var eventosAntes, eventosDespues int
 	f.runtime.Handler.DB.QueryRow(context.Background(), `SELECT COUNT(*) FROM cotizacion_historial WHERE cotizacion_id=$1`, f.runtime.CotizacionID).Scan(&eventosAntes)
 	rec := f.guardar(t, 1, "0") // MARGEN = GANANCIA / PRECIO: división entre cero.
-	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "MARGEN_TOTAL") {
+	// Sigue bloqueando (400, sin guardado parcial): una división entre cero
+	// es un error de cálculo, no un dato pendiente. Solo cambió el texto,
+	// que ahora nombra la salida como la ve la persona.
+	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "Margen total") || !strings.Contains(rec.Body.String(), "división entre cero") {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 	if huellaVersionSalidas(t, f.runtime, 1) != antes {
@@ -519,7 +524,7 @@ func TestSalidas_ReferenciaRotaBloqueaCompilacion(t *testing.T) {
 		t.Fatal(err)
 	}
 	res := postCompilador(t, (&CompiladorHandler{DB: f.handler.DB}).Compilar, f.calculadoraID)
-	if res.Compilado || res.Valido || !strings.Contains(fmt.Sprint(res.Errores), "TOTAL_PRECIO") {
+	if res.Compilado || res.Valido || !strings.Contains(fmt.Sprint(res.Errores), "Precio total") {
 		t.Fatalf("referencia rota: %+v", res)
 	}
 }

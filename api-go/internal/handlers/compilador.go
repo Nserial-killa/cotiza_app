@@ -384,11 +384,33 @@ func (h *CompiladorHandler) validarConfiguracion(ctx context.Context, calculador
 	if err := validarMapaSalidas(mapa, indexarElementosCompletoRuntime(estructura), indexarElementosRuntime(estructura), false); err != nil {
 		resultado.Errores = append(resultado.Errores, err.Error())
 	}
+	// Sin un Precio total utilizable el cotizador publica igual, pero
+	// GET /api/calculadoras?uso=cotizacion lo deja fuera de "Nueva
+	// cotización" (disponible_cotizacion=false). Antes nadie se lo avisaba a
+	// la persona: va como advertencia, no como error, para no impedir
+	// publicar cotizadores que todavía se están armando. El criterio es el
+	// mismo del listado: una salida TOTAL_PRECIO activa con fuente, ya sea
+	// explícita o derivada de funcion_campo por completarSalidasDesdeFunciones.
+	if !tienePrecioUtilizable(mapa) {
+		resultado.Advertencias = append(resultado.Advertencias, mensajeCotizadorSinPrecio)
+	}
 	if err := h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM reglas WHERE activo=true`).Scan(&resultado.Resumen.Reglas); err != nil {
 		return resultado, err
 	}
 	resultado.Valido = len(resultado.Errores) == 0
 	return resultado, nil
+}
+
+const mensajeCotizadorSinPrecio = "Este cotizador no tiene un precio configurado, por eso no aparecerá en «Nueva cotización». Marque un campo con la Función «Total precio de la oferta» (o mapee TOTAL_PRECIO en Salidas) y vuelva a publicar."
+
+// tienePrecioUtilizable: hay una salida TOTAL_PRECIO activa con fuente.
+func tienePrecioUtilizable(mapa []salidaCotizador) bool {
+	for _, s := range mapa {
+		if s.ClaveSalida == "TOTAL_PRECIO" && s.Activo && strings.TrimSpace(s.FuenteID) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 var salidaPorFuncionCampo = map[string]string{

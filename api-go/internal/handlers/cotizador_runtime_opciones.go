@@ -279,12 +279,13 @@ func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *
 	}
 	// Después del primer guardado, cambiar la opción efectiva es un cambio
 	// financiero: regenerar snapshot/salidas en esta misma transacción.
+	var faltantes []pendienteCotizacion
 	if err == nil && runtime.Snapshot != nil {
 		reglas, e := reglasCotizadorParaEvaluar(ctx, tx, runtime.CalculadoraID)
 		if e != nil {
 			err = e
 		} else {
-			err = h.persistirSalidasSnapshot(ctx, tx, &runtime, reglas)
+			faltantes, err = h.persistirSalidasSnapshot(ctx, tx, &runtime, reglas)
 		}
 	}
 	if err == nil {
@@ -295,7 +296,8 @@ func (h *CotizadorRuntimeHandler) AdministrarOpciones(w http.ResponseWriter, r *
 		return
 	}
 
-	respuesta := map[string]any{"ok": true, "opciones": opciones, "mensaje": "Opciones de propuesta actualizadas."}
+	respuesta := map[string]any{"ok": true, "opciones": opciones, "mensaje": "Opciones de propuesta actualizadas.",
+		"pendientes": mensajesPendientes(faltantes), "precio_pendiente": camposPrecioPendiente(faltantes)}
 	if len(opciones) > 1 {
 		recomendadaExiste := false
 		for _, opcion := range opciones {

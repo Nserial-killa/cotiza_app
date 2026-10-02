@@ -343,6 +343,12 @@ type cotizacionListado struct {
 	Vendedor           *string   `json:"vendedor,omitempty"`
 	Analista           *string   `json:"analista,omitempty"`
 	FechaActualizacion time.Time `json:"fecha_actualizacion"`
+	// Precio pendiente de un Borrador guardado incompleto: etiquetas de
+	// los campos que faltan para calcularlo (snapshot_json, ver
+	// salidas_runtime.go). PrecioSinCalcular es el caso de una versión que
+	// todavía no se guardó nunca y sigue en $0,00.
+	PrecioPendiente   []string `json:"precio_pendiente,omitempty"`
+	PrecioSinCalcular bool     `json:"precio_sin_calcular,omitempty"`
 }
 
 // Listar responde GET /api/cotizaciones con los filtros que ya usa la
@@ -390,7 +396,9 @@ func (h *CotizacionesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(cv.total_precio, 0), COALESCE(cv.moneda, 'US$'),
 		       STRING_AGG(DISTINCT CASE WHEN cu.funcion = 'Vendedor' THEN u.nombre END, ', '),
 		       STRING_AGG(DISTINCT CASE WHEN cu.funcion = 'Analista' THEN u.nombre END, ', '),
-		       c.fecha_actualizacion
+		       c.fecha_actualizacion,
+		       cv.snapshot_json->'precio_pendiente',
+		       (cv.snapshot_json IS NULL AND COALESCE(cv.total_precio, 0) = 0)
 		  FROM cotizaciones c
 		  JOIN calculadoras calc ON calc.calculadora_id = c.calculadora_id
 		  LEFT JOIN clientes cl ON cl.cliente_id = c.cliente_id
@@ -413,7 +421,7 @@ func (h *CotizacionesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		 GROUP BY c.cotizacion_id, c.version_actual, cv.nombre_version, c.version_aceptada,
 		          c.codigo_oferta, cl.nombre_comercial, cl.razon_social, calc.nombre_calculadora,
 		          c.calculadora_id, c.tipo_propuesta, c.estado, cv.total_precio, cv.moneda,
-		          c.fecha_actualizacion
+		          c.fecha_actualizacion, cv.snapshot_json->'precio_pendiente', cv.snapshot_json IS NULL
 		 ORDER BY c.fecha_actualizacion DESC`,
 		busqueda, estado, calculadoraID, filtroUsuarioID, fechaDesde, usuarioAlcance, funcionesAlcance)
 	if err != nil {
@@ -429,7 +437,8 @@ func (h *CotizacionesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&item.CotizacionID, &item.Version, &item.NombreVersion, &item.VersionAceptada,
 			&item.CodigoOferta, &item.Cliente, &item.Empresa, &item.CalculadoraNombre, &item.CalculadoraID,
 			&item.TipoPropuesta, &item.Estado, &item.TotalPrecio, &item.Moneda,
-			&item.Vendedor, &item.Analista, &item.FechaActualizacion); err != nil {
+			&item.Vendedor, &item.Analista, &item.FechaActualizacion,
+			&item.PrecioPendiente, &item.PrecioSinCalcular); err != nil {
 			log.Printf("cotizaciones: error leyendo fila: %v", err)
 			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar las cotizaciones."})
 			return
@@ -922,6 +931,16 @@ func (h *CotizacionesHandler) CambiarEstado(w http.ResponseWriter, r *http.Reque
 		log.Printf("cotizaciones: error leyendo versión %d de %s: %v", version, cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible cambiar el estado."})
 		return
+	}
+
+	// Avanzar exige la versión completa (precio y obligatorios); ver
+	// pendientes_avance.go. Va después de bloquear la versión para que
+	// nadie la modifique entre la revisión y el cambio de estado.
+	if estadosQueExigenPrecio[req.Estado] {
+		destino := fmt.Sprintf("pasar a «%s»", req.Estado)
+		if !responderErrorAvance(w, verificarVersionCompleta(ctx, tx, &CotizadorRuntimeHandler{DB: h.DB}, cotizacionID, version, destino), "cotizaciones") {
+			return
+		}
 	}
 
 	if req.Estado == "Aceptada" {

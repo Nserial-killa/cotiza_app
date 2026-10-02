@@ -467,6 +467,9 @@ func TestAuditoriaHistorial_ElDetalleDevuelveLaSecuenciaCompleta(t *testing.T) {
 	}
 	cotizacionID, _ := res["cotizacion_id"].(string)
 	limpiarCotizacionCreada(t, pool, cotizacionID)
+	// Pasar a Revisión Comercial exige el precio; el guardado agrega su
+	// propio evento "valores_actualizados", que no altera lo que se afirma.
+	cargarPrecioAltaPrueba(t, pool, cotizacionID, 1500)
 
 	if rec := audPostSubruta(t, handler.CambiarEstado, "/api/cotizaciones/{id}/estado", cotizacionID, actorID, map[string]any{
 		"version": 1, "estado": "Revisión Comercial", "comentario": "Pasa a revisión",
