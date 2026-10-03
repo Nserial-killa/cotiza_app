@@ -42,12 +42,14 @@ type usuarioSesion struct {
 	// backend igual va a rechazar con 403 (permisos.go). Son solo
 	// cosméticas del lado del cliente: la fuente de verdad sigue siendo
 	// el servidor en cada petición.
-	PuedeCrear          bool `json:"puede_crear"`
-	PuedeEditarBorrador bool `json:"puede_editar_borrador"`
-	PuedeCrearVersion   bool `json:"puede_crear_version"`
-	PuedeAprobar        bool `json:"puede_aprobar"`
-	PuedeParametrizar   bool `json:"puede_parametrizar"`
-	AlcancePropio       bool `json:"alcance_propio"`
+	PuedeCrear             bool `json:"puede_crear"`
+	PuedeEditarBorrador    bool `json:"puede_editar_borrador"`
+	PuedeCrearVersion      bool `json:"puede_crear_version"`
+	PuedeAprobar           bool `json:"puede_aprobar"`
+	PuedeParametrizar      bool `json:"puede_parametrizar"`
+	AlcancePropio          bool `json:"alcance_propio"`
+	PuedeVerDashboard      bool `json:"puede_ver_dashboard"`
+	PuedeVerAdministracion bool `json:"puede_ver_administracion"`
 }
 
 type loginResponse struct {
@@ -111,7 +113,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(rl.puede_ver_price, false),
 		       COALESCE(rl.puede_crear, false), COALESCE(rl.puede_editar_borrador, false),
 		       COALESCE(rl.puede_crear_version, false), COALESCE(rl.puede_aprobar, false),
-		       COALESCE(rl.puede_parametrizar, false), COALESCE(rl.alcance_propio, false)
+		       COALESCE(rl.puede_parametrizar, false), COALESCE(rl.alcance_propio, false),
+		       COALESCE(rl.puede_ver_dashboard, false), COALESCE(rl.puede_ver_administracion, false)
 		  FROM usuarios u
 		  LEFT JOIN roles rl ON rl.rol = u.rol
 		 WHERE lower(u.correo) = $1`
@@ -128,6 +131,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		&usuario.Rol, &estado, &usuario.PuedeVerGestor, &puedeVerPrice,
 		&usuario.PuedeCrear, &usuario.PuedeEditarBorrador, &usuario.PuedeCrearVersion,
 		&usuario.PuedeAprobar, &usuario.PuedeParametrizar, &usuario.AlcancePropio,
+		&usuario.PuedeVerDashboard, &usuario.PuedeVerAdministracion,
 	)
 
 	switch {

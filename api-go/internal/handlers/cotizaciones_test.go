@@ -226,7 +226,8 @@ func TestCotizacionesListarClientes_SoloActivosOrdenados(t *testing.T) {
 		pool.Exec(context.Background(), `DELETE FROM clientes WHERE cliente_id=ANY($1)`, []string{idA, idZ, idInactivo})
 	})
 	rec := httptest.NewRecorder()
-	handler.ListarClientes(rec, httptest.NewRequest(http.MethodGet, "/api/clientes", nil))
+	req := conActor(httptest.NewRequest(http.MethodGet, "/api/clientes", nil), actorAdminCompartido(t, pool))
+	handler.ListarClientes(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("esperaba 200: %s", rec.Body.String())
 	}

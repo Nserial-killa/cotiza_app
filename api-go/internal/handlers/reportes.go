@@ -50,6 +50,10 @@ const reporteCotizacionesSQL = `
 	 WHERE ($4='' OR fecha_creacion >= $4::date)
 	   AND ($5='' OR fecha_creacion < ($5::date + INTERVAL '1 day'))
 	   AND ($6='' OR estado=$6)
+	   AND ($8::text='' OR EXISTS (
+	       SELECT 1 FROM cotizacion_usuarios cu
+	        WHERE cu.cotizacion_id=filtradas.cotizacion_id
+	          AND cu.usuario_id=$8 AND cu.funcion=ANY($9)))
 	 ORDER BY fecha_creacion DESC, cotizacion_id DESC`
 
 // Listar responde GET /api/reportes/cotizaciones.
@@ -150,14 +154,22 @@ func (h *ReportesHandler) Exportar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportesHandler) consultarCotizaciones(ctx context.Context, r *http.Request, filtros filtrosReporteCotizaciones) ([]reporteCotizacion, bool, error) {
-	puedeVerPrice, err := (&CotizacionesHandler{DB: h.DB}).sesionPuedeVerPrice(ctx, r)
+	permisos, err := resolverPermisosSesion(ctx, h.DB, r)
 	if err != nil {
-		return nil, false, fmt.Errorf("validar permiso de precio: %w", err)
+		return nil, false, fmt.Errorf("validar permisos: %w", err)
+	}
+	puedeVerPrice := permisos.PuedeVerPrice
+	usuarioAlcance := ""
+	funcionesAlcance := []string{}
+	if permisos.AlcancePropio {
+		usuarioAlcance = permisos.UsuarioID
+		funcionesAlcance = permisos.funcionesAlcance()
+		filtros.VendedorID = ""
 	}
 
 	rows, err := h.DB.Query(ctx, dashboardFiltradoCTE+reporteCotizacionesSQL,
 		filtros.CalculadoraID, filtros.VendedorID, "", filtros.FechaDesde,
-		filtros.FechaHasta, filtros.Estado, puedeVerPrice)
+		filtros.FechaHasta, filtros.Estado, puedeVerPrice, usuarioAlcance, funcionesAlcance)
 	if err != nil {
 		return nil, false, err
 	}

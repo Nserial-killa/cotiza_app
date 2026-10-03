@@ -113,6 +113,7 @@ func cliGetGestion(t *testing.T, handler *ClientesHandler, query string) (*httpt
 		url += "?" + query
 	}
 	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req = conActor(req, actorAdminCompartido(t, handler.DB))
 	rec := httptest.NewRecorder()
 	handler.Listar(rec, req)
 
@@ -800,6 +801,7 @@ func TestClientesSelector_SoloActivosYConvivenConGestion(t *testing.T) {
 	inactivo := cliCrearClientePrueba(t, pool, "Cliente "+token+" inactivo", nil, "COTIZA", "Inactivo")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/clientes", nil)
+	req = conActor(req, actorAdminCompartido(t, pool))
 	rec := httptest.NewRecorder()
 	selector.ListarClientes(rec, req)
 	if rec.Code != http.StatusOK {

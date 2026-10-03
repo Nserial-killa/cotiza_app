@@ -44,12 +44,26 @@ type crearCotizacionEntrada struct {
 func (h *CotizacionesHandler) ListarClientes(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	permisos, ok := cargarPermisos(ctx, w, r, h.DB)
+	if !ok {
+		return
+	}
+	usuarioAlcance := ""
+	funcionesAlcance := []string{}
+	if permisos.AlcancePropio {
+		usuarioAlcance = permisos.UsuarioID
+		funcionesAlcance = permisos.funcionesAlcance()
+	}
 
 	rows, err := h.DB.Query(ctx, `
 		SELECT cliente_id, nombre_comercial, razon_social
-		  FROM clientes
+		  FROM clientes c
 		 WHERE estado = 'Activo'
-		 ORDER BY nombre_comercial, cliente_id`)
+		   AND ($1::text='' OR c.usuario_creador_id=$1 OR EXISTS (
+		       SELECT 1 FROM cotizaciones co
+		       JOIN cotizacion_usuarios cu ON cu.cotizacion_id=co.cotizacion_id
+		      WHERE co.cliente_id=c.cliente_id AND cu.usuario_id=$1 AND cu.funcion=ANY($2)))
+		 ORDER BY nombre_comercial, cliente_id`, usuarioAlcance, funcionesAlcance)
 	if err != nil {
 		log.Printf("cotizaciones: error listando clientes: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los clientes."})
@@ -884,16 +898,14 @@ func (h *CotizacionesHandler) CambiarEstado(w http.ResponseWriter, r *http.Reque
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 
-	// puede_aprobar solo cuenta para Aceptada/Ganada; el resto de las
-	// transiciones (Enviada al Cliente, Perdida, Cancelada...) no lo
-	// piden. El estado se valida antes para que este chequeo sepa a qué
-	// destino se quiere ir.
-	var permisos permisosSesion
-	var ok bool
-	if estadosQueExigenAprobar[req.Estado] {
-		permisos, ok = exigirPuedeAprobar(ctx, w, r, h.DB)
-	} else {
-		permisos, ok = cargarPermisos(ctx, w, r, h.DB)
+	// Todo cambio de estado modifica la cotización y exige permiso de
+	// edición. Aceptada/Ganada exigen además puede_aprobar. Esto mantiene
+	// a Solo Consulta estrictamente en lectura también en transiciones
+	// que antes no pasaban por ninguna bandera.
+	permisos, ok := exigirPuedeEditarBorrador(ctx, w, r, h.DB)
+	if ok && estadosQueExigenAprobar[req.Estado] && !permisos.PuedeAprobar {
+		responderSinPermiso(w, permisos, permisoAprobar)
+		return
 	}
 	if !ok || !exigirAlcanceCotizacion(ctx, w, h.DB, permisos, cotizacionID) {
 		return

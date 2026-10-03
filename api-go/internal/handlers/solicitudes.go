@@ -17,8 +17,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"cotiza/api/internal/middleware"
 )
 
 // SolicitudesHandler necesita CotizacionesHandler para reusar
@@ -140,11 +138,13 @@ func leerSolicitud(escaner escanerSolicitud, item *solicitudListado) error {
 // sesión. Es deliberadamente un endpoint distinto al externo: no
 // acepta integracion_id y toma creado_por del usuario autenticado.
 func (h *SolicitudesHandler) Crear(w http.ResponseWriter, r *http.Request) {
-	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-	if usuarioID == "" {
-		escribirJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "No fue posible identificar al usuario de la sesión."})
+	ctxPermiso, cancelPermiso := context.WithTimeout(r.Context(), 5*time.Second)
+	permisos, ok := exigirPuedeCrear(ctxPermiso, w, r, h.DB)
+	cancelPermiso()
+	if !ok {
 		return
 	}
+	usuarioID := permisos.UsuarioID
 
 	var req crearSolicitudManualRequest
 	if err := decodificarJSON(r, &req); err != nil {
@@ -165,6 +165,15 @@ func (h *SolicitudesHandler) Crear(w http.ResponseWriter, r *http.Request) {
 	req.AnalistaID = strings.TrimSpace(req.AnalistaID)
 	req.LiderProductoID = strings.TrimSpace(req.LiderProductoID)
 	req.Descripcion = strings.TrimSpace(req.Descripcion)
+	// Un rol de alcance propio no puede crear una solicitud asignándola
+	// únicamente a otra persona y luego perderla de vista.
+	if permisos.AlcancePropio {
+		if permisos.Rol == "Consultor" {
+			req.AnalistaID = usuarioID
+		} else {
+			req.VendedorID = usuarioID
+		}
+	}
 	if req.Prioridad == "" {
 		req.Prioridad = "Media"
 	}
@@ -274,6 +283,17 @@ func (h *SolicitudesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	permisos, ok := cargarPermisos(ctx, w, r, h.DB)
+	if !ok {
+		return
+	}
+	usuarioAlcance := ""
+	rolAlcance := ""
+	if permisos.AlcancePropio {
+		usuarioAlcance = permisos.UsuarioID
+		rolAlcance = permisos.Rol
+		responsableID = ""
+	}
 
 	rows, err := h.DB.Query(ctx, consultaSolicitudes+`
 		 WHERE ($1::text = '' OR s.estado = $1)
@@ -281,7 +301,9 @@ func (h *SolicitudesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		   AND ($3::text = '' OR s.vendedor_id = $3 OR s.analista_id = $3 OR s.lider_producto_id = $3)
 		   AND ($4::text = '' OR concat_ws(' ', s.solicitud_id::text, s.titulo, s.crm_id,
 		       s.cliente_nombre, s.contacto_nombre, s.contacto_correo, s.descripcion) ILIKE '%' || $4 || '%')
-		 ORDER BY s.fecha_creacion DESC`, estado, prioridad, responsableID, busqueda)
+		   AND ($5::text = '' OR ($6='Consultor' AND s.analista_id=$5)
+		        OR ($6<>'Consultor' AND s.vendedor_id=$5))
+		 ORDER BY s.fecha_creacion DESC`, estado, prioridad, responsableID, busqueda, usuarioAlcance, rolAlcance)
 	if err != nil {
 		log.Printf("solicitudes: error listando: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar las solicitudes."})
@@ -319,6 +341,10 @@ func (h *SolicitudesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	permisos, ok := cargarPermisos(ctx, w, r, h.DB)
+	if !ok || !exigirAlcanceSolicitud(ctx, w, h.DB, permisos, id) {
+		return
+	}
 
 	var item solicitudListado
 	err := leerSolicitud(h.DB.QueryRow(ctx, consultaSolicitudes+` WHERE s.solicitud_id::text = $1`, id), &item)
@@ -360,6 +386,10 @@ func (h *SolicitudesHandler) CambiarEstado(w http.ResponseWriter, r *http.Reques
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	permisos, ok := exigirPuedeEditarBorrador(ctx, w, r, h.DB)
+	if !ok || !exigirAlcanceSolicitud(ctx, w, h.DB, permisos, id) {
+		return
+	}
 
 	var estadoActual string
 	err := h.DB.QueryRow(ctx, `SELECT estado FROM solicitudes WHERE solicitud_id::text = $1`, id).Scan(&estadoActual)
@@ -407,6 +437,12 @@ func (h *SolicitudesHandler) Convertir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	usuarioID := permisos.UsuarioID
+	ctxAlcance, cancelAlcance := context.WithTimeout(r.Context(), 5*time.Second)
+	if !exigirAlcanceSolicitud(ctxAlcance, w, h.DB, permisos, id) {
+		cancelAlcance()
+		return
+	}
+	cancelAlcance()
 
 	var req convertirSolicitudRequest
 	if r.ContentLength != 0 {

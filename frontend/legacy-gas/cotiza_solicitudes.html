@@ -71,6 +71,7 @@
     return fn ? fn(String(valor == null ? "" : valor)) : String(valor == null ? "" : valor);
   }
   function toast(mensaje){ if(core().mostrarToast) core().mostrarToast(mensaje); }
+  function tienePermiso(nombre){ return !!(window.CotizaApp && window.CotizaApp.tienePermiso && window.CotizaApp.tienePermiso(nombre)); }
 
   async function solicitar(url, opciones){
     const fetchSeguro = core().fetchAutenticado;
@@ -289,7 +290,7 @@
     if(porId("solDetalleSubtitulo")) porId("solDetalleSubtitulo").textContent = tituloSolicitud(item) + " · " + item.estado;
     const activa = item.estado !== "Convertida" && item.estado !== "Descartada";
     let acciones = "";
-    if(activa){
+    if(activa && tienePermiso("puede_editar_borrador")){
       const selector = item.calculadora_id ? "" : '<label class="sol-convert-select">Cotizador para convertir<select id="solDetalleCalculadora" class="select">'+opcionesCalculadora("")+'</select></label>';
       acciones = '<div class="sol-detail-actions">'+selector+
         (item.estado !== "En revisión" ? '<button class="btn btn-light" type="button" data-sol-accion="revision">Marcar en revisión</button>' : '')+
@@ -338,7 +339,7 @@
   // Convertir crea una cotización: exige puede_crear (permisos.go). Sin
   // el permiso el botón queda deshabilitado con el motivo al lado.
   function puedeCrearCotizacion(){
-    return !!(window.CotizaApp && window.CotizaApp.tienePermiso && window.CotizaApp.tienePermiso("puede_crear"));
+    return tienePermiso("puede_crear");
   }
   function botonConvertir(){
     if(puedeCrearCotizacion()) return '<button class="btn btn-primary" type="button" data-sol-accion="convertir">Convertir en cotización</button>';
@@ -377,7 +378,11 @@
   }
 
   function enlazar(){
-    if(porId("btnNuevaSolicitud")) porId("btnNuevaSolicitud").addEventListener("click", function(){ cargarCombos().then(abrirFormulario).catch(function(error){ toast(error.message); }); });
+    if(porId("btnNuevaSolicitud")){
+      porId("btnNuevaSolicitud").disabled=!tienePermiso("puede_crear");
+      porId("btnNuevaSolicitud").title=tienePermiso("puede_crear")?"":"Su rol no permite crear solicitudes.";
+      porId("btnNuevaSolicitud").addEventListener("click", function(){ if(tienePermiso("puede_crear")) cargarCombos().then(abrirFormulario).catch(function(error){ toast(error.message); }); });
+    }
     if(porId("btnCancelarSolicitud")) porId("btnCancelarSolicitud").addEventListener("click", cargarListado);
     if(porId("btnVolverSolicitudes")) porId("btnVolverSolicitudes").addEventListener("click", cargarListado);
     if(porId("formSolicitud")) porId("formSolicitud").addEventListener("submit", guardarSolicitud);

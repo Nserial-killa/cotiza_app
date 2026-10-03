@@ -49,6 +49,7 @@ func crearSolicitudPrueba(t *testing.T, pool *pgxpool.Pool, clienteNombre, clien
 func getSolicitudes(t *testing.T, handler *SolicitudesHandler, query string) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/solicitudes"+query, nil)
+	req = conActor(req, actorAdminCompartido(t, handler.DB))
 	rec := httptest.NewRecorder()
 	handler.Listar(rec, req)
 
@@ -68,6 +69,7 @@ func patchSolicitud(t *testing.T, handler *SolicitudesHandler, solicitudID strin
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/solicitudes/"+solicitudID, bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
+	req = conActor(req, actorAdminCompartido(t, handler.DB))
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -118,6 +120,7 @@ func getDetalleSolicitud(t *testing.T, handler *SolicitudesHandler, solicitudID 
 	router := chi.NewRouter()
 	router.Get("/api/solicitudes/{id}", handler.Detalle)
 	req := httptest.NewRequest(http.MethodGet, "/api/solicitudes/"+solicitudID, nil)
+	req = conActor(req, actorAdminCompartido(t, handler.DB))
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 

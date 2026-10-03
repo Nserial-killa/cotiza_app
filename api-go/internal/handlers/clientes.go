@@ -18,8 +18,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"cotiza/api/internal/middleware"
 )
 
 type ClientesHandler struct {
@@ -62,16 +60,36 @@ func (h *ClientesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	permisos, ok := cargarPermisos(ctx, w, r, h.DB)
+	if !ok {
+		return
+	}
+	usuarioAlcance := ""
+	funcionesAlcance := []string{}
+	if permisos.AlcancePropio {
+		usuarioAlcance = permisos.UsuarioID
+		funcionesAlcance = permisos.funcionesAlcance()
+	}
 
 	rows, err := h.DB.Query(ctx, `
 		SELECT c.cliente_id, c.nombre_comercial, c.razon_social, c.estado, c.origen,
-		       c.fecha_creacion, COUNT(co.cotizacion_id)
+		       c.fecha_creacion,
+		       COUNT(co.cotizacion_id) FILTER (
+		           WHERE $3::text = '' OR EXISTS (
+		               SELECT 1 FROM cotizacion_usuarios conteo_cu
+		                WHERE conteo_cu.cotizacion_id=co.cotizacion_id
+		                  AND conteo_cu.usuario_id=$3
+		                  AND conteo_cu.funcion=ANY($4)))
 		  FROM clientes c
 		  LEFT JOIN cotizaciones co ON co.cliente_id = c.cliente_id
 		 WHERE ($1::text = '' OR c.estado = $1)
 		   AND ($2::text = '' OR concat_ws(' ', c.nombre_comercial, c.razon_social) ILIKE '%' || $2 || '%')
+		   AND ($3::text = '' OR c.usuario_creador_id=$3 OR EXISTS (
+		       SELECT 1 FROM cotizaciones propia
+		       JOIN cotizacion_usuarios cu ON cu.cotizacion_id=propia.cotizacion_id
+		      WHERE propia.cliente_id=c.cliente_id AND cu.usuario_id=$3 AND cu.funcion=ANY($4)))
 		 GROUP BY c.cliente_id
-		 ORDER BY c.nombre_comercial, c.cliente_id`, estado, busqueda)
+		 ORDER BY c.nombre_comercial, c.cliente_id`, estado, busqueda, usuarioAlcance, funcionesAlcance)
 	if err != nil {
 		log.Printf("clientes: error listando: %v", err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los clientes."})
@@ -102,11 +120,13 @@ func (h *ClientesHandler) Listar(w http.ResponseWriter, r *http.Request) {
 // gestión). origen siempre 'COTIZA' y estado siempre 'Activo' al
 // nacer, igual que el alta implícita en crearCotizacionEnTx.
 func (h *ClientesHandler) Crear(w http.ResponseWriter, r *http.Request) {
-	usuarioID, _ := r.Context().Value(middleware.UsuarioIDKey).(string)
-	if usuarioID == "" {
-		escribirJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "No fue posible identificar al usuario de la sesión."})
+	ctxPermiso, cancelPermiso := context.WithTimeout(r.Context(), 5*time.Second)
+	permisos, ok := exigirPuedeCrear(ctxPermiso, w, r, h.DB)
+	cancelPermiso()
+	if !ok {
 		return
 	}
+	usuarioID := permisos.UsuarioID
 
 	var req crearClienteRequest
 	if err := decodificarJSON(r, &req); err != nil {
@@ -157,6 +177,13 @@ func (h *ClientesHandler) Editar(w http.ResponseWriter, r *http.Request) {
 		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Debe indicar el cliente a editar."})
 		return
 	}
+	ctxPermiso, cancelPermiso := context.WithTimeout(r.Context(), 5*time.Second)
+	permisos, ok := exigirPuedeEditarBorrador(ctxPermiso, w, r, h.DB)
+	if !ok || !exigirAlcanceCliente(ctxPermiso, w, h.DB, permisos, id) {
+		cancelPermiso()
+		return
+	}
+	cancelPermiso()
 
 	var req editarClienteRequest
 	if err := decodificarJSON(r, &req); err != nil {

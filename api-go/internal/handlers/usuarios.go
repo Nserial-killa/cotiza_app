@@ -363,6 +363,12 @@ func (h *UsuariosHandler) Editar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	esAdmin := rolSesion == "Administrador"
+	if rolSesion == "Solo Consulta" {
+		escribirJSON(w, http.StatusForbidden, map[string]any{
+			"ok": false, "error": "El rol Solo Consulta no puede modificar usuarios.", "permiso": "puede_editar_borrador",
+		})
+		return
+	}
 
 	if !esAdmin && usuarioID != usuarioIDSesion {
 		escribirJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "Solo puede editar su propio usuario."})

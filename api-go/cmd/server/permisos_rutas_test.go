@@ -27,7 +27,8 @@ import (
 // lista_precios_items.go, tabla_columnas.go, salidas_cotizador.go,
 // reglas.go, reglas_cotizador.go, compilador.go, calculadoras.go y
 // todos los plantilla*.go). Sus rutas de escritura exigen
-// puede_parametrizar; sus GET no.
+// puede_parametrizar; sus GET usan la guarda independiente
+// puede_ver_administracion.
 var tiposHandlerDisenador = map[string]bool{
 	"CatalogosHandler":              true,
 	"CotizadorTabsHandler":          true,
@@ -247,7 +248,7 @@ func TestPermisosRutas_EscriturasDelDisenadorExigenParametrizar(t *testing.T) {
 				"grupo con handlers.RequierePuedeParametrizar", clave, tipo, ruta.linea)
 		case esDisenador && !esEscritura && ruta.parametrizar:
 			t.Errorf("%s (main.go línea %d) es de lectura y quedó detrás de puede_parametrizar: "+
-				"los roles sin la bandera tienen que poder seguir leyendo", clave, ruta.linea)
+				"las lecturas usan puede_ver_administracion, no el permiso de escritura", clave, ruta.linea)
 		case !esDisenador && ruta.parametrizar:
 			t.Errorf("%s (%s, main.go línea %d) no es del Diseñador pero quedó detrás de puede_parametrizar",
 				clave, tipo, ruta.linea)

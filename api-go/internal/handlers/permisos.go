@@ -26,6 +26,10 @@ package handlers
 //     middleware en main.go (RequierePuedeParametrizar) porque son
 //     decenas de rutas; cmd/server/permisos_rutas_test.go audita que
 //     ninguna de escritura quede fuera.
+//   - puede_ver_dashboard: abrir cualquiera de los endpoints agregados
+//     del Dashboard. Vendedor y Consultor no lo tienen.
+//   - puede_ver_administracion: leer los módulos administrativos
+//     Usuarios, Diseñador, Plantillas y Configuración. Solo Administrador.
 //   - alcance_propio: ver el bloque de "Alcance propio" más abajo.
 
 import (
@@ -46,15 +50,17 @@ import (
 // sesión HOY en la base (nunca lo que diga el cliente ni lo que se
 // guardó en localStorage al hacer login).
 type permisosSesion struct {
-	UsuarioID           string
-	Rol                 string
-	PuedeCrear          bool
-	PuedeEditarBorrador bool
-	PuedeCrearVersion   bool
-	PuedeVerPrice       bool
-	PuedeAprobar        bool
-	PuedeParametrizar   bool
-	AlcancePropio       bool
+	UsuarioID              string
+	Rol                    string
+	PuedeCrear             bool
+	PuedeEditarBorrador    bool
+	PuedeCrearVersion      bool
+	PuedeVerPrice          bool
+	PuedeAprobar           bool
+	PuedeParametrizar      bool
+	AlcancePropio          bool
+	PuedeVerDashboard      bool
+	PuedeVerAdministracion bool
 }
 
 // permisoRol describe una bandera: su columna (viaja en el 403 como
@@ -77,6 +83,10 @@ var (
 		func(p permisosSesion) bool { return p.PuedeAprobar }}
 	permisoParametrizar = permisoRol{"puede_parametrizar", "modificar el Diseñador (catálogos, cotizador, reglas, salidas y plantillas)",
 		func(p permisosSesion) bool { return p.PuedeParametrizar }}
+	permisoVerDashboard = permisoRol{"puede_ver_dashboard", "consultar el Dashboard",
+		func(p permisosSesion) bool { return p.PuedeVerDashboard }}
+	permisoVerAdministracion = permisoRol{"puede_ver_administracion", "consultar los módulos administrativos",
+		func(p permisosSesion) bool { return p.PuedeVerAdministracion }}
 )
 
 // estadosQueExigenAprobar son los únicos destinos de CambiarEstado que
@@ -98,12 +108,15 @@ func resolverPermisosSesion(ctx context.Context, db consultorFila, r *http.Reque
 		       COALESCE(rl.puede_crear, false), COALESCE(rl.puede_editar_borrador, false),
 		       COALESCE(rl.puede_crear_version, false), COALESCE(rl.puede_ver_price, false),
 		       COALESCE(rl.puede_aprobar, false), COALESCE(rl.puede_parametrizar, false),
-		       COALESCE(rl.alcance_propio, false)
+		       COALESCE(rl.alcance_propio, false),
+		       COALESCE(rl.puede_ver_dashboard, false),
+		       COALESCE(rl.puede_ver_administracion, false)
 		  FROM usuarios u
 		  LEFT JOIN roles rl ON rl.rol = u.rol
 		 WHERE u.usuario_id = $1`, usuarioID,
 	).Scan(&p.Rol, &p.PuedeCrear, &p.PuedeEditarBorrador, &p.PuedeCrearVersion,
-		&p.PuedeVerPrice, &p.PuedeAprobar, &p.PuedeParametrizar, &p.AlcancePropio)
+		&p.PuedeVerPrice, &p.PuedeAprobar, &p.PuedeParametrizar, &p.AlcancePropio,
+		&p.PuedeVerDashboard, &p.PuedeVerAdministracion)
 	return p, err
 }
 
@@ -162,14 +175,38 @@ func exigirPuedeAprobar(ctx context.Context, w http.ResponseWriter, r *http.Requ
 }
 
 // RequierePuedeParametrizar es el middleware que main.go aplica al grupo
-// de rutas de ESCRITURA del Diseñador. Los GET de esos mismos módulos
-// quedan fuera del grupo: cualquier sesión puede seguir leyéndolos.
+// de rutas de ESCRITURA del Diseñador. Sus lecturas se protegen por
+// separado con puede_ver_administracion.
 func RequierePuedeParametrizar(db *pgxpool.Pool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 			if _, ok := exigirPermiso(ctx, w, r, db, permisoParametrizar); !ok {
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequierePuedeVerDashboard protege el módulo completo, no solo su menú.
+func RequierePuedeVerDashboard(db *pgxpool.Pool) func(http.Handler) http.Handler {
+	return requierePermisoMiddleware(db, permisoVerDashboard)
+}
+
+// RequierePuedeVerAdministracion protege las lecturas del Diseñador y
+// Plantillas. Las escrituras conservan además puede_parametrizar.
+func RequierePuedeVerAdministracion(db *pgxpool.Pool) func(http.Handler) http.Handler {
+	return requierePermisoMiddleware(db, permisoVerAdministracion)
+}
+
+func requierePermisoMiddleware(db *pgxpool.Pool, permiso permisoRol) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+			if _, ok := exigirPermiso(ctx, w, r, db, permiso); !ok {
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -213,7 +250,8 @@ func RequierePuedeParametrizar(db *pgxpool.Pool) func(http.Handler) http.Handler
 // sobre una cotización puntual (Gestor, motor de ejecución, versión,
 // estado, enlace, vista previa) con 403 — ocultarla del listado sin
 // bloquear el acceso directo por ID no protege nada. No aplica a
-// Dashboard, Reportes ni Clientes.
+// Dashboard (que se bloquea por permiso de módulo). Reportes,
+// Solicitudes y Clientes aplican el mismo alcance en sus handlers.
 // ------------------------------------------------------------
 
 var funcionesAlcancePorRol = map[string][]string{
@@ -283,4 +321,64 @@ func exigirAccesoCotizacion(ctx context.Context, w http.ResponseWriter, r *http.
 		return p, false
 	}
 	return p, exigirAlcanceCotizacion(ctx, w, db, p, cotizacionID)
+}
+
+// exigirAlcanceSolicitud aplica a Solicitudes el mismo dueño funcional:
+// Vendedor por vendedor_id y Consultor por analista_id.
+func exigirAlcanceSolicitud(ctx context.Context, w http.ResponseWriter, db *pgxpool.Pool, p permisosSesion, solicitudID string) bool {
+	if !p.AlcancePropio {
+		return true
+	}
+	var propia bool
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM solicitudes
+			 WHERE solicitud_id::text=$1
+			   AND (($3='Consultor' AND analista_id=$2)
+			     OR ($3<>'Consultor' AND vendedor_id=$2)))`,
+		solicitudID, p.UsuarioID, p.Rol).Scan(&propia)
+	if err != nil {
+		log.Printf("permisos: error validando alcance sobre solicitud %s: %v", solicitudID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return false
+	}
+	if !propia {
+		escribirJSON(w, http.StatusForbidden, map[string]any{
+			"ok": false, "error": "Su rol solo puede consultar las solicitudes donde figura como responsable.",
+			"permiso": "alcance_propio",
+		})
+		return false
+	}
+	return true
+}
+
+// exigirAlcanceCliente permite a un rol restringido ver/editar clientes
+// que creó o que ya están vinculados con una de sus cotizaciones.
+func exigirAlcanceCliente(ctx context.Context, w http.ResponseWriter, db *pgxpool.Pool, p permisosSesion, clienteID string) bool {
+	if !p.AlcancePropio {
+		return true
+	}
+	var propio bool
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM clientes c
+			 WHERE c.cliente_id=$1 AND (
+			       c.usuario_creador_id=$2 OR EXISTS (
+			         SELECT 1 FROM cotizaciones co
+			         JOIN cotizacion_usuarios cu ON cu.cotizacion_id=co.cotizacion_id
+			        WHERE co.cliente_id=c.cliente_id AND cu.usuario_id=$2 AND cu.funcion=ANY($3))))`,
+		clienteID, p.UsuarioID, p.funcionesAlcance()).Scan(&propio)
+	if err != nil {
+		log.Printf("permisos: error validando alcance sobre cliente %s: %v", clienteID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible validar los permisos."})
+		return false
+	}
+	if !propio {
+		escribirJSON(w, http.StatusForbidden, map[string]any{
+			"ok": false, "error": "Su rol solo puede consultar los clientes vinculados con su trabajo.",
+			"permiso": "alcance_propio",
+		})
+		return false
+	}
+	return true
 }

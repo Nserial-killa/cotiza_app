@@ -276,7 +276,8 @@ window.CotizaApp = (function(){
 
           // Una sesión guardada antes de la ronda de permisos no trae las
           // banderas del rol: pedir login de nuevo en vez de adivinarlas.
-          if(usuario && usuario.usuario_id && typeof usuario.puede_parametrizar === "boolean"){
+          if(usuario && usuario.usuario_id && typeof usuario.puede_parametrizar === "boolean" &&
+             typeof usuario.puede_ver_dashboard === "boolean" && typeof usuario.puede_ver_administracion === "boolean"){
             iniciarApp(usuario);
           }else{
             limpiarSesionCotiza();
@@ -297,20 +298,15 @@ window.CotizaApp = (function(){
         setText("sidebarCorreo", usuario.correo || "");
         setText("sidebarRol", usuario.rol || "");
 
-        // GET/POST /api/usuarios y GET /api/roles exigen rol
-        // Administrador desde la auditoría de QA (Tanda 1): ocultar el
-        // botón acá es solo cosmético (el backend ya rechaza con 403),
-        // pero evita que un no-admin entre a una pantalla que le va a
-        // fallar cada carga.
-        document.querySelectorAll('[data-section="usuarios"]').forEach(function(btn){
-          btn.classList.toggle("hidden", usuario.rol !== "Administrador");
-        });
         aplicarPermisosInterfaz_();
+
+        const seccionInicial = tienePermiso("puede_ver_dashboard") ? "dashboard" : "cotizaciones";
+        cambiarSeccion(seccionInicial, true);
 
         setLoading("loginView", false);
 
         cargarDatosBase(function(){
-          cargarDashboard();
+          if(tienePermiso("puede_ver_dashboard")) cargarDashboard();
           cargarCotizaciones();
         });
       }
@@ -322,7 +318,7 @@ window.CotizaApp = (function(){
       // deshabilita CON una nota breve, no solo se oculta, salvo el menú
       // del Diseñador (Cotizador/Plantillas), que se oculta completo como
       // "Usuarios y Permisos" para quien no es Administrador.
-      const SECCIONES_PARAMETRIZAR = ["parametros","plantillas"];
+      const SECCIONES_ADMINISTRACION = ["usuarios","parametros","plantillas","configuracion"];
       const MOTIVOS_SIN_PERMISO = {
         puede_crear:"Su rol no permite crear cotizaciones.",
         puede_editar_borrador:"Su rol no permite editar cotizaciones (solo lectura).",
@@ -373,9 +369,10 @@ window.CotizaApp = (function(){
 
       function aplicarPermisosInterfaz_(){
         document.querySelectorAll(".nav button").forEach(function(btn){
-          if(SECCIONES_PARAMETRIZAR.indexOf(btn.dataset.section) >= 0){
-            btn.classList.toggle("hidden", !tienePermiso("puede_parametrizar"));
-          }
+          const seccion = btn.dataset.section;
+          const ocultaDashboard = seccion === "dashboard" && !tienePermiso("puede_ver_dashboard");
+          const ocultaAdministracion = SECCIONES_ADMINISTRACION.indexOf(seccion) >= 0 && !tienePermiso("puede_ver_administracion");
+          btn.classList.toggle("hidden", ocultaDashboard || ocultaAdministracion);
         });
         aplicarPermisoBoton_(byId("btnNuevaCotizacion"), "puede_crear");
         aplicarPermisoBoton_(byId("btnGuardarRuntimeCotizador"), "puede_editar_borrador");
@@ -709,7 +706,7 @@ window.CotizaApp = (function(){
       }
 
       async function cargarDashboard(){
-        if(!state.usuario) return;
+        if(!state.usuario || !tienePermiso("puede_ver_dashboard")) return;
 
         setLoading("section-dashboard", true);
         const params = new URLSearchParams({
@@ -1552,7 +1549,7 @@ window.CotizaApp = (function(){
         const versionAceptada=String(c.version_aceptada||"");
         const estadoCotizacion=c.estado_cotizacion||c.estado||"";const estadoFinal=["Ganada","Perdida","Vencida","Cancelada"].indexOf(estadoCotizacion)>=0;
         let acciones='<div class="gestor-state-editor"><label>Acciones disponibles</label>';
-        if(c.estado==="Borrador"&&c.puede_editar!==false)acciones+='<button class="btn btn-primary" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'LIBERAR_COTIZACION\')">Liberar cotización</button>';
+        if(c.estado==="Borrador"&&c.puede_editar!==false&&tienePermiso("puede_editar_borrador"))acciones+='<button class="btn btn-primary" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'LIBERAR_COTIZACION\')">Liberar cotización</button>';
         if(c.estado==="Liberada"){acciones+='<button class="btn btn-light" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'DEVOLVER_CONSTRUCCION\')">Devolver a construcción</button><button class="btn btn-secondary" type="button" onclick="CotizaApp.generarLinkGestor()">Generar enlace</button>';if(linkActivo)acciones+='<button class="btn btn-primary" type="button" onclick="CotizaApp.ejecutarAccionCotizacion(\'MARCAR_ENVIADA\')">Marcar como enviada</button>';}
         if(c.estado==="Aceptada"&&String(c.version||"")===versionAceptada)acciones+='<button class="btn btn-primary" type="button"'+atributosPermiso_("puede_aprobar")+' onclick="CotizaApp.ejecutarAccionCotizacion(\'MARCAR_GANADA\')">Marcar como ganada</button>'+notaPermiso_("puede_aprobar");
         if(["Enviada al Cliente","Vista por el Cliente"].indexOf(c.estado)>=0)acciones+='<button class="btn btn-light" type="button"'+atributosPermiso_("puede_aprobar")+' onclick="CotizaApp.ejecutarAccionCotizacion(\'REGISTRAR_ACEPTACION\')">Registrar aceptación manual</button>'+notaPermiso_("puede_aprobar");
@@ -1568,9 +1565,12 @@ window.CotizaApp = (function(){
         html+='<section class="card gestor-client-link"><div><h2>Acceso del cliente</h2><p>'+(linkActivo?'Existe un enlace '+escapeHtml(linkActivo.estado||"")+' para esta versión.':'Todavía no se ha generado un enlace para esta versión.')+'</p></div>'+(linkActivo?'<div class="gestor-detail-actions"><button class="btn btn-secondary" type="button" onclick="CotizaApp.copiarEnlaceGestor(\''+escapeHtml(encodeURIComponent(linkActivo.url_publica||""))+'\')">Copiar enlace</button><a class="btn btn-light" target="_blank" href="'+escapeHtml(linkActivo.url_publica||"#")+'">Abrir propuesta</a></div>':'')+'</section>';
         const box=byId("gestorDetalleContenido");if(box)box.innerHTML=html;
         const edit=byId("btnEditarCotizacionGestor");if(edit)edit.disabled=c.puede_editar===false;
+        aplicarPermisoBoton_(edit,"puede_editar_borrador");
         const nueva=byId("btnNuevaVersionGestor");if(nueva)nueva.disabled=["Enviada al Cliente","Vista por el Cliente","Aceptada"].indexOf(c.estado)<0;
         aplicarPermisoBoton_(nueva,"puede_crear_version");
         const link=byId("btnGenerarLinkGestor");if(link)link.disabled=versiones.length<1;
+        aplicarPermisoBoton_(link,"puede_editar_borrador");
+        aplicarPermisoBoton_(byId("btnCambiarEstadoGestor"),"puede_editar_borrador");
 
         // Control genérico de cambio de estado — los estados válidos
         // son exactamente los del CHECK de la tabla (mismo arreglo
@@ -1586,6 +1586,7 @@ window.CotizaApp = (function(){
           }).join("");
           selectorEstado.value=c.estado||"";
           selectorEstado.title=puedeAprobar?"":MOTIVOS_SIN_PERMISO.puede_aprobar;
+          selectorEstado.disabled=!tienePermiso("puede_editar_borrador");
         }
         const selectorVersionAceptada=byId("gestorVersionAceptada");
         if(selectorVersionAceptada){
@@ -1874,6 +1875,11 @@ window.CotizaApp = (function(){
             renderRuntimeCotizador();
           });
         });
+        if(!tienePermiso("puede_editar_borrador")){
+          contenido.querySelectorAll(".runtime-input,.runtime-lp-unica-select,.runtime-lp-unica-cantidad,.runtime-lp-multi-item,.runtime-lp-multi-cantidad,.runtime-tabla-celda,.runtime-lp-multi-agregar,.runtime-lp-multi-quitar,.runtime-tabla-agregar,.runtime-tabla-quitar,[data-runtime-opcion-accion]").forEach(function(el){
+            el.disabled=true;
+          });
+        }
       }
 
       // renderMensajesReglaRuntime_ muestra los mensajes de las reglas de
@@ -1935,12 +1941,13 @@ window.CotizaApp = (function(){
           return '<button type="button" class="btn btn-ghost btn-mini' + (clase || '') + '" data-runtime-opcion-accion="' + accion + '" data-padre-id="' + padreID + '"' +
             (accion === "AGREGAR" ? '' : ' data-opcion-id="' + escapeHtml(activa) + '"') + '>' + texto + '</button>';
         }
-        const acciones =
+        const acciones = tienePermiso("puede_editar_borrador") ? (
           (cfg.permitir_duplicar !== false ? boton("AGREGAR", "+ Agregar opción") : '') +
           (actual && cfg.permitir_recomendado !== false ? boton("RECOMENDAR", actual.es_recomendada ? "Quitar recomendación" : "★ Recomendar") : '') +
           (actual && cfg.permitir_renombrar !== false ? boton("RENOMBRAR", "Renombrar") : '') +
           (actual && cfg.permitir_duplicar !== false ? boton("DUPLICAR", "Duplicar") : '') +
-          (actual && cfg.permitir_eliminar !== false ? boton("ELIMINAR", "Eliminar", " runtime-opcion-eliminar") : '');
+          (actual && cfg.permitir_eliminar !== false ? boton("ELIMINAR", "Eliminar", " runtime-opcion-eliminar") : '')
+        ) : '<span class="permiso-nota">Modo de solo lectura.</span>';
         return '<section class="runtime-opciones runtime-opciones-cotizacion">' +
           '<div class="runtime-opciones-head"><div><strong>' + escapeHtml(padre.etiqueta || "Opciones de propuesta") + '</strong>' +
           '<span>Editando: ' + escapeHtml(actual ? actual.nombre : "—") + (actual && actual.es_recomendada ? ' · Recomendada' : '') + '. Los cambios en cualquier sección afectan solo a esta opción.</span></div>' +
@@ -2489,6 +2496,7 @@ window.CotizaApp = (function(){
 
       async function generarLinkDesdeDetalleV2(){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
+        if(!tienePermiso("puede_editar_borrador")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_editar_borrador);return;}
         const boton=byId("btnGenerarLinkGestor");if(boton)boton.disabled=true;
         try{
           const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/enlace",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:Number(c.version||1)})});
@@ -2586,7 +2594,7 @@ window.CotizaApp = (function(){
       // MIGRADA en el Sprint 4 — antes usaba
       // google.script.run.webActualizarEstadoCotizacion(payload).
       async function actualizarEstadoGestorV2(){
-        const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;const estado=byId("gestorEstadoNuevo")?byId("gestorEstadoNuevo").value:"";const versionAceptada=byId("gestorVersionAceptada")?byId("gestorVersionAceptada").value:(c&&c.version_aceptada)||"";if(!c||!estado)return;if(ESTADOS_QUE_EXIGEN_APROBAR.indexOf(estado)>=0&&estado!==c.estado&&!tienePermiso("puede_aprobar")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_aprobar);return;}if(estado==="Ganada"&&!versionAceptada){mostrarToast("Seleccione la versión que aceptó el cliente.");return;}
+        const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;const estado=byId("gestorEstadoNuevo")?byId("gestorEstadoNuevo").value:"";const versionAceptada=byId("gestorVersionAceptada")?byId("gestorVersionAceptada").value:(c&&c.version_aceptada)||"";if(!c||!estado)return;if(!tienePermiso("puede_editar_borrador")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_editar_borrador);return;}if(ESTADOS_QUE_EXIGEN_APROBAR.indexOf(estado)>=0&&estado!==c.estado&&!tienePermiso("puede_aprobar")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_aprobar);return;}if(estado==="Ganada"&&!versionAceptada){mostrarToast("Seleccione la versión que aceptó el cliente.");return;}
         try{
           const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/estado",{
             method:"POST",
@@ -2616,7 +2624,8 @@ window.CotizaApp = (function(){
       }
 
       function cambiarSeccion(section,omitirCarga){
-        if(SECCIONES_PARAMETRIZAR.indexOf(section)>=0&&!tienePermiso("puede_parametrizar")) section="dashboard";
+        if(section === "dashboard" && !tienePermiso("puede_ver_dashboard")) section="cotizaciones";
+        if(SECCIONES_ADMINISTRACION.indexOf(section)>=0&&!tienePermiso("puede_ver_administracion")) section="cotizaciones";
         document.querySelectorAll(".nav button").forEach(function(btn){
           btn.classList.toggle("active", btn.dataset.section === section);
         });
@@ -2632,7 +2641,7 @@ window.CotizaApp = (function(){
         if(section === "cotizaciones" && !omitirCarga) mostrarListadoCotizacionesV2();
         if(section === "solicitudes" && window.CotizaSolicitudes) window.CotizaSolicitudes.mostrarListado();
         if(section === "clientes" && window.CotizaClientes) window.CotizaClientes.mostrarListado();
-        if(section === "dashboard") cargarDashboard();
+        if(section === "dashboard" && !omitirCarga) cargarDashboard();
         if(section === "reportes") cargarReportesCotizaciones();
         if(section === "parametros"){
           inicializarParametrosV9();

@@ -38,6 +38,7 @@
     return fn ? fn(String(valor == null ? "" : valor)) : String(valor == null ? "" : valor);
   }
   function toast(mensaje){ if(core().mostrarToast) core().mostrarToast(mensaje); }
+  function tienePermiso(nombre){ return !!(window.CotizaApp && window.CotizaApp.tienePermiso && window.CotizaApp.tienePermiso(nombre)); }
 
   async function solicitar(url, opciones){
     const fetchSeguro = core().fetchAutenticado;
@@ -83,7 +84,7 @@
         + '<td>'+escapar(c.origen || "—")+'</td>'
         + '<td>'+escapar(c.total_cotizaciones)+'</td>'
         + '<td>'+escapar(fecha(c.fecha_creacion))+'</td>'
-        + '<td><button class="mini" type="button" data-editar="'+escapar(c.cliente_id)+'">Editar</button></td>'
+        + '<td>'+(tienePermiso("puede_editar_borrador") ? '<button class="mini" type="button" data-editar="'+escapar(c.cliente_id)+'">Editar</button>' : '<span class="permiso-nota">Solo lectura</span>')+'</td>'
         + '</tr>';
     }).join("");
     tbody.querySelectorAll("[data-editar]").forEach(function(btn){
@@ -148,7 +149,11 @@
   }
 
   function enlazar(){
-    if(porId("btnNuevoCliente")) porId("btnNuevoCliente").addEventListener("click", function(){ abrirModalCliente(null); });
+    if(porId("btnNuevoCliente")){
+      porId("btnNuevoCliente").disabled=!tienePermiso("puede_crear");
+      porId("btnNuevoCliente").title=tienePermiso("puede_crear")?"":"Su rol no permite crear clientes.";
+      porId("btnNuevoCliente").addEventListener("click", function(){ if(tienePermiso("puede_crear")) abrirModalCliente(null); });
+    }
     if(porId("btnCerrarModalCliente")) porId("btnCerrarModalCliente").addEventListener("click", cerrarModalCliente);
     if(porId("btnCancelarCliente")) porId("btnCancelarCliente").addEventListener("click", cerrarModalCliente);
     if(porId("btnGuardarCliente")) porId("btnGuardarCliente").addEventListener("click", guardarCliente);

@@ -1,7 +1,7 @@
 package handlers
 
 // Pruebas de permisos por rol (permisos.go). Contra Postgres real y con
-// los 5 roles tal como los siembran 0001 + 0033: cada prueba crea
+// los 5 roles tal como los siembran 0001 + 0033 + 0034: cada prueba crea
 // usuarios descartables de cada rol, no inventa roles propios. Para
 // cada bandera: quien la tiene en true puede, quien la tiene en false
 // recibe 403 con mensaje claro y "permiso" = la columna que le falta.
@@ -33,15 +33,15 @@ const (
 
 var rolesSembrados = []string{rolAdmin, rolGerente, rolVendedor, rolConsultor, rolSolo}
 
-// matrizEsperada es la tabla de 0001_init_schema.sql + 0033. Si el seed
+// matrizEsperada es la tabla de 0001_init_schema.sql + 0033 + 0034. Si el seed
 // cambia, TestPermisos_MatrizDeRolesSembrada falla primero y dice qué
 // cambió, en vez de que fallen veinte pruebas sin explicación.
 var matrizEsperada = map[string]permisosSesion{
-	rolAdmin:     {PuedeCrear: true, PuedeEditarBorrador: true, PuedeCrearVersion: true, PuedeVerPrice: true, PuedeAprobar: true, PuedeParametrizar: true},
-	rolGerente:   {PuedeCrear: true, PuedeEditarBorrador: true, PuedeCrearVersion: true, PuedeVerPrice: true, PuedeAprobar: true},
+	rolAdmin:     {PuedeCrear: true, PuedeEditarBorrador: true, PuedeCrearVersion: true, PuedeVerPrice: true, PuedeAprobar: true, PuedeParametrizar: true, PuedeVerDashboard: true, PuedeVerAdministracion: true},
+	rolGerente:   {PuedeCrear: true, PuedeEditarBorrador: true, PuedeCrearVersion: true, PuedeVerPrice: true, PuedeAprobar: true, PuedeVerDashboard: true},
 	rolVendedor:  {PuedeCrear: true, PuedeEditarBorrador: true, PuedeCrearVersion: true, AlcancePropio: true},
 	rolConsultor: {PuedeCrear: true, PuedeEditarBorrador: true, AlcancePropio: true},
-	rolSolo:      {},
+	rolSolo:      {PuedeVerPrice: true, PuedeVerDashboard: true},
 }
 
 func crearActorRol(t *testing.T, pool *pgxpool.Pool, rol string) string {
@@ -291,15 +291,24 @@ func TestPermisos_CambiarEstadoSegunRol(t *testing.T) {
 	for _, rol := range rolesSembrados {
 		t.Run(rol, func(t *testing.T) {
 			actor := crearActorRol(t, pool, rol)
-			// Las transiciones normales no piden puede_aprobar, ni siquiera a
-			// Solo Consulta (significado confirmado de la bandera).
+			// Las transiciones normales no piden puede_aprobar, pero toda
+			// modificación exige puede_editar_borrador.
 			for _, estado := range []string{"Enviada al Cliente", "Vista por el Cliente", "Perdida", "Cancelada", "Vencida"} {
 				cotizacionID := cotizacionAsignada(t, pool, actor, funcionPropiaDe(rol), "Borrador")
-				afirmarNo403(t, cambiar(t, actor, cotizacionID, estado), http.StatusOK, rol+" → "+estado)
+				rec := cambiar(t, actor, cotizacionID, estado)
+				if !matrizEsperada[rol].PuedeEditarBorrador {
+					afirmar403(t, rec, "puede_editar_borrador", rol+" → "+estado)
+					continue
+				}
+				afirmarNo403(t, rec, http.StatusOK, rol+" → "+estado)
 			}
 			for _, estado := range []string{"Aceptada", "Ganada"} {
 				cotizacionID := cotizacionAsignada(t, pool, actor, funcionPropiaDe(rol), "Enviada al Cliente")
 				rec := cambiar(t, actor, cotizacionID, estado)
+				if !matrizEsperada[rol].PuedeEditarBorrador {
+					afirmar403(t, rec, "puede_editar_borrador", rol+" → "+estado)
+					continue
+				}
 				if !matrizEsperada[rol].PuedeAprobar {
 					afirmar403(t, rec, "puede_aprobar", rol+" → "+estado)
 					var actual string
@@ -310,6 +319,37 @@ func TestPermisos_CambiarEstadoSegunRol(t *testing.T) {
 					continue
 				}
 				afirmarNo403(t, rec, http.StatusOK, rol+" → "+estado)
+			}
+		})
+	}
+}
+
+func TestPermisos_VisibilidadDeModulosSegunRol(t *testing.T) {
+	pool := setupTestDB(t)
+	for _, rol := range rolesSembrados {
+		t.Run(rol, func(t *testing.T) {
+			actor := crearActorRol(t, pool, rol)
+			probar := func(middleware func(http.Handler) http.Handler) *httptest.ResponseRecorder {
+				rec := httptest.NewRecorder()
+				req := conActor(httptest.NewRequest(http.MethodGet, "/", nil), actor)
+				middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					escribirJSON(w, http.StatusOK, map[string]any{"ok": true})
+				})).ServeHTTP(rec, req)
+				return rec
+			}
+
+			dashboard := probar(RequierePuedeVerDashboard(pool))
+			if matrizEsperada[rol].PuedeVerDashboard {
+				afirmarNo403(t, dashboard, http.StatusOK, rol+" abre Dashboard")
+			} else {
+				afirmar403(t, dashboard, "puede_ver_dashboard", rol+" abre Dashboard")
+			}
+
+			admin := probar(RequierePuedeVerAdministracion(pool))
+			if matrizEsperada[rol].PuedeVerAdministracion {
+				afirmarNo403(t, admin, http.StatusOK, rol+" abre administración")
+			} else {
+				afirmar403(t, admin, "puede_ver_administracion", rol+" abre administración")
 			}
 		})
 	}
@@ -499,7 +539,7 @@ func TestPermisos_SoloConsultaVeTodoPeroNoModificaNada(t *testing.T) {
 	for _, estado := range []string{"Aceptada", "Ganada"} {
 		afirmar403(t, peticionRol(t, http.MethodPost, "/api/cotizaciones/{id}/estado", base+"/estado",
 			map[string]any{"version": 1, "estado": estado, "version_aceptada": 1}, solo, http.HandlerFunc(cot.CambiarEstado)),
-			"puede_aprobar", "Solo Consulta → "+estado)
+			"puede_editar_borrador", "Solo Consulta → "+estado)
 	}
 }
 
@@ -649,9 +689,10 @@ func TestPermisos_EscriturasDelDisenadorExigenParametrizar(t *testing.T) {
 	}
 }
 
-// Los GET del Diseñador quedan fuera de la guarda en main.go y los
-// handlers no piden la bandera: cualquier rol puede seguir leyendo.
-func TestPermisos_LecturasDelDisenadorSiguenAbiertas(t *testing.T) {
+// Las lecturas del Diseñador y Plantillas también son administrativas:
+// main.go las envuelve con esta guarda aunque sus handlers sigan siendo
+// reutilizables de forma aislada en las pruebas de dominio.
+func TestPermisos_LecturasDelDisenadorExigenAdministracion(t *testing.T) {
 	pool := setupTestDB(t)
 	cat := &CatalogosHandler{DB: pool}
 	reg := &ReglasHandler{DB: pool}
@@ -665,11 +706,16 @@ func TestPermisos_LecturasDelDisenadorSiguenAbiertas(t *testing.T) {
 		{"plantillas", "/api/plantillas", pl.Listar},
 		{"opciones de plantillas", "/api/plantillas/opciones", pl.Opciones},
 	}
-	for _, rol := range []string{rolGerente, rolVendedor, rolConsultor, rolSolo} {
+	for _, rol := range rolesSembrados {
 		actor := crearActorRol(t, pool, rol)
 		for _, l := range lecturas {
-			rec := peticionRol(t, http.MethodGet, l.ruta, l.ruta, nil, actor, l.handler)
-			afirmarNo403(t, rec, http.StatusOK, rol+" lee "+l.nombre)
+			protegido := RequierePuedeVerAdministracion(pool)(l.handler)
+			rec := peticionRol(t, http.MethodGet, l.ruta, l.ruta, nil, actor, protegido)
+			if matrizEsperada[rol].PuedeVerAdministracion {
+				afirmarNo403(t, rec, http.StatusOK, rol+" lee "+l.nombre)
+			} else {
+				afirmar403(t, rec, "puede_ver_administracion", rol+" lee "+l.nombre)
+			}
 		}
 	}
 }

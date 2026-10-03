@@ -71,6 +71,10 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
+	if !permisos.PuedeEditarBorrador {
+		responderSinPermiso(w, permisos, permisoEditarBorrador)
+		return
+	}
 
 	if version <= 0 {
 		resuelta, err := resolverVersionCotizacion(ctx, h.DB, cotizacionID)

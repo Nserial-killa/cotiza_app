@@ -488,8 +488,8 @@ func TestErroresRecursoInexistente_Da404(t *testing.T) {
 		// cualquier otro estado se rechaza con 400 antes de tocar la tabla
 		// (revocar es la única edición permitida).
 		{"PATCH /api/integraciones/{id}", http.MethodPatch, "/api/integraciones/{id}", "/api/integraciones/" + errIDInexistente, `{"estado":"Inactivo"}`, admin, integraciones.Editar},
-		{"GET /api/solicitudes/{id}", http.MethodGet, "/api/solicitudes/{id}", "/api/solicitudes/" + errIDInexistente, "", "", solicitudes.Detalle},
-		{"PATCH /api/solicitudes/{id}", http.MethodPatch, "/api/solicitudes/{id}", "/api/solicitudes/" + errIDInexistente, `{"estado":"En revisión"}`, "", solicitudes.CambiarEstado},
+		{"GET /api/solicitudes/{id}", http.MethodGet, "/api/solicitudes/{id}", "/api/solicitudes/" + errIDInexistente, "", admin, solicitudes.Detalle},
+		{"PATCH /api/solicitudes/{id}", http.MethodPatch, "/api/solicitudes/{id}", "/api/solicitudes/" + errIDInexistente, `{"estado":"En revisión"}`, admin, solicitudes.CambiarEstado},
 		{"POST /api/solicitudes/{id}/convertir", http.MethodPost, "/api/solicitudes/{id}/convertir", "/api/solicitudes/" + errIDInexistente + "/convertir", "", admin, solicitudes.Convertir},
 		{"GET /api/cotizador/runtime/{cotizacion_id}", http.MethodGet, "/api/cotizador/runtime/{cotizacion_id}", "/api/cotizador/runtime/" + errIDInexistente, "", admin, runtime.Obtener},
 		{"POST /api/cotizaciones/{id}/enlace", http.MethodPost, "/api/cotizaciones/{id}/enlace", "/api/cotizaciones/" + errIDInexistente + "/enlace", "", admin, enlaces.GenerarEnlace},

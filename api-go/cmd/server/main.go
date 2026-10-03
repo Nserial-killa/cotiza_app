@@ -104,15 +104,16 @@ func main() {
 			// --- Carril A (Configuración): catálogos, diseñador, reglas,
 			//     compilador, plantillas.
 			//
-			// Lectura: cualquier sesión (el Gestor y el motor de ejecución
-			// también leen catálogos, tabs y plantillas).
-			r.Get("/catalogos/designer", catalogos.ListarDesigner)
-			r.Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
-			r.Get("/cotizador/salidas", salidasCotizador.Listar)
-			r.Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
-			r.Get("/cotizador/secciones-reutilizables", seccionesAdicionales.ListarReutilizables)
-			r.Get("/reglas", reglas.Listar)
-			r.Get("/cotizador/reglas", reglasCotizador.Listar)
+			// Las lecturas del Diseñador son administrativas. El motor de
+			// ejecución usa el compilado fijado a la cotización y no necesita
+			// exponer estas rutas a roles operativos.
+			r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/catalogos/designer", catalogos.ListarDesigner)
+			r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/cotizador/tabs", cotizadorTabs.ListarTabs)
+			r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/cotizador/salidas", salidasCotizador.Listar)
+			r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/cotizador/elementos", cotizadorTabs.ListarElementos)
+			r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/cotizador/secciones-reutilizables", seccionesAdicionales.ListarReutilizables)
+			r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/reglas", reglas.Listar)
+			r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/cotizador/reglas", reglasCotizador.Listar)
 
 			// Escritura del Diseñador: exige roles.puede_parametrizar
 			// además de la sesión. Toda ruta POST/PATCH/DELETE de estos
@@ -155,11 +156,11 @@ func main() {
 			// ("/plantillas") dentro del grupo de abajo, chi le daría el
 			// prefijo entero al subrouter y los GET responderían 405.
 			r.Route("/plantillas", func(r chi.Router) {
-				r.Get("/", plantillas.Listar)
-				r.Get("/opciones", plantillas.Opciones)
-				r.Get("/{id}", plantillas.Detalle)
-				r.Get("/{id}/validacion", plantillas.Validacion)
-				r.Get("/{id}/fuentes", plantillaVinculaciones.Fuentes)
+				r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/", plantillas.Listar)
+				r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/opciones", plantillas.Opciones)
+				r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/{id}", plantillas.Detalle)
+				r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/{id}/validacion", plantillas.Validacion)
+				r.With(handlers.RequierePuedeVerAdministracion(pool)).Get("/{id}/fuentes", plantillaVinculaciones.Fuentes)
 				r.Group(func(r chi.Router) {
 					r.Use(handlers.RequierePuedeParametrizar(pool))
 					r.Post("/", plantillas.Crear)
@@ -199,12 +200,15 @@ func main() {
 			r.Post("/cotizador/runtime/{cotizacion_id}/opciones", runtimeCotizador.AdministrarOpciones)
 
 			// --- Carril B (Operación): cotizaciones, dashboard, reportes.
-			r.Get("/dashboard", dashboard.Obtener)
-			r.Get("/dashboard/resumen", dashboard.Resumen)
-			r.Get("/dashboard/tendencia", dashboard.Tendencia)
-			r.Get("/dashboard/estados", dashboard.Estados)
-			r.Get("/dashboard/segmentacion-clientes", dashboard.SegmentacionClientes)
-			r.Get("/dashboard/cotizadores", dashboard.Cotizadores)
+			r.With(handlers.RequierePuedeVerDashboard(pool)).Get("/dashboard", dashboard.Obtener)
+			r.Route("/dashboard", func(r chi.Router) {
+				r.Use(handlers.RequierePuedeVerDashboard(pool))
+				r.Get("/resumen", dashboard.Resumen)
+				r.Get("/tendencia", dashboard.Tendencia)
+				r.Get("/estados", dashboard.Estados)
+				r.Get("/segmentacion-clientes", dashboard.SegmentacionClientes)
+				r.Get("/cotizadores", dashboard.Cotizadores)
+			})
 			r.Get("/reportes/cotizaciones", reportes.Listar)
 			r.Get("/reportes/cotizaciones/exportar", reportes.Exportar)
 			r.Get("/roles", usuarios.ListarRoles)
