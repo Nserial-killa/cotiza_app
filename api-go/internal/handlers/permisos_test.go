@@ -388,6 +388,7 @@ func afirmarSinAccesoDirecto(t *testing.T, pool *pgxpool.Pool, actor, cotizacion
 	rt := &CotizadorRuntimeHandler{DB: pool}
 	enl := &EnlacesPublicosHandler{DB: pool}
 	vp := &VistaPreviaOfertaHandler{DB: pool}
+	pdf := &OfertaPDFHandler{DB: pool} // sin Gotenberg: el alcance se corta antes de llegar a convertir
 	base := "/api/cotizaciones/" + cotizacionID
 	casos := []struct {
 		nombre, metodo, patron, ruta string
@@ -398,6 +399,7 @@ func afirmarSinAccesoDirecto(t *testing.T, pool *pgxpool.Pool, actor, cotizacion
 		{"estado", http.MethodPost, "/api/cotizaciones/{id}/estado", base + "/estado", map[string]any{"version": 1, "estado": "Enviada al Cliente"}, cot.CambiarEstado},
 		{"enlace", http.MethodPost, "/api/cotizaciones/{id}/enlace", base + "/enlace", nil, enl.GenerarEnlace},
 		{"vista previa", http.MethodGet, "/api/cotizaciones/{id}/vista-previa-oferta", base + "/vista-previa-oferta", nil, vp.Ver},
+		{"pdf de la oferta", http.MethodGet, "/api/cotizaciones/{id}/enlace/pdf", base + "/enlace/pdf", nil, pdf.Descargar},
 		{"runtime", http.MethodGet, "/api/cotizador/runtime/{cotizacion_id}", "/api/cotizador/runtime/" + cotizacionID, nil, rt.Obtener},
 		{"guardar valores", http.MethodPost, "/api/cotizador/runtime/{cotizacion_id}/valores", "/api/cotizador/runtime/" + cotizacionID + "/valores", map[string]any{"version": 1, "valores": map[string]any{}}, rt.GuardarValores},
 	}

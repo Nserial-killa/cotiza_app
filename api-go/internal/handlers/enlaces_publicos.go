@@ -31,6 +31,7 @@ type EnlacesPublicosHandler struct {
 	DB          *pgxpool.Pool
 	Correo      RemitenteOferta
 	BasePublica string
+	PasesRender *PasesRender // pases de render del PDF (pases_render.go); nil = no se aceptan
 }
 
 // mensajeEnlaceNoDisponible es intencionalmente el mismo para un
@@ -258,19 +259,34 @@ func (h *EnlacesPublicosHandler) VerCotizacion(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Sello de visita: mejor-esfuerzo, igual que fecha_ultimo_uso en
-	// middleware/auth.go — si falla, el enlace sigue siendo válido para
-	// esta petición.
-	if _, err := h.DB.Exec(ctx, `
-		UPDATE cotizacion_enlaces_publicos SET ultima_visita = now(), visitas = visitas + 1
-		 WHERE token = $1`, token); err != nil {
-		log.Printf("enlaces_publicos: no se pudo sellar la visita de %s: %v", token, err)
+	// Render interno del PDF (oferta_pdf.go): Gotenberg abre la página con
+	// ?render=<pase>. Un pase válido (de un solo uso, atado a ESTE token y
+	// sin vencer) sirve el documento sin sellar visita ni cambiar estado.
+	esRenderPDF := false                                                    // por defecto es una visita real del cliente
+	if pase := strings.TrimSpace(r.URL.Query().Get("render")); pase != "" { // vino un pase
+		if !h.PasesRender.Consumir(pase, token) { // inválido, usado, vencido o de otro enlace
+			// Falla cerrado: mismo 404 genérico, nunca se trata como visita.
+			escribirJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": mensajeEnlaceNoDisponible})
+			return
+		}
+		esRenderPDF = true // pase válido: lectura sin efectos secundarios
 	}
 
-	if err := h.marcarVistaPorElCliente(ctx, cotizacionID, version); err != nil {
-		log.Printf("enlaces_publicos: error registrando 'Vista por el Cliente' de %s v%d: %v", cotizacionID, version, err)
-		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el enlace."})
-		return
+	if !esRenderPDF { // solo la visita real del cliente deja rastro
+		// Sello de visita: mejor-esfuerzo, igual que fecha_ultimo_uso en
+		// middleware/auth.go — si falla, el enlace sigue siendo válido para
+		// esta petición.
+		if _, err := h.DB.Exec(ctx, `
+			UPDATE cotizacion_enlaces_publicos SET ultima_visita = now(), visitas = visitas + 1
+			 WHERE token = $1`, token); err != nil {
+			log.Printf("enlaces_publicos: no se pudo sellar la visita de %s: %v", token, err)
+		}
+
+		if err := h.marcarVistaPorElCliente(ctx, cotizacionID, version); err != nil {
+			log.Printf("enlaces_publicos: error registrando 'Vista por el Cliente' de %s v%d: %v", cotizacionID, version, err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el enlace."})
+			return
+		}
 	}
 
 	// construirDocumentoOferta es la MISMA cadena (cabecera + tabs/valores +

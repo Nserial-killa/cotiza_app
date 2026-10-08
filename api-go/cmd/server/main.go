@@ -73,7 +73,16 @@ func main() {
 			Clave: cfg.SMTPPassword, Desde: cfg.SMTPFrom,
 		}
 	}
-	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool, Correo: correoOfertas, BasePublica: cfg.PublicBaseURL}
+	// Pases de render del PDF: un solo registro compartido entre quien los
+	// emite (ofertaPDF) y quien los consume (enlacesPublicos.VerCotizacion).
+	pasesRender := handlers.NuevosPasesRender()
+	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool, Correo: correoOfertas, BasePublica: cfg.PublicBaseURL, PasesRender: pasesRender}
+	// Gotenberg solo se arma si hay URL; sin ella el endpoint responde 503 claro.
+	var convertidorPDF handlers.ConvertidorPDF
+	if cfg.GotenbergURL != "" {
+		convertidorPDF = handlers.GotenbergPDF{BaseURL: cfg.GotenbergURL}
+	}
+	ofertaPDF := &handlers.OfertaPDFHandler{DB: pool, Convertidor: convertidorPDF, BaseInterna: cfg.PDFInternalBaseURL, Pases: pasesRender}
 	vistaPreviaOferta := &handlers.VistaPreviaOfertaHandler{DB: pool}
 	plantillas := &handlers.PlantillasHandler{DB: pool}
 	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
@@ -243,6 +252,7 @@ func main() {
 				r.Post("/{id}/cambiar-cotizador", cotizaciones.CambiarCotizador)
 				r.Post("/{id}/estado", cotizaciones.CambiarEstado)
 				r.Post("/{id}/enlace", enlacesPublicos.GenerarEnlace)
+				r.Get("/{id}/enlace/pdf", ofertaPDF.Descargar) // PDF vía Gotenberg; permisos de ver la cotización
 				r.Get("/{id}/vista-previa-oferta", vistaPreviaOferta.Ver)
 			})
 			r.Route("/integraciones", func(r chi.Router) {

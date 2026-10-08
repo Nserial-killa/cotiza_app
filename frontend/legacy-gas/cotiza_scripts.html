@@ -1566,7 +1566,7 @@ window.CotizaApp = (function(){
         html+='<div class="gestor-detail-grid"><section class="card"><div class="card-head"><h2>Versiones</h2><span>'+versiones.length+' registrada(s)</span></div><div class="gestor-timeline gestor-versions">'+(versiones.length?versiones.map(function(v){const actual=String(v.numero_version||'')===String(c.version_actual||'');const aceptada=String(v.numero_version||'')===versionAceptada;return '<div class="gestor-version-row"><b>'+escapeHtml(etiquetaVersion(v))+'</b><span>'+escapeHtml(v.estado||"")+' · '+escapeHtml(v.fecha_actualizacion||v.fecha_creacion||"")+(actual?' · ACTUAL':'')+(aceptada?' · ACEPTADA':'')+(v.resumen_cambios?'<small>'+escapeHtml(v.resumen_cambios)+'</small>':'')+'</span><strong>'+formatoMoneda(v.total_precio||0,v.moneda||c.moneda||"USD")+'</strong><button class="btn btn-light" type="button" onclick="CotizaApp.verVersionGestor(\''+escapeHtml(v.numero_version||'')+'\')">Ver</button></div>';}).join(''):'<p>Sin versiones.</p>')+'</div></section>';
         html+='<section class="card"><div class="card-head"><h2>Actividad</h2><span>'+historial.length+' evento(s)</span></div><div class="gestor-timeline">'+(historial.length?historial.slice(0,12).map(function(h){return '<div><b>'+escapeHtml(String(h.accion||"").replace(/_/g," "))+'</b><span>'+escapeHtml(h.nombre_usuario||"Cliente")+' · '+escapeHtml(h.fecha||"")+(h.comentario?'<small>'+escapeHtml(h.comentario)+'</small>':'')+'</span><strong>'+escapeHtml(h.estado_nuevo||"")+'</strong></div>';}).join(''):'<p>Sin actividad.</p>')+'</div></section></div>';
         const urlPublica=linkActivo?linkActivo.url_publica||"":"";
-        html+='<section class="card gestor-client-link"><div><h2>Acceso del cliente</h2><p>'+(linkActivo?'Enlace '+escapeHtml(linkActivo.estado||"")+' para esta versión · '+escapeHtml(linkActivo.correo_destinatario||"Sin correo autorizado")+' · '+escapeHtml(linkActivo.visitas||0)+' visita(s).':'Todavía no se ha generado un enlace para esta versión.')+'</p>'+(linkActivo&&linkActivo.nombre_firmante?'<p><strong>Firma electrónica:</strong> '+escapeHtml(linkActivo.nombre_firmante)+' · Constancia '+escapeHtml(linkActivo.codigo_constancia||"")+'</p>':'')+'</div>'+(linkActivo?'<div class="gestor-detail-actions"><button class="btn btn-secondary" type="button" onclick="CotizaApp.copiarEnlaceGestor(\''+escapeHtml(encodeURIComponent(urlPublica))+'\')">Copiar enlace</button><a class="btn btn-light" target="_blank" rel="noopener" href="'+escapeHtml(urlPublica)+'">Abrir propuesta</a><a class="btn btn-light" target="_blank" rel="noopener" href="'+escapeHtml(urlPublica+(urlPublica.indexOf("?")>=0?"&":"?")+"imprimir=1")+'">Imprimir / Guardar PDF</a></div>':'')+'</section>';
+        html+='<section class="card gestor-client-link"><div><h2>Acceso del cliente</h2><p>'+(linkActivo?'Enlace '+escapeHtml(linkActivo.estado||"")+' para esta versión · '+escapeHtml(linkActivo.correo_destinatario||"Sin correo autorizado")+' · '+escapeHtml(linkActivo.visitas||0)+' visita(s).':'Todavía no se ha generado un enlace para esta versión.')+'</p>'+(linkActivo&&linkActivo.nombre_firmante?'<p><strong>Firma electrónica:</strong> '+escapeHtml(linkActivo.nombre_firmante)+' · Constancia '+escapeHtml(linkActivo.codigo_constancia||"")+'</p>':'')+'</div>'+(linkActivo?'<div class="gestor-detail-actions"><button class="btn btn-secondary" type="button" onclick="CotizaApp.copiarEnlaceGestor(\''+escapeHtml(encodeURIComponent(urlPublica))+'\')">Copiar enlace</button><a class="btn btn-light" target="_blank" rel="noopener" href="'+escapeHtml(urlPublica)+'">Abrir propuesta</a><button class="btn btn-light" type="button" onclick="CotizaApp.descargarPDFGestor(\''+escapeHtml(encodeURIComponent(String(c.cotizacion_id||"")))+'\',\''+escapeHtml(encodeURIComponent(String(c.version||"")))+'\',this)">Descargar PDF</button></div>':'')+'</section>';
         const box=byId("gestorDetalleContenido");if(box)box.innerHTML=html;
         const edit=byId("btnEditarCotizacionGestor");if(edit)edit.disabled=c.puede_editar===false;
         aplicarPermisoBoton_(edit,"puede_editar_borrador");
@@ -2582,6 +2582,39 @@ window.CotizaApp = (function(){
         copiarTextoFallback(url);
       }
 
+      // Descarga el PDF de la oferta (tarea 2): GET /api/cotizaciones/{id}/enlace/pdf.
+      // Va por fetchAutenticado (lleva el token y maneja el 401) y baja el
+      // archivo directo, sin abrir la página pública: así no suma visitas.
+      async function descargarPDFGestor(idCodificado,versionCodificada,boton){
+        const cotizacionId=decodeURIComponent(String(idCodificado||""));      // id de la cotización, ya decodificado
+        const version=decodeURIComponent(String(versionCodificada||""));      // versión mostrada en el detalle
+        if(!cotizacionId){mostrarToast("No se identificó la cotización.");return;} // sin id no hay descarga
+        if(boton)boton.disabled=true;                                          // evita dos clics (dos conversiones)
+        mostrarToast("Generando PDF…");                                        // la conversión tarda unos segundos
+        try{
+          const ruta="/api/cotizaciones/"+encodeURIComponent(cotizacionId)+"/enlace/pdf"+(version?"?version="+encodeURIComponent(version):""); // URL relativa, mismo origen
+          const resp=await fetchAutenticado(ruta,{method:"GET"});              // pide el PDF con la sesión
+          const tipo=resp.headers.get("Content-Type")||"";                     // PDF o JSON de error
+          if(!resp.ok||tipo.indexOf("application/pdf")<0){                     // cualquier cosa que no sea un PDF es error
+            const data=await resp.json().catch(function(){return null;});      // el error viene como {"ok":false,"error":...}
+            throw new Error(data&&data.error?data.error:"No fue posible generar el PDF."); // mensaje del servidor o genérico
+          }
+          const disposicion=resp.headers.get("Content-Disposition")||"";       // trae el nombre sugerido
+          const coincide=/filename="([^"]+)"/.exec(disposicion);               // extrae filename="..."
+          const nombre=coincide?coincide[1]:"oferta.pdf";                       // nombre por defecto si no vino
+          const archivo=await resp.blob();                                      // bytes del PDF
+          const enlace=document.createElement("a");                             // ancla temporal para disparar la descarga
+          enlace.href=URL.createObjectURL(archivo);                             // URL local al blob
+          enlace.download=nombre;                                               // fuerza descarga con ese nombre
+          document.body.appendChild(enlace);                                    // Firefox exige que esté en el DOM
+          enlace.click();                                                       // inicia la descarga
+          setTimeout(function(){URL.revokeObjectURL(enlace.href);enlace.remove();},1000); // libera memoria después
+        }catch(e){
+          mostrarToast(e&&e.message?e.message:"No fue posible generar el PDF."); // muestra el error al usuario
+        }finally{
+          if(boton)boton.disabled=false;                                        // reactiva el botón
+        }
+      }
       function copiarEnlaceGestorV1008(urlCodificada){const url=decodeURIComponent(String(urlCodificada||""));if(!url){mostrarToast("No existe un enlace para copiar.");return;}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(function(){mostrarToast("Enlace copiado al portapapeles.");}).catch(function(){window.prompt("Copie el enlace:",url);});}else window.prompt("Copie el enlace:",url);}
 
       // MIGRADA en el Sprint 4 — antes usaba
@@ -7391,6 +7424,7 @@ window.CotizaApp = (function(){
         crearNuevaVersion:crearNuevaVersionDesdeDetalleV2,
         generarLinkGestor:generarLinkDesdeDetalleV2,
         copiarEnlaceGestor:copiarEnlaceGestorV1008,
+        descargarPDFGestor:descargarPDFGestor,
         actualizarEstadoGestor:actualizarEstadoGestorV2,
         cambiarEstadoSeleccionadoGestor:cambiarEstadoSeleccionadoGestorV2,
         verVersionGestor:verVersionGestorV2,

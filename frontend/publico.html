@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Oferta comercial | Exceltec</title>
+  <!-- Fuente de firma local (Dancing Script, OFL): se precarga para que esté lista cuando aparezca la firma. -->
+  <link rel="preload" href="fonts/DancingScript.woff2" as="font" type="font/woff2" crossorigin>
   <style>
     :root{color-scheme:light;--navy:#0d2b52;--navy-2:#174f91;--blue:#246df5;--accent:#9ec5ff;--ink:#12233d;--muted:#65758b;--line:#dbe3ee;--surface:#fff;--background:#f3f6fa;--body-font:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--title-font:var(--body-font)}
     *{box-sizing:border-box}
@@ -44,7 +46,7 @@
     .data-table{width:100%;border-collapse:collapse}.data-table th{padding:10px 12px;border-bottom:2px solid var(--line);text-align:left;font-size:12px}.data-table td{padding:10px 12px;border-bottom:1px solid #edf1f6;font-size:14px;vertical-align:top}
     .data-table .num{text-align:right;white-space:nowrap}.data-table tr.chosen td{background:#f2f7ff;font-weight:600}.table-wrap{overflow-x:auto;padding:4px 10px 10px}
     .image{display:block;max-width:100%;height:auto;margin:15px auto;border-radius:10px}
-    .signature{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;padding:30px 22px 22px}.signature span{display:block;padding-top:8px;border-top:1px solid var(--ink);color:var(--muted);font-size:12px;text-align:center}
+    .signature{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;padding:30px 22px 22px}
     .page-break{height:0}
     .actions{position:sticky;top:12px;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;padding:13px 16px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 10px 28px rgba(20,46,83,.12)}
     .actions-title strong{display:block;color:var(--navy);font-size:14px}.actions-title small{display:block;color:var(--muted)}
@@ -55,7 +57,39 @@
     .acceptance{margin-top:20px;padding:24px;border:1px solid #bdd4ed;border-radius:16px;background:linear-gradient(125deg,#fff,#f0f6ff)}.acceptance h2{margin:0 0 10px;color:var(--navy)}.acceptance-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.acceptance-grid p{margin:4px 0;font-size:13px}.signature-name{display:block;margin:14px 0 4px;color:var(--navy);font-family:cursive;font-size:30px}.evidence{overflow-wrap:anywhere;font-size:11px;color:var(--muted)}
     .dialog-backdrop{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:rgba(13,43,82,.57)}.dialog{width:min(480px,100%);padding:24px;border-radius:16px;background:#fff;box-shadow:0 22px 60px rgba(0,0,0,.2)}.dialog h2{margin:0 0 7px;font-size:21px}.dialog p{color:var(--muted);font-size:13px}.dialog label{display:block;margin:12px 0 5px;font-size:13px;font-weight:700}.dialog input,.dialog textarea,.client-comment input,.client-comment textarea{width:100%;padding:10px 12px;border:1px solid #cbd7e6;border-radius:8px;font:inherit}.dialog textarea,.client-comment textarea{min-height:88px;resize:vertical}.dialog-controls{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dialog .consent{display:flex;align-items:flex-start;gap:8px;font-weight:400}.dialog .consent input{width:auto;margin-top:4px}.form-message{min-height:20px;margin-top:8px;color:#a52e2e;font-size:13px}.form-message.ok{color:#146447}
     footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center}
+    /* Al imprimir/PDF, la caja de aceptación (firma + constancia) no se parte entre dos páginas. */
+    @media print{.acceptance{break-inside:avoid-page}}
     @media print{body{background:#fff}.page-break{break-after:page}.section{box-shadow:none;break-inside:avoid-page}.actions,.notice,.client-comment,.dialog-backdrop{display:none!important}.shell{width:100%;margin:0}.hero{box-shadow:none}}
+    /* --- Firma estampada (bloque FIRMA_ACEPTACION y caja "Aceptación de la oferta") --- */
+    /* Fuente de firma empaquetada en el repo (frontend/fonts, licencia OFL en OFL-DancingScript.txt).
+       La sirve el mismo API, así el navegador y Gotenberg usan exactamente el mismo archivo. */
+    @font-face{
+      font-family:"Cotiza Firma";                                   /* alias propio: no se depende del nombre instalado en el sistema */
+      src:url("fonts/DancingScript.woff2") format("woff2");         /* ruta relativa: /fonts/... en el mismo origen */
+      font-weight:400 700;                                          /* fuente variable: cubre de normal a negrita */
+      font-style:normal;                                            /* solo hay estilo normal */
+      font-display:block;                                           /* no mostrar una fuente de reemplazo mientras carga (evita "salto" en el PDF) */
+    }
+    /* Primero la fuente local; si no carga, la pila manuscrita anterior y por último cursive. */
+    :root{--signature-font:"Cotiza Firma","Segoe Script","Brush Script MT","Lucida Handwriting","Apple Chancery","URW Chancery L","Z003",cursive}
+    /* Columna de firma o de fecha: apila valor, línea y etiqueta; min-width:0 deja que el grid la encoja sin desbordar. */
+    .signature-slot{display:flex;flex-direction:column;justify-content:flex-end;min-width:0}
+    /* Nombre del firmante sobre la línea: fuente manuscrita y alto mínimo para que la línea no "salte" si está vacía. */
+    .signature-stamp{display:block;min-height:46px;padding:0 4px 2px;color:var(--navy);font-family:var(--signature-font);font-size:28px;line-height:1.35;text-align:center}
+    /* Arreglo del recorte con "...": nunca cortar ni ocultar, partir el nombre en varias líneas si no cabe. */
+    .signature-stamp,.signature-name{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word;max-width:100%}
+    /* La fecha estampada usa la fuente normal, más chica, alineada al pie del espacio. */
+    .signature-stamp.is-date{display:flex;align-items:flex-end;justify-content:center;font-family:var(--body-font);font-size:14px;color:var(--ink)}
+    /* La línea de firma es el borde superior de la etiqueta (reemplaza a la regla vieja de .signature span). */
+    .signature .signature-line{display:block;padding-top:8px;border-top:1px solid var(--ink);color:var(--muted);font-size:12px;text-align:center}
+    /* Cargo y fecha debajo de la línea, centrados y con corte de palabra en vez de recorte. */
+    .signature .signature-detail{display:block;margin-top:4px;border:0;padding:0;color:var(--ink);font-size:12px;text-align:center;overflow-wrap:anywhere}
+    /* Dentro de la caja de aceptación el nombre ya era cursivo: le damos la misma fuente y una línea debajo. */
+    .acceptance .signature-name{font-family:var(--signature-font);line-height:1.35;margin-bottom:0}
+    /* Línea "Firma autorizada" bajo el nombre de la caja de aceptación. */
+    .acceptance .signature-line{display:block;margin:0 0 8px;padding-top:6px;border-top:1px solid var(--ink);color:var(--muted);font-size:12px}
+    /* La columna de la caja también puede encogerse sin empujar el nombre fuera de la hoja. */
+    .acceptance-grid>div{min-width:0}
     [hidden]{display:none!important}
     @media(max-width:680px){.shell{margin-top:16px}.hero-top,.hero-body{padding:22px}.hero-body{grid-template-columns:1fr}.total{text-align:left}.meta,.acceptance-grid{grid-template-columns:1fr}.field-row{grid-template-columns:1fr;gap:5px}.pairs,.signature,.form-row{grid-template-columns:1fr}.actions{position:static;display:block}.actions-buttons{margin-top:10px}}
   </style>
@@ -80,7 +114,7 @@
         <div><span>Tipo de propuesta</span><strong id="tipoPropuesta"></strong></div>
       </section>
       <div id="secciones" class="sections"></div>
-      <section id="aceptacion" class="acceptance" hidden><h2>Aceptación de la oferta</h2><div class="acceptance-grid"><div><strong>Confirmación de aceptación electrónica</strong><p>La persona indicada confirmó la oferta mediante un código enviado al correo registrado para este enlace.</p><p>Esta constancia está asociada a esta versión del documento.</p></div><div><strong id="firmaNombre" class="signature-name"></strong><p id="firmaCargo"></p><p id="firmaCorreo"></p><p id="firmaFecha"></p><p id="firmaCodigo"></p><p id="firmaIP"></p><p id="firmaHash" class="evidence"></p></div></div></section>
+      <section id="aceptacion" class="acceptance" hidden><h2>Aceptación de la oferta</h2><div class="acceptance-grid"><div><strong>Confirmación de aceptación electrónica</strong><p>La persona indicada confirmó la oferta mediante un código enviado al correo registrado para este enlace.</p><p>Esta constancia está asociada a esta versión del documento.</p></div><div><!-- Nombre del firmante en tipografía de firma, sobre la línea --><strong id="firmaNombre" class="signature-name"></strong><!-- Línea de firma con su rótulo --><span class="signature-line">Firma autorizada</span><p id="firmaCargo"></p><p id="firmaCorreo"></p><p id="firmaFecha"></p><p id="firmaCodigo"></p><p id="firmaIP"></p><p id="firmaHash" class="evidence"></p></div></div></section>
       <section id="comentarioCliente" class="client-comment"><h2>Enviar comentario</h2><p>Su comentario aparecerá en la actividad de esta cotización para que Exceltec le dé seguimiento.</p><form id="formComentario"><input id="comentarioNombre" placeholder="Su nombre" required maxlength="150"><label for="comentarioTexto">Comentario</label><textarea id="comentarioTexto" placeholder="Escriba su comentario" required maxlength="3000"></textarea><div class="dialog-controls"><button class="action" type="submit">Enviar comentario</button></div><div id="comentarioMensaje" class="form-message" role="status"></div></form></section>
       <footer id="pie">Oferta comercial generada por Exceltec Business Solutions.</footer>
     </div>
@@ -123,6 +157,28 @@
         });
         cerrarParrafo();
         return caja;
+      }
+      // Espacio de firma del bloque FIRMA_ACEPTACION: dos columnas (firma y
+      // fecha). Con aceptación, el nombre va estampado SOBRE la línea
+      // "Firma autorizada" y debajo el cargo; sin aceptación, la línea queda
+      // vacía. Todo se arma con textContent (vía nodo()), nunca innerHTML,
+      // porque nombre y cargo los escribió el cliente.
+      function espacioFirma(){
+        var espacio=nodo("div","signature");                                   // contenedor de 2 columnas (CSS .signature)
+        var columnaFirma=nodo("div","signature-slot");                         // columna izquierda: la firma
+        var nombre=datosAceptacion?String(datosAceptacion.nombre_firmante||""):""; // nombre del firmante o vacío si no hay aceptación
+        columnaFirma.appendChild(nodo("span","signature-stamp",nombre));       // nombre estampado en tipografía de firma (vacío = línea en blanco)
+        columnaFirma.appendChild(nodo("span","signature-line","Firma autorizada")); // la línea en sí, con su rótulo debajo
+        if(datosAceptacion){                                                   // el detalle solo existe si alguien ya aceptó
+          var cargo=String(datosAceptacion.cargo_firmante||"").trim();         // cargo declarado al aceptar (puede venir vacío)
+          columnaFirma.appendChild(nodo("span","signature-detail",cargo||"Firmante autorizado")); // cargo bajo la línea, con texto por defecto
+        }
+        var columnaFecha=nodo("div","signature-slot");                         // columna derecha: la fecha
+        var fecha=datosAceptacion?new Date(datosAceptacion.fecha).toLocaleString("es-CR"):""; // fecha/hora local de la aceptación o vacío
+        columnaFecha.appendChild(nodo("span","signature-stamp is-date",fecha)); // fecha sobre su propia línea
+        columnaFecha.appendChild(nodo("span","signature-line","Fecha"));       // línea y rótulo "Fecha"
+        espacio.append(columnaFirma,columnaFecha);                              // ambas columnas dentro del contenedor
+        return espacio;                                                         // el llamador lo agrega al bloque
       }
       // Pares Etiqueta/Valor (Datos del cliente, Grupo de información,
       // Condiciones comerciales, Portada, Firma) en grilla de 2 columnas.
@@ -188,7 +244,7 @@
           var firma=document.createElement("div");
           if(bloque.contenido)firma.appendChild(textoEnriquecido(bloque.contenido));
           if(Array.isArray(bloque.campos)&&bloque.campos.length)firma.appendChild(grillaPares(bloque.campos));
-          var espacio=nodo("div","signature");espacio.append(nodo("span","",datosAceptacion?datosAceptacion.nombre_firmante:"Firma"),nodo("span","",datosAceptacion?new Date(datosAceptacion.fecha).toLocaleString("es-CR"):"Fecha"));firma.appendChild(espacio);
+          firma.appendChild(espacioFirma());
           return conTitulo(bloque,firma);
         }
         if(tipo==="LISTA_PRECIOS"){
@@ -323,7 +379,11 @@
       document.getElementById("solicitarCodigo").addEventListener("click",function(){var nombre=document.getElementById("respuestaNombre").value.trim(),cargo=document.getElementById("respuestaCargo").value.trim();if(!nombre){mensaje("dialogoMensaje","Indique su nombre para solicitar el código.");return;}var boton=this;boton.disabled=true;solicitar("/codigo",{nombre:nombre,cargo:cargo}).then(function(data){mensaje("dialogoMensaje",data.modo_prueba?"El código quedó en Mailpit (buzón de pruebas del servidor); no se envió a "+data.correo_destino+". Pida a Exceltec configurar correo real.":"Código enviado a "+data.correo_destino+". Vigente por 10 minutos.",!data.modo_prueba);}).catch(function(err){mensaje("dialogoMensaje",err.message);}).finally(function(){boton.disabled=false;});});
       document.getElementById("formRespuesta").addEventListener("submit",function(e){e.preventDefault();var nombre=document.getElementById("respuestaNombre").value.trim(),comentario=document.getElementById("respuestaComentario").value.trim(),boton=document.getElementById("confirmarRespuesta"),tipo=tipoDialogo;boton.disabled=true;var accion=tipo==="ACEPTAR"?solicitar("/aceptar",{nombre_firma:nombre,codigo:document.getElementById("respuestaCodigo").value.trim(),consentimiento:document.getElementById("respuestaConsentimiento").checked}):solicitar("/respuesta",{tipo:tipo,nombre:nombre,comentario:comentario});accion.then(function(data){cerrarDialogo();if(tipo!=="ACEPTAR"&&data.estado)mensaje("comentarioMensaje","Respuesta registrada correctamente.",true);return cargar();}).catch(function(err){mensaje("dialogoMensaje",err.message);}).finally(function(){boton.disabled=false;});});
       document.getElementById("formComentario").addEventListener("submit",function(e){e.preventDefault();var nombre=document.getElementById("comentarioNombre").value.trim(),comentario=document.getElementById("comentarioTexto").value.trim(),boton=this.querySelector("button");boton.disabled=true;solicitar("/respuesta",{tipo:"COMENTARIO",nombre:nombre,comentario:comentario}).then(function(){mensaje("comentarioMensaje","Comentario enviado y registrado.",true);document.getElementById("comentarioTexto").value="";}).catch(function(err){mensaje("comentarioMensaje",err.message);}).finally(function(){boton.disabled=false;});});
-      function cargar(){return fetch(urlAPI,{method:"GET",credentials:"omit",headers:{Accept:"application/json"}})
+      // Pase de render del PDF: solo lo trae la URL interna que el servidor
+      // le arma a Gotenberg. Se reenvía únicamente en la lectura (GET) para
+      // que esa carga no cuente como visita; las acciones POST nunca lo llevan.
+      var paseRender=new URLSearchParams(window.location.search).get("render")||""; // vacío en una visita normal
+      function cargar(){return fetch(urlAPI+(paseRender?"?render="+encodeURIComponent(paseRender):""),{method:"GET",credentials:"omit",headers:{Accept:"application/json"}})
         .then(function(resp){return resp.json().catch(function(){return null;}).then(function(data){if(!resp.ok||!data||!data.ok)throw new Error("invalid");return data;});})
         .then(render).catch(mostrarError);}
       cargar();

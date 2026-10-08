@@ -107,6 +107,64 @@ dónde quedó la clave de API) se imprime al final de
 La clave de API en sí queda en `scripts/demo_api_key.txt`, que tampoco
 se versiona — solo se puede leer del API una vez, al crearla.
 
+## PDF de la oferta (Gotenberg)
+
+El botón **Descargar PDF** del Gestor llama a
+`GET /api/cotizaciones/{id}/enlace/pdf`. El API le pide al servicio
+`gotenberg` (imagen fija `gotenberg/gotenberg:8.37.0`) que abra la página
+pública de esa versión y la imprima, así que el PDF es idéntico a lo que ve
+el cliente, firma incluida. Hace falta haber generado antes el enlace de esa
+versión; si no, responde 404.
+
+Variables nuevas del servicio `api` (ver `.env.example`):
+
+| Variable | Default en Docker | Para qué sirve |
+|---|---|---|
+| `GOTENBERG_URL` | `http://gotenberg:3000` | Dónde está Gotenberg. Vacía = PDF desactivado. |
+| `PDF_INTERNAL_BASE_URL` | `http://api:8080` | Cómo llega Gotenberg a **este** API desde la red interna de Docker. No es la URL pública. |
+
+Seguridad, por si alguien toca el compose:
+
+- `gotenberg` **no publica puertos** al host: solo lo alcanza el `api`
+  por la red `cotiza_net`.
+- `CHROMIUM_DENY_PRIVATE_IPS=true` + `CHROMIUM_ALLOW_LIST=^http://api:8080(/|$)`
+  (en `docker-compose.yml` va escrito `$$` porque Compose interpola `$`):
+  Chromium solo puede abrir el API. Por eso, hoy, un logo con URL
+  `https://` externa **no** aparece en el PDF (la página muestra el nombre
+  de la organización en su lugar). Para habilitarlo se agrega a la lista
+  el host exacto de los logos, nunca un `^https://` genérico.
+- La URL que se convierte la arma el servidor (nunca viene del navegador)
+  y lleva un pase de un solo uso: renderizar el PDF no suma visitas ni pasa
+  la cotización a "Vista por el Cliente".
+
+La firma usa la fuente local `frontend/fonts/DancingScript.woff2`
+(licencia SIL OFL 1.1 en `frontend/fonts/OFL-DancingScript.txt`), servida
+por el mismo API para que navegador y PDF se vean igual.
+
+**Desarrollo nativo (`go run ./cmd/server`): el PDF responde 503.** Sin las
+dos variables de arriba el endpoint contesta
+`{"ok":false,"error":"El servicio de PDF no está configurado en este servidor."}`
+(503). Aunque las configures, un Gotenberg en Docker no puede llegar a
+`localhost:8080` del host. Para probar el PDF, usar el stack completo
+(`docker compose up --build`).
+
+### Limpiar contenedores de prueba
+
+Para probar el PDF sin tocar el volumen real se pueden levantar
+contenedores aparte (Postgres desechable, API y Gotenberg en su propia red).
+Si quedaron corriendo, se quitan así (los que no existan dan un aviso
+inofensivo):
+
+```bash
+docker rm -f cotiza_api_pdfprueba cotiza_gotenberg_pdfprueba cotiza_gotenberg_libre cotiza_pg_pruebas
+docker network rm cotiza_pdf_net
+docker image rm cotiza-api-pdfprueba cotiza-seed-pdfprueba   # opcional: imágenes locales de prueba
+```
+
+Ninguno de esos comandos toca `cotiza_postgres` ni el volumen
+`cotiza_pgdata`. Lo que sí borra los datos reales es
+`docker compose down -v`.
+
 ## Nota sobre `go.sum`
 
 Este esqueleto se generó sin acceso al proxy de módulos de Go, así

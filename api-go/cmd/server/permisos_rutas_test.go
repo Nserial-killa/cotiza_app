@@ -63,6 +63,7 @@ var tiposHandlerOperacion = map[string]bool{
 	"CotizadorRuntimeHandler":    true,
 	"EnlacesPublicosHandler":     true,
 	"VistaPreviaOfertaHandler":   true,
+	"OfertaPDFHandler":           true, // PDF de la oferta: mismos permisos que ver la cotización
 	"IntegracionesHandler":       true,
 	"SolicitudesHandler":         true,
 	"SolicitudesExternasHandler": true,

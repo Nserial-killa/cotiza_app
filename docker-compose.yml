@@ -41,6 +41,32 @@ services:
     networks:
       - cotiza_net
 
+  # Convierte la oferta pública a PDF con Chromium (tarea 2). Versión fija:
+  # nunca ":8" ni ":latest", para que un "docker compose pull" no cambie
+  # el render sin que nadie lo note.
+  gotenberg:
+    image: gotenberg/gotenberg:8.37.0
+    container_name: cotiza_gotenberg
+    restart: unless-stopped
+    # SIN "ports:": Gotenberg solo es alcanzable desde la red interna
+    # cotiza_net (lo llama el api como http://gotenberg:3000). Publicarlo
+    # al host dejaría que cualquiera le pida abrir URLs internas.
+    environment:
+      # Chromium no puede abrir IPs privadas (postgres, mailpit, metadatos
+      # de la nube)... salvo lo que coincide con la allow-list: el api y
+      # nada más. El patrón termina el host con (:|/|$) como pide la doc
+      # ("Writing a Safe Allow-List") para que no calce api.evil.com.
+      CHROMIUM_DENY_PRIVATE_IPS: "true"
+      CHROMIUM_ALLOW_LIST: "^http://api:8080(/|$$)"
+      # No usamos webhooks, downloadFrom ni LibreOffice: se cierran igual.
+      WEBHOOK_DENY_PRIVATE_IPS: "true"
+      API_DOWNLOAD_FROM_DENY_PRIVATE_IPS: "true"
+      LIBREOFFICE_DISABLE_ROUTES: "true"
+      # Gotenberg corta antes que el api (25 s) para que el error sea suyo.
+      API_TIMEOUT: "20s"
+    networks:
+      - cotiza_net
+
   api:
     build:
       context: ./api-go
@@ -52,6 +78,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      gotenberg:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-cotiza_admin}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-cotiza}?sslmode=disable
       PORT: "8080"
@@ -62,6 +90,10 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-cotiza@localhost.test}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      # PDF de la oferta: a quién pedirle el PDF, y cómo Gotenberg llega a
+      # este mismo api desde la red interna (no es la URL pública).
+      GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
+      PDF_INTERNAL_BASE_URL: ${PDF_INTERNAL_BASE_URL:-http://api:8080}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

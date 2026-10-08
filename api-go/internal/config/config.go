@@ -19,6 +19,12 @@ type Config struct {
 	SMTPPassword  string
 	SMTPFrom      string
 	PublicBaseURL string
+	// GotenbergURL es el servicio que convierte la oferta a PDF (red interna
+	// de Docker, ej. http://gotenberg:3000). Vacío = PDF no disponible.
+	GotenbergURL string
+	// PDFInternalBaseURL es cómo Gotenberg llega a ESTE API desde adentro de
+	// la red de Docker (ej. http://api:8080). No es la URL pública.
+	PDFInternalBaseURL string
 }
 
 // Load lee la configuración desde variables de entorno, aplicando
@@ -35,6 +41,10 @@ func Load() (*Config, error) {
 		SMTPPassword:  getEnv("SMTP_PASSWORD", ""),
 		SMTPFrom:      getEnv("SMTP_FROM", ""),
 		PublicBaseURL: getEnv("PUBLIC_BASE_URL", "http://localhost:8080"),
+		// Sin default: si no se configuran, el PDF responde 503 en vez de
+		// apuntar a un host que quizás no exista.
+		GotenbergURL:       getEnv("GOTENBERG_URL", ""),
+		PDFInternalBaseURL: getEnv("PDF_INTERNAL_BASE_URL", ""),
 	}
 
 	if cfg.DatabaseURL == "" {
