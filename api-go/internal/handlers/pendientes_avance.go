@@ -45,8 +45,8 @@ func (e *errorAvance) Error() string { return e.mensaje }
 func verificarVersionCompleta(ctx context.Context, tx pgx.Tx, h *CotizadorRuntimeHandler, cotizacionID string, version int, accion string) error {
 	var tieneEstructura bool
 	if err := tx.QueryRow(ctx, `
-		SELECT cv.snapshot_json IS NOT NULL OR c.compilado_id_usado IS NOT NULL OR EXISTS (
-		         SELECT 1 FROM cotizadores_compilados cc WHERE cc.calculadora_id=c.calculadora_id AND cc.estado='ACTIVA')
+		SELECT cv.snapshot_json IS NOT NULL OR (CASE WHEN cv.calculadora_id IS NOT NULL THEN cv.compilado_id_usado ELSE c.compilado_id_usado END) IS NOT NULL OR EXISTS (
+		         SELECT 1 FROM cotizadores_compilados cc WHERE cc.calculadora_id=COALESCE(cv.calculadora_id,c.calculadora_id) AND cc.estado='ACTIVA')
 		  FROM cotizaciones c
 		  JOIN cotizacion_versiones cv ON cv.cotizacion_id=c.cotizacion_id AND cv.numero_version=$2
 		 WHERE c.cotizacion_id=$1`, cotizacionID, version).Scan(&tieneEstructura); err != nil {

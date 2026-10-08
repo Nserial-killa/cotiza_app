@@ -66,7 +66,14 @@ func main() {
 	runtimeCotizador := &handlers.CotizadorRuntimeHandler{DB: pool}
 	listaPreciosItems := &handlers.ListaPreciosItemsHandler{DB: pool}
 	tablaColumnas := &handlers.TablaColumnasHandler{DB: pool}
-	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool}
+	var correoOfertas handlers.RemitenteOferta
+	if cfg.SMTPHost != "" && cfg.SMTPFrom != "" {
+		correoOfertas = handlers.SMTPOferta{
+			Host: cfg.SMTPHost, Port: cfg.SMTPPort, Usuario: cfg.SMTPUser,
+			Clave: cfg.SMTPPassword, Desde: cfg.SMTPFrom,
+		}
+	}
+	enlacesPublicos := &handlers.EnlacesPublicosHandler{DB: pool, Correo: correoOfertas, BasePublica: cfg.PublicBaseURL}
 	vistaPreviaOferta := &handlers.VistaPreviaOfertaHandler{DB: pool}
 	plantillas := &handlers.PlantillasHandler{DB: pool}
 	plantillaEstructura := &handlers.PlantillaEstructuraHandler{DB: pool}
@@ -85,6 +92,9 @@ func main() {
 		r.Get("/health", health.Check)
 		r.Post("/auth/login", auth.Login)
 		r.Get("/publico/cotizacion/{token}", enlacesPublicos.VerCotizacion)
+		r.Post("/publico/cotizacion/{token}/respuesta", enlacesPublicos.Responder)
+		r.Post("/publico/cotizacion/{token}/codigo", enlacesPublicos.EnviarCodigoAceptacion)
+		r.Post("/publico/cotizacion/{token}/aceptar", enlacesPublicos.Aceptar)
 
 		// API externo (Bitrix24 u otro): clave propia por header
 		// X-Api-Key, nunca una sesión de usuario — grupo aparte del de
@@ -230,6 +240,7 @@ func main() {
 				r.Post("/", cotizaciones.Crear)
 				r.Get("/{id}", cotizaciones.Detalle)
 				r.Post("/{id}/version", cotizaciones.CrearVersion)
+				r.Post("/{id}/cambiar-cotizador", cotizaciones.CambiarCotizador)
 				r.Post("/{id}/estado", cotizaciones.CambiarEstado)
 				r.Post("/{id}/enlace", enlacesPublicos.GenerarEnlace)
 				r.Get("/{id}/vista-previa-oferta", vistaPreviaOferta.Ver)

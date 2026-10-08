@@ -223,9 +223,10 @@
   <div id="modalEnlaceCliente" class="modal">
     <div class="modal-card" style="max-width:620px;">
       <div class="modal-head">
-        <div><h2>Link del cliente</h2><p>Comparta esta dirección para abrir la propuesta sin iniciar sesión.</p></div>
+        <div><h2>Link del cliente</h2><p>Indique el correo autorizado para recibir el código de aceptación. Comparta el enlace de esta versión de la propuesta.</p></div>
         <button id="btnCerrarModalEnlaceCliente" class="modal-close" type="button">×</button>
       </div>
+      <div class="field"><label for="enlaceClienteCorreo">Correo del cliente que puede firmar</label><input id="enlaceClienteCorreo" class="input" type="email" autocomplete="email" placeholder="contacto@cliente.com"></div>
       <div class="field">
         <label for="enlaceClienteUrl">URL pública</label>
         <input id="enlaceClienteUrl" class="input" type="text" readonly>
@@ -233,6 +234,7 @@
       <div id="enlaceClienteMensaje" class="message"></div>
       <div class="param-modal-actions">
         <button id="btnCerrarEnlaceCliente" class="btn btn-ghost" type="button">Cerrar</button>
+        <button id="btnGuardarEnlaceCliente" class="btn btn-secondary" type="button">Generar / actualizar enlace</button>
         <button id="btnCopiarEnlaceCliente" class="btn btn-primary" type="button">Copiar</button>
       </div>
     </div>

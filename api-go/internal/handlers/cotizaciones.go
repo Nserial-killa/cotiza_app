@@ -245,8 +245,8 @@ func (h *CotizacionesHandler) crearCotizacionEnTx(w http.ResponseWriter, ctx con
 	if entrada.TipoPropuesta != "" {
 		tipoPropuesta = entrada.TipoPropuesta
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO cotizaciones (cotizacion_id, calculadora_id, cliente_id, codigo_oferta, tipo_propuesta, estado, version_actual, compilado_id_usado) VALUES ($1,$2,$3,$4,$5,'Borrador',1,$6::uuid)`, cotizacionID, entrada.CalculadoraID, clienteID, codigoOferta, tipoPropuesta, compiladoID); err == nil {
-		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_versiones (cotizacion_id, numero_version, nombre_version, estado, moneda, total_precio) VALUES ($1,1,'Versión inicial','Borrador','US$',0)`, cotizacionID)
+	if _, err = tx.Exec(ctx, `INSERT INTO cotizaciones (cotizacion_id, calculadora_id, cliente_id, codigo_oferta, tipo_propuesta, estado, version_actual, compilado_id_usado, creado_por) VALUES ($1,$2,$3,$4,$5,'Borrador',1,$6::uuid,$7)`, cotizacionID, entrada.CalculadoraID, clienteID, codigoOferta, tipoPropuesta, compiladoID, usuarioID); err == nil {
+		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_versiones (cotizacion_id, numero_version, nombre_version, estado, moneda, total_precio, calculadora_id, compilado_id_usado) VALUES ($1,1,'Versión inicial','Borrador','US$',0,$2,$3::uuid)`, cotizacionID, entrada.CalculadoraID, compiladoID)
 	}
 	if err == nil {
 		_, err = tx.Exec(ctx, `INSERT INTO cotizacion_usuarios (cotizacion_id, usuario_id, funcion) VALUES ($1,$2,$3)`, cotizacionID, usuarioID, funcionCreador)
@@ -511,30 +511,32 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		fechaActualizacion                                  time.Time
 		compiladoID                                         *string
 		versionConfiguracion                                *int
+		puedeCambiarCotizador                               bool
 	)
 
 	err := h.DB.QueryRow(ctx, `
-		SELECT c.calculadora_id, calc.nombre_calculadora, c.codigo_oferta, c.tipo_propuesta,
+		SELECT COALESCE(cv.calculadora_id,c.calculadora_id), calc.nombre_calculadora, c.codigo_oferta, c.tipo_propuesta,
 		       cl.nombre_comercial, COALESCE(cl.razon_social, cl.nombre_comercial),
 		       c.version_actual, c.version_aceptada,
 		       cv.numero_version, cv.nombre_version, cv.resumen_cambios, cv.estado, cv.moneda,
 		       cv.total_precio, cv.total_costo, cv.total_ganancia, cv.margen_total,
 		       cv.fecha_aceptacion, cv.aceptada_por, cv.origen_aceptacion, cv.fecha_actualizacion,
-		       c.compilado_id_usado::text, cc.version
+		       (CASE WHEN cv.calculadora_id IS NOT NULL THEN cv.compilado_id_usado ELSE c.compilado_id_usado END)::text, cc.version,
+		       (COALESCE(c.creado_por=$3,false) OR $4 OR $5)
 		  FROM cotizaciones c
-		  JOIN calculadoras calc ON calc.calculadora_id = c.calculadora_id
-		  LEFT JOIN cotizadores_compilados cc ON cc.compilado_id = c.compilado_id_usado
 		  LEFT JOIN clientes cl ON cl.cliente_id = c.cliente_id
 		  JOIN cotizacion_versiones cv ON cv.cotizacion_id = c.cotizacion_id
 		       AND cv.numero_version = CASE WHEN $2 = '' THEN c.version_actual ELSE $2::int END
+		  JOIN calculadoras calc ON calc.calculadora_id = COALESCE(cv.calculadora_id,c.calculadora_id)
+		  LEFT JOIN cotizadores_compilados cc ON cc.compilado_id = CASE WHEN cv.calculadora_id IS NOT NULL THEN cv.compilado_id_usado ELSE c.compilado_id_usado END
 		 WHERE c.cotizacion_id = $1`,
-		cotizacionID, versionSolicitada,
+		cotizacionID, versionSolicitada, permisos.UsuarioID, permisos.Rol == "Administrador", permisos.Rol == "Gerente Comercial",
 	).Scan(&calculadoraID, &calculadoraNombre, &codigoOferta, &tipoPropuesta, &cliente, &empresa,
 		&versionActual, &versionAceptada,
 		&numeroVersion, &nombreVersion, &resumenCambios, &estado, &moneda,
 		&totalPrecio, &totalCosto, &totalGanancia, &margenTotal,
 		&fechaAceptacion, &aceptadaPor, &origenAceptacion, &fechaActualizacion,
-		&compiladoID, &versionConfiguracion)
+		&compiladoID, &versionConfiguracion, &puedeCambiarCotizador)
 
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -566,36 +568,43 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar la cotización."})
 		return
 	}
+	links, err := h.consultarEnlaces(ctx, cotizacionID)
+	if err != nil {
+		log.Printf("cotizaciones: error consultando enlaces de %s: %v", cotizacionID, err)
+		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar los enlaces del cliente."})
+		return
+	}
 
 	cotizacion := map[string]any{
-		"cotizacion_id":       cotizacionID,
-		"calculadora_id":      calculadoraID,
-		"calculadora_nombre":  calculadoraNombre,
-		"cotizador_version":   valorIntPtr(versionConfiguracion),
-		"compilado_id":        valorTexto(compiladoID),
-		"codigo_oferta":       valorTexto(codigoOferta),
-		"tipo_propuesta":      valorTexto(tipoPropuesta),
-		"cliente":             valorTexto(cliente),
-		"empresa":             valorTexto(empresa),
-		"version":             numeroVersion,
-		"version_actual":      versionActual,
-		"version_aceptada":    valorIntPtr(versionAceptada),
-		"nombre_version":      valorTexto(nombreVersion),
-		"resumen_cambios":     valorTexto(resumenCambios),
-		"estado":              estado,
-		"puede_editar":        !estadosCotizacionBloqueados[estado],
-		"moneda":              moneda,
-		"total_precio":        totalPrecio,
-		"total_costo":         totalCosto,
-		"total_ganancia":      totalGanancia,
-		"margen_total":        margenTotal,
-		"vendedor":            vendedor,
-		"analista":            analista,
-		"lider_producto":      liderProducto,
-		"fecha_aceptacion":    valorFechaPtr(fechaAceptacion),
-		"aceptada_por":        valorTexto(aceptadaPor),
-		"origen_aceptacion":   valorTexto(origenAceptacion),
-		"fecha_actualizacion": fechaActualizacion,
+		"cotizacion_id":           cotizacionID,
+		"calculadora_id":          calculadoraID,
+		"calculadora_nombre":      calculadoraNombre,
+		"cotizador_version":       valorIntPtr(versionConfiguracion),
+		"compilado_id":            valorTexto(compiladoID),
+		"codigo_oferta":           valorTexto(codigoOferta),
+		"tipo_propuesta":          valorTexto(tipoPropuesta),
+		"cliente":                 valorTexto(cliente),
+		"empresa":                 valorTexto(empresa),
+		"version":                 numeroVersion,
+		"version_actual":          versionActual,
+		"version_aceptada":        valorIntPtr(versionAceptada),
+		"nombre_version":          valorTexto(nombreVersion),
+		"resumen_cambios":         valorTexto(resumenCambios),
+		"estado":                  estado,
+		"puede_editar":            !estadosCotizacionBloqueados[estado],
+		"puede_cambiar_cotizador": puedeCambiarCotizador && numeroVersion == versionActual && estadoVersionEditable(estado) && permisos.PuedeEditarBorrador && permisos.PuedeCrearVersion,
+		"moneda":                  moneda,
+		"total_precio":            totalPrecio,
+		"total_costo":             totalCosto,
+		"total_ganancia":          totalGanancia,
+		"margen_total":            margenTotal,
+		"vendedor":                vendedor,
+		"analista":                analista,
+		"lider_producto":          liderProducto,
+		"fecha_aceptacion":        valorFechaPtr(fechaAceptacion),
+		"aceptada_por":            valorTexto(aceptadaPor),
+		"origen_aceptacion":       valorTexto(origenAceptacion),
+		"fecha_actualizacion":     fechaActualizacion,
 	}
 
 	// Costo/Ganancia/Margen son precio interno — no todos los roles
@@ -610,14 +619,12 @@ func (h *CotizacionesHandler) Detalle(w http.ResponseWriter, r *http.Request) {
 		delete(cotizacion, "margen_total")
 	}
 
-	// La publicación al cliente (link público) es de un sprint futuro
-	// — se deja vacío a propósito, no simulado.
 	escribirJSON(w, http.StatusOK, map[string]any{
 		"ok":         true,
 		"cotizacion": cotizacion,
 		"versiones":  versiones,
 		"historial":  historial,
-		"links":      []any{},
+		"links":      links,
 	})
 }
 
@@ -679,11 +686,12 @@ type eventoHistorial struct {
 	NombreUsuario *string   `json:"nombre_usuario,omitempty"`
 	Fecha         time.Time `json:"fecha"`
 	EstadoNuevo   *string   `json:"estado_nuevo,omitempty"`
+	Comentario    *string   `json:"comentario,omitempty"`
 }
 
 func (h *CotizacionesHandler) consultarHistorial(ctx context.Context, cotizacionID string) ([]eventoHistorial, error) {
 	rows, err := h.DB.Query(ctx, `
-		SELECT ch.accion, u.nombre, ch.fecha, ch.estado_nuevo
+		SELECT ch.accion, u.nombre, ch.fecha, ch.estado_nuevo, ch.comentario
 		  FROM cotizacion_historial ch
 		  LEFT JOIN usuarios u ON u.usuario_id = ch.usuario_id
 		 WHERE ch.cotizacion_id = $1
@@ -697,7 +705,7 @@ func (h *CotizacionesHandler) consultarHistorial(ctx context.Context, cotizacion
 	historial := make([]eventoHistorial, 0)
 	for rows.Next() {
 		var ev eventoHistorial
-		if err := rows.Scan(&ev.Accion, &ev.NombreUsuario, &ev.Fecha, &ev.EstadoNuevo); err != nil {
+		if err := rows.Scan(&ev.Accion, &ev.NombreUsuario, &ev.Fecha, &ev.EstadoNuevo, &ev.Comentario); err != nil {
 			return nil, err
 		}
 		historial = append(historial, ev)
@@ -794,13 +802,17 @@ func (h *CotizacionesHandler) CrearVersion(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var moneda string
+	var moneda, calculadoraVersion string
+	var compiladoVersion *string
 	var totalPrecio, totalCosto, totalGanancia, margenTotal float64
 	err = tx.QueryRow(ctx, `
-		SELECT moneda, total_precio, total_costo, total_ganancia, margen_total
-		  FROM cotizacion_versiones WHERE cotizacion_id = $1 AND numero_version = $2`,
+		SELECT cv.moneda, cv.total_precio, cv.total_costo, cv.total_ganancia, cv.margen_total,
+		       COALESCE(cv.calculadora_id,c.calculadora_id),
+		       (CASE WHEN cv.calculadora_id IS NOT NULL THEN cv.compilado_id_usado ELSE c.compilado_id_usado END)::text
+		  FROM cotizacion_versiones cv JOIN cotizaciones c ON c.cotizacion_id=cv.cotizacion_id
+		 WHERE cv.cotizacion_id = $1 AND cv.numero_version = $2`,
 		cotizacionID, versionActual,
-	).Scan(&moneda, &totalPrecio, &totalCosto, &totalGanancia, &margenTotal)
+	).Scan(&moneda, &totalPrecio, &totalCosto, &totalGanancia, &margenTotal, &calculadoraVersion, &compiladoVersion)
 	if err != nil {
 		log.Printf("cotizaciones: error leyendo versión actual de %s antes de versionar: %v", cotizacionID, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible crear la versión."})
@@ -812,10 +824,10 @@ func (h *CotizacionesHandler) CrearVersion(w http.ResponseWriter, r *http.Reques
 	_, err = tx.Exec(ctx, `
 		INSERT INTO cotizacion_versiones
 			(cotizacion_id, numero_version, nombre_version, resumen_cambios, estado, moneda,
-			 total_precio, total_costo, total_ganancia, margen_total)
-		VALUES ($1, $2, $3, NULLIF($4, ''), 'Borrador', $5, $6, $7, $8, $9)`,
+			 total_precio, total_costo, total_ganancia, margen_total, calculadora_id, compilado_id_usado)
+		VALUES ($1, $2, $3, NULLIF($4, ''), 'Borrador', $5, $6, $7, $8, $9, $10, $11::uuid)`,
 		cotizacionID, nuevaVersion, req.NombreVersion, req.ResumenCambios, moneda,
-		totalPrecio, totalCosto, totalGanancia, margenTotal)
+		totalPrecio, totalCosto, totalGanancia, margenTotal, calculadoraVersion, compiladoVersion)
 	if err == nil {
 		err = copiarVersionRuntime(ctx, tx, cotizacionID, versionActual, nuevaVersion)
 	}

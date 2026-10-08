@@ -75,6 +75,11 @@ func TestVistaPreviaOferta_MismoDocumentoQueElEnlacePublico(t *testing.T) {
 	delete(doc2, "vista_previa")
 	delete(doc1, "ok")
 	delete(doc2, "ok")
+	// El enlace público incorpora metadatos del flujo de firma; no son
+	// contenido comercial de la oferta ni existen en la vista interna.
+	delete(doc1, "aceptacion")
+	delete(doc1, "correo_verificacion_configurado")
+	delete(doc1, "correo_verificacion_modo_prueba")
 
 	if !reflect.DeepEqual(doc1, doc2) {
 		t.Fatalf("CTZ-TEC-004: la vista previa y el enlace público resolvieron valores distintos.\npúblico:  %s\npreview:  %s", mustJSON(t, doc1), mustJSON(t, doc2))

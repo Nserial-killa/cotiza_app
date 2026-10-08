@@ -73,6 +73,17 @@
   function toast(mensaje){ if(core().mostrarToast) core().mostrarToast(mensaje); }
   function tienePermiso(nombre){ return !!(window.CotizaApp && window.CotizaApp.tienePermiso && window.CotizaApp.tienePermiso(nombre)); }
 
+  // Este módulo se inicializa antes de que termine el login. Recalcular
+  // al mostrar Solicitudes evita dejar el botón bloqueado con el estado
+  // provisional (sin usuario), incluso si cambia la sesión sin recargar.
+  function actualizarPermisoCrear(){
+    const boton = porId("btnNuevaSolicitud");
+    if(!boton) return;
+    const permitido = tienePermiso("puede_crear");
+    boton.disabled = !permitido;
+    boton.title = permitido ? "" : "Su rol no permite crear solicitudes.";
+  }
+
   async function solicitar(url, opciones){
     const fetchSeguro = core().fetchAutenticado;
     if(!fetchSeguro) throw new Error("La sesión todavía no está disponible.");
@@ -219,6 +230,7 @@
   }
 
   async function cargarListado(){
+    actualizarPermisoCrear();
     mostrarPanel("solicitudesListaPanel");
     const tbody = porId("solicitudesBody");
     if(tbody) tbody.innerHTML = '<tr><td colspan="9">Cargando solicitudes...</td></tr>';
@@ -379,8 +391,7 @@
 
   function enlazar(){
     if(porId("btnNuevaSolicitud")){
-      porId("btnNuevaSolicitud").disabled=!tienePermiso("puede_crear");
-      porId("btnNuevaSolicitud").title=tienePermiso("puede_crear")?"":"Su rol no permite crear solicitudes.";
+      actualizarPermisoCrear();
       porId("btnNuevaSolicitud").addEventListener("click", function(){ if(tienePermiso("puede_crear")) cargarCombos().then(abrirFormulario).catch(function(error){ toast(error.message); }); });
     }
     if(porId("btnCancelarSolicitud")) porId("btnCancelarSolicitud").addEventListener("click", cargarListado);

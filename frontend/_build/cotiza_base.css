@@ -404,6 +404,11 @@ label { display: block; font-size: 12px; font-weight: 600; color: #4B5768; margi
 .runtime-titulo span { color: #7b899d; font-size: 12px; }
 
 .gestor-runtime-shell { display: flex; flex-direction: column; gap: 14px; }
+.gestor-cambio-cotizador { display:flex; align-items:end; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.gestor-cambio-cotizador > div:first-child { flex:1 1 280px; }
+.gestor-cambio-cotizador strong { color:#0F2A4A; }
+.gestor-cambio-cotizador p { color:#66768c; font-size:12px; margin:4px 0 0; }
+.gestor-cambio-cotizador .field { margin:0; flex:1 1 230px; }
 
 .runtime-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .runtime-tab-btn {

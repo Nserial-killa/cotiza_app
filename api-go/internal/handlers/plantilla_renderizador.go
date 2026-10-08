@@ -141,10 +141,12 @@ type plantillaResuelta struct {
 //
 // Recibe consultadorFila para correr también dentro de la transacción de
 // GenerarEnlace, que es el único lugar que fija el resultado.
-func resolverPlantillaVigente(ctx context.Context, db consultadorFila, cotizacionID string) (*plantillaResuelta, error) {
+func resolverPlantillaVigente(ctx context.Context, db consultadorFila, cotizacionID string, version int) (*plantillaResuelta, error) {
 	var calculadoraID, tipoPropuesta string
-	if err := db.QueryRow(ctx, `SELECT calculadora_id, COALESCE(tipo_propuesta,'') FROM cotizaciones WHERE cotizacion_id=$1`,
-		cotizacionID).Scan(&calculadoraID, &tipoPropuesta); err != nil {
+	if err := db.QueryRow(ctx, `SELECT COALESCE(v.calculadora_id,c.calculadora_id), COALESCE(c.tipo_propuesta,'')
+	 FROM cotizacion_versiones v JOIN cotizaciones c ON c.cotizacion_id=v.cotizacion_id
+	 WHERE v.cotizacion_id=$1 AND v.numero_version=$2`,
+		cotizacionID, version).Scan(&calculadoraID, &tipoPropuesta); err != nil {
 		return nil, err
 	}
 	var p plantillaResuelta
@@ -186,7 +188,7 @@ func resolverPlantillaOferta(ctx context.Context, db consultadorFila, cotizacion
 	if id != nil {
 		return &plantillaResuelta{ID: *id, Nombre: *nombre, Version: *numero, Fijada: true}, nil
 	}
-	return resolverPlantillaVigente(ctx, db, cotizacionID)
+	return resolverPlantillaVigente(ctx, db, cotizacionID, version)
 }
 
 // fijarPlantillaCotizacionVersion graba en cotizacion_versiones la plantilla
@@ -206,7 +208,7 @@ func fijarPlantillaCotizacionVersion(ctx context.Context, tx pgx.Tx, cotizacionI
 	if yaFijada != nil {
 		return resolverPlantillaOferta(ctx, tx, cotizacionID, version)
 	}
-	vigente, err := resolverPlantillaVigente(ctx, tx, cotizacionID)
+	vigente, err := resolverPlantillaVigente(ctx, tx, cotizacionID, version)
 	if err != nil || vigente == nil {
 		return nil, err
 	}

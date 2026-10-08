@@ -73,6 +73,17 @@
         <button id="btnGuardarRuntimeCotizador" class="btn btn-primary" type="button">Guardar</button>
       </div>
     </div>
+    <div id="gestorCambioCotizador" class="card gestor-cambio-cotizador hidden">
+      <div>
+        <strong>Cambiar cotizador</strong>
+        <p>Use otra estructura o fórmula. Se creará una versión nueva sin valores; la versión y el enlace anteriores se conservarán.</p>
+      </div>
+      <div class="field">
+        <label for="gestorNuevoCotizador">Nuevo cotizador publicado</label>
+        <select id="gestorNuevoCotizador" class="select"><option value="">Seleccione un cotizador</option></select>
+      </div>
+      <button id="btnCambiarCotizadorGestor" class="btn btn-secondary" type="button" disabled>Cambiar y crear versión</button>
+    </div>
     <div id="gestorRuntimeContenido" class="gestor-runtime-shell"><div class="card">Cargando formulario...</div></div>
   </div>
 </section>

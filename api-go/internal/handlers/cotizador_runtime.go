@@ -514,27 +514,31 @@ func (h *CotizadorRuntimeHandler) cargarContextoConDB(ctx context.Context, q con
 	var calculadoraID string
 	var versionActual int
 	var compiladoID *string
-	err := q.QueryRow(ctx, `SELECT calculadora_id, version_actual, compilado_id_usado::text FROM cotizaciones WHERE cotizacion_id=$1`, cotizacionID).Scan(&calculadoraID, &versionActual, &compiladoID)
+	err := q.QueryRow(ctx, `SELECT version_actual FROM cotizaciones WHERE cotizacion_id=$1`, cotizacionID).Scan(&versionActual)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return resultado, &errorRuntime{status: http.StatusNotFound, mensaje: "La cotización indicada no existe."}
 	}
 	if err != nil {
 		return resultado, err
 	}
-	resultado.CalculadoraID = calculadoraID
 	resultado.Version = versionSolicitada
 	if resultado.Version == 0 {
 		resultado.Version = versionActual
 	}
 	var rawSnapshot []byte
 	var estadoVersion string
-	err = q.QueryRow(ctx, `SELECT snapshot_json,estado FROM cotizacion_versiones WHERE cotizacion_id=$1 AND numero_version=$2`, cotizacionID, resultado.Version).Scan(&rawSnapshot, &estadoVersion)
+	err = q.QueryRow(ctx, `SELECT COALESCE(v.calculadora_id,c.calculadora_id),
+	       (CASE WHEN v.calculadora_id IS NOT NULL THEN v.compilado_id_usado ELSE c.compilado_id_usado END)::text,
+	       v.snapshot_json,v.estado
+	  FROM cotizacion_versiones v JOIN cotizaciones c ON c.cotizacion_id=v.cotizacion_id
+	 WHERE v.cotizacion_id=$1 AND v.numero_version=$2`, cotizacionID, resultado.Version).Scan(&calculadoraID, &compiladoID, &rawSnapshot, &estadoVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return resultado, &errorRuntime{status: http.StatusNotFound, mensaje: "La versión indicada de la cotización no existe."}
 	}
 	if err != nil {
 		return resultado, err
 	}
+	resultado.CalculadoraID = calculadoraID
 	resultado.Historica = resultado.Version != versionActual || !estadoVersionEditable(estadoVersion)
 	if len(rawSnapshot) > 0 {
 		var snapshot snapshotCotizacion
@@ -559,6 +563,10 @@ func (h *CotizadorRuntimeHandler) cargarContextoConDB(ctx context.Context, q con
 		compiladoID = &activo
 		if fijar && !resultado.Historica {
 			if _, err := q.Exec(ctx, `UPDATE cotizaciones SET compilado_id_usado=$2::uuid WHERE cotizacion_id=$1 AND compilado_id_usado IS NULL`, cotizacionID, activo); err != nil {
+				return resultado, err
+			}
+			if _, err := q.Exec(ctx, `UPDATE cotizacion_versiones SET compilado_id_usado=$3::uuid
+			 WHERE cotizacion_id=$1 AND numero_version=$2 AND compilado_id_usado IS NULL`, cotizacionID, resultado.Version, activo); err != nil {
 				return resultado, err
 			}
 		}

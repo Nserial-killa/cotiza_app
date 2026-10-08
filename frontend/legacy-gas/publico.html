@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Vista previa de propuesta | Exceltec</title>
+  <title>Oferta comercial | Exceltec</title>
   <style>
     :root{color-scheme:light;--navy:#0d2b52;--navy-2:#174f91;--blue:#246df5;--accent:#9ec5ff;--ink:#12233d;--muted:#65758b;--line:#dbe3ee;--surface:#fff;--background:#f3f6fa;--body-font:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--title-font:var(--body-font)}
     *{box-sizing:border-box}
@@ -46,10 +46,18 @@
     .image{display:block;max-width:100%;height:auto;margin:15px auto;border-radius:10px}
     .signature{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;padding:30px 22px 22px}.signature span{display:block;padding-top:8px;border-top:1px solid var(--ink);color:var(--muted);font-size:12px;text-align:center}
     .page-break{height:0}
+    .actions{position:sticky;top:12px;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;padding:13px 16px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 10px 28px rgba(20,46,83,.12)}
+    .actions-title strong{display:block;color:var(--navy);font-size:14px}.actions-title small{display:block;color:var(--muted)}
+    .actions-buttons{display:flex;flex-wrap:wrap;gap:7px}.action{padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#edf4ff;color:var(--navy);font:inherit;font-size:12px;font-weight:750;cursor:pointer}.action.primary{background:#17835f;color:#fff}.action.warn{background:#fff6e7;color:#965313}.action.danger{background:#fff0f0;color:#a52e2e}.action:disabled{opacity:.5;cursor:not-allowed}
+    .notice{margin:0 0 14px;padding:12px 16px;border:1px solid #a8dec9;border-radius:10px;background:#ecfaf4;color:#146447;font-size:13px}
+    .notice-warning{border-color:#f1ce8d;background:#fff8e9;color:#81500d}
+    .client-comment{margin-top:18px;padding:20px;border:1px solid var(--line);border-radius:14px;background:#fff}.client-comment h2{margin:0 0 6px;font-size:17px}.client-comment p{margin:0 0 12px;color:var(--muted);font-size:13px}
+    .acceptance{margin-top:20px;padding:24px;border:1px solid #bdd4ed;border-radius:16px;background:linear-gradient(125deg,#fff,#f0f6ff)}.acceptance h2{margin:0 0 10px;color:var(--navy)}.acceptance-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.acceptance-grid p{margin:4px 0;font-size:13px}.signature-name{display:block;margin:14px 0 4px;color:var(--navy);font-family:cursive;font-size:30px}.evidence{overflow-wrap:anywhere;font-size:11px;color:var(--muted)}
+    .dialog-backdrop{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:rgba(13,43,82,.57)}.dialog{width:min(480px,100%);padding:24px;border-radius:16px;background:#fff;box-shadow:0 22px 60px rgba(0,0,0,.2)}.dialog h2{margin:0 0 7px;font-size:21px}.dialog p{color:var(--muted);font-size:13px}.dialog label{display:block;margin:12px 0 5px;font-size:13px;font-weight:700}.dialog input,.dialog textarea,.client-comment input,.client-comment textarea{width:100%;padding:10px 12px;border:1px solid #cbd7e6;border-radius:8px;font:inherit}.dialog textarea,.client-comment textarea{min-height:88px;resize:vertical}.dialog-controls{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dialog .consent{display:flex;align-items:flex-start;gap:8px;font-weight:400}.dialog .consent input{width:auto;margin-top:4px}.form-message{min-height:20px;margin-top:8px;color:#a52e2e;font-size:13px}.form-message.ok{color:#146447}
     footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center}
-    @media print{body{background:#fff}.page-break{break-after:page}.section{box-shadow:none;break-inside:avoid-page}}
+    @media print{body{background:#fff}.page-break{break-after:page}.section{box-shadow:none;break-inside:avoid-page}.actions,.notice,.client-comment,.dialog-backdrop{display:none!important}.shell{width:100%;margin:0}.hero{box-shadow:none}}
     [hidden]{display:none!important}
-    @media(max-width:680px){.shell{margin-top:16px}.hero-top,.hero-body{padding:22px}.hero-body{grid-template-columns:1fr}.total{text-align:left}.meta{grid-template-columns:1fr}.field-row{grid-template-columns:1fr;gap:5px}.pairs,.signature{grid-template-columns:1fr}}
+    @media(max-width:680px){.shell{margin-top:16px}.hero-top,.hero-body{padding:22px}.hero-body{grid-template-columns:1fr}.total{text-align:left}.meta,.acceptance-grid{grid-template-columns:1fr}.field-row{grid-template-columns:1fr;gap:5px}.pairs,.signature,.form-row{grid-template-columns:1fr}.actions{position:static;display:block}.actions-buttons{margin-top:10px}}
   </style>
   <style id="estiloPagina"></style>
 </head>
@@ -59,6 +67,9 @@
       <div class="status-card"><div class="status-icon">E</div><h1 id="estadoTitulo">Cargando propuesta…</h1><p id="estadoTexto">Estamos preparando la información.</p></div>
     </section>
     <div id="propuesta" hidden>
+      <div class="actions"><div class="actions-title"><strong>Oferta comercial Exceltec</strong><small id="accionesSubtitulo"></small></div><div class="actions-buttons"><button id="accionAceptar" class="action primary" type="button">Aceptar oferta</button><button id="accionCambios" class="action warn" type="button">Solicitar cambios</button><button id="accionRechazar" class="action danger" type="button">Rechazar oferta</button><button id="accionImprimir" class="action" type="button">Imprimir / Guardar PDF</button></div></div>
+      <div id="avisoEstado" class="notice" hidden></div>
+      <div id="avisoCorreoPrueba" class="notice notice-warning" hidden>Este entorno usa un buzón de pruebas. Los códigos se guardan en Mailpit y no llegan a correos externos. Solicite a Exceltec configurar un servidor de correo real antes de firmar.</div>
       <header class="hero">
         <div class="hero-top"><div id="marca" class="brand"><span class="brand-mark">e</span><span><strong>Exceltec</strong><small>BUSINESS SOLUTIONS</small></span></div><div class="hero-note"><span id="textoEncabezado" hidden></span><span id="marcaConfidencial" class="confidential" hidden>CONFIDENCIAL</span></div></div>
         <div class="hero-body"><div><p class="eyebrow">Propuesta comercial</p><h1 id="codigoOferta"></h1><p id="cliente" class="client"></p></div><div class="total"><span>Precio total</span><strong id="precioTotal"></strong></div></div>
@@ -69,13 +80,16 @@
         <div><span>Tipo de propuesta</span><strong id="tipoPropuesta"></strong></div>
       </section>
       <div id="secciones" class="sections"></div>
-      <footer id="pie">Documento de vista previa generado por Exceltec Business Solutions.</footer>
+      <section id="aceptacion" class="acceptance" hidden><h2>Aceptación de la oferta</h2><div class="acceptance-grid"><div><strong>Confirmación de aceptación electrónica</strong><p>La persona indicada confirmó la oferta mediante un código enviado al correo registrado para este enlace.</p><p>Esta constancia está asociada a esta versión del documento.</p></div><div><strong id="firmaNombre" class="signature-name"></strong><p id="firmaCargo"></p><p id="firmaCorreo"></p><p id="firmaFecha"></p><p id="firmaCodigo"></p><p id="firmaIP"></p><p id="firmaHash" class="evidence"></p></div></div></section>
+      <section id="comentarioCliente" class="client-comment"><h2>Enviar comentario</h2><p>Su comentario aparecerá en la actividad de esta cotización para que Exceltec le dé seguimiento.</p><form id="formComentario"><input id="comentarioNombre" placeholder="Su nombre" required maxlength="150"><label for="comentarioTexto">Comentario</label><textarea id="comentarioTexto" placeholder="Escriba su comentario" required maxlength="3000"></textarea><div class="dialog-controls"><button class="action" type="submit">Enviar comentario</button></div><div id="comentarioMensaje" class="form-message" role="status"></div></form></section>
+      <footer id="pie">Oferta comercial generada por Exceltec Business Solutions.</footer>
     </div>
   </main>
+      <div id="dialogo" class="dialog-backdrop" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogoTitulo"><h2 id="dialogoTitulo"></h2><p id="dialogoAyuda"></p><form id="formRespuesta"><label for="respuestaNombre">Nombre completo</label><input id="respuestaNombre" required maxlength="150"><div id="campoCargo" hidden><label for="respuestaCargo">Cargo o puesto (no es el correo)</label><input id="respuestaCargo" maxlength="150" placeholder="Ej.: Gerente de Compras"></div><div id="campoComentario" hidden><label for="respuestaComentario">Comentario</label><textarea id="respuestaComentario" maxlength="3000"></textarea></div><div id="campoCodigo" hidden><button id="solicitarCodigo" class="action" type="button">Enviar código al correo registrado</button><label for="respuestaCodigo">Código de verificación</label><input id="respuestaCodigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"><label class="consent"><input id="respuestaConsentimiento" type="checkbox"> Confirmo que he revisado esta versión de la oferta y acepto firmarla electrónicamente con el nombre escrito arriba.</label></div><div id="dialogoMensaje" class="form-message" role="status"></div><div class="dialog-controls"><button id="cerrarDialogo" class="action" type="button">Cancelar</button><button id="confirmarRespuesta" class="action primary" type="submit">Confirmar</button></div></form></div></div>
   <script>
     (function(){
       "use strict";
-      var estado=document.getElementById("estado"),propuesta=document.getElementById("propuesta");
+      var estado=document.getElementById("estado"),propuesta=document.getElementById("propuesta"),datosAceptacion=null,datosOferta=null,tipoDialogo="",impresionAutomaticaPendiente=true;
       function texto(valor){
         if(valor===null||valor===undefined||valor==="")return "—";
         if(typeof valor==="boolean")return valor?"Sí":"No";
@@ -174,7 +188,7 @@
           var firma=document.createElement("div");
           if(bloque.contenido)firma.appendChild(textoEnriquecido(bloque.contenido));
           if(Array.isArray(bloque.campos)&&bloque.campos.length)firma.appendChild(grillaPares(bloque.campos));
-          var espacio=nodo("div","signature");espacio.append(nodo("span","","Firma"),nodo("span","","Fecha"));firma.appendChild(espacio);
+          var espacio=nodo("div","signature");espacio.append(nodo("span","",datosAceptacion?datosAceptacion.nombre_firmante:"Firma"),nodo("span","",datosAceptacion?new Date(datosAceptacion.fecha).toLocaleString("es-CR"):"Fecha"));firma.appendChild(espacio);
           return conTitulo(bloque,firma);
         }
         if(tipo==="LISTA_PRECIOS"){
@@ -264,6 +278,7 @@
         document.getElementById("estiloPagina").textContent="@page{size:"+tamanoPagina+";margin:"+margen+";"+cajas.join("")+"}";
       }
       function render(data){
+        datosOferta=data;datosAceptacion=data.aceptacion||null;
         poner("codigoOferta",data.codigo_oferta||"Propuesta");poner("cliente",data.cliente);poner("empresa",data.empresa||data.cliente);
         poner("cotizador",data.cotizador_nombre);poner("tipoPropuesta",data.tipo_propuesta);document.getElementById("precioTotal").textContent=dinero(data.total_precio,data.moneda);
         var contenedor=document.getElementById("secciones");contenedor.textContent="";
@@ -273,13 +288,45 @@
           renderPlantilla(data.plantilla,contenedor);
         }
         else{renderTabsCrudas(Array.isArray(data.tabs)?data.tabs:[],contenedor);}
+        document.getElementById("accionesSubtitulo").textContent="Código: "+texto(data.codigo_oferta)+" · Versión "+data.version;
+        var cerrado=!!datosAceptacion||["Aceptada","Ganada","Perdida","Cancelada","Vencida"].indexOf(data.estado)>=0;
+        ["accionAceptar","accionCambios","accionRechazar"].forEach(function(id){document.getElementById(id).disabled=cerrado;});
+        document.getElementById("comentarioCliente").hidden=cerrado;
+        var aviso=document.getElementById("avisoEstado");aviso.hidden=!cerrado;
+        if(cerrado)aviso.textContent=datosAceptacion?"Esta oferta ya fue aceptada. La firma y la constancia aparecen al pie del documento.":"Esta versión está cerrada y ya no admite respuestas.";
+        document.getElementById("avisoCorreoPrueba").hidden=cerrado||!data.correo_verificacion_modo_prueba;
+        var caja=document.getElementById("aceptacion");caja.hidden=!datosAceptacion;
+        if(datosAceptacion){
+          poner("firmaNombre",datosAceptacion.nombre_firmante);poner("firmaCargo",datosAceptacion.cargo_firmante||"Firmante autorizado");
+          poner("firmaCorreo","Correo: "+datosAceptacion.correo_firmante);
+          poner("firmaFecha","Fecha y hora: "+new Date(datosAceptacion.fecha).toLocaleString("es-CR"));
+          poner("firmaCodigo","Constancia: "+datosAceptacion.codigo_constancia);
+          poner("firmaIP","IP registrada: "+datosAceptacion.ip_publica);
+          poner("firmaHash","Huella SHA-256 del documento: "+datosAceptacion.documento_sha256);
+        }
         estado.hidden=true;propuesta.hidden=false;document.title=texto(data.codigo_oferta||"Propuesta")+" | "+marcaTitulo;
+        if(impresionAutomaticaPendiente&&new URLSearchParams(window.location.search).get("imprimir")==="1"){impresionAutomaticaPendiente=false;setTimeout(function(){window.print();},450);}
       }
       var token=new URLSearchParams(window.location.search).get("token");
       if(!token){mostrarError();return;}
-      fetch("/api/publico/cotizacion/"+encodeURIComponent(token),{method:"GET",credentials:"omit",headers:{Accept:"application/json"}})
+      var urlAPI="/api/publico/cotizacion/"+encodeURIComponent(token);
+      function solicitar(ruta,cuerpo){return fetch(urlAPI+ruta,{method:"POST",credentials:"omit",headers:{"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify(cuerpo)}).then(function(resp){return resp.json().catch(function(){return null;}).then(function(data){if(!resp.ok||!data||!data.ok)throw new Error(data&&data.error||"No fue posible completar la acción.");return data;});});}
+      function mensaje(id,valor,exito){var el=document.getElementById(id);el.textContent=valor;el.classList.toggle("ok",!!exito);}
+      function abrirDialogo(tipo){tipoDialogo=tipo;var aceptar=tipo==="ACEPTAR";document.getElementById("formRespuesta").reset();document.getElementById("respuestaNombre").value=document.getElementById("comentarioNombre").value||"";document.getElementById("campoCargo").hidden=!aceptar;document.getElementById("campoCodigo").hidden=!aceptar;document.getElementById("campoComentario").hidden=aceptar;document.getElementById("respuestaComentario").required=!aceptar;document.getElementById("respuestaCodigo").required=aceptar;document.getElementById("dialogoTitulo").textContent=aceptar?"Aceptar y firmar oferta":tipo==="CAMBIOS"?"Solicitar cambios":"Rechazar oferta";document.getElementById("dialogoAyuda").textContent=aceptar?"Escriba su nombre y cargo, y solicite un código al correo que Exceltec autorizó para este enlace. El cargo no es el correo.":"Cuéntenos el motivo; quedará registrado en la actividad de la cotización.";mensaje("dialogoMensaje","");document.getElementById("dialogo").hidden=false;document.getElementById("respuestaNombre").focus();}
+      function cerrarDialogo(){document.getElementById("dialogo").hidden=true;tipoDialogo="";}
+      document.getElementById("accionAceptar").addEventListener("click",function(){abrirDialogo("ACEPTAR");});
+      document.getElementById("accionCambios").addEventListener("click",function(){abrirDialogo("CAMBIOS");});
+      document.getElementById("accionRechazar").addEventListener("click",function(){abrirDialogo("RECHAZO");});
+      document.getElementById("accionImprimir").addEventListener("click",function(){window.print();});
+      document.getElementById("cerrarDialogo").addEventListener("click",cerrarDialogo);
+      document.getElementById("dialogo").addEventListener("click",function(e){if(e.target.id==="dialogo")cerrarDialogo();});
+      document.getElementById("solicitarCodigo").addEventListener("click",function(){var nombre=document.getElementById("respuestaNombre").value.trim(),cargo=document.getElementById("respuestaCargo").value.trim();if(!nombre){mensaje("dialogoMensaje","Indique su nombre para solicitar el código.");return;}var boton=this;boton.disabled=true;solicitar("/codigo",{nombre:nombre,cargo:cargo}).then(function(data){mensaje("dialogoMensaje",data.modo_prueba?"El código quedó en Mailpit (buzón de pruebas del servidor); no se envió a "+data.correo_destino+". Pida a Exceltec configurar correo real.":"Código enviado a "+data.correo_destino+". Vigente por 10 minutos.",!data.modo_prueba);}).catch(function(err){mensaje("dialogoMensaje",err.message);}).finally(function(){boton.disabled=false;});});
+      document.getElementById("formRespuesta").addEventListener("submit",function(e){e.preventDefault();var nombre=document.getElementById("respuestaNombre").value.trim(),comentario=document.getElementById("respuestaComentario").value.trim(),boton=document.getElementById("confirmarRespuesta"),tipo=tipoDialogo;boton.disabled=true;var accion=tipo==="ACEPTAR"?solicitar("/aceptar",{nombre_firma:nombre,codigo:document.getElementById("respuestaCodigo").value.trim(),consentimiento:document.getElementById("respuestaConsentimiento").checked}):solicitar("/respuesta",{tipo:tipo,nombre:nombre,comentario:comentario});accion.then(function(data){cerrarDialogo();if(tipo!=="ACEPTAR"&&data.estado)mensaje("comentarioMensaje","Respuesta registrada correctamente.",true);return cargar();}).catch(function(err){mensaje("dialogoMensaje",err.message);}).finally(function(){boton.disabled=false;});});
+      document.getElementById("formComentario").addEventListener("submit",function(e){e.preventDefault();var nombre=document.getElementById("comentarioNombre").value.trim(),comentario=document.getElementById("comentarioTexto").value.trim(),boton=this.querySelector("button");boton.disabled=true;solicitar("/respuesta",{tipo:"COMENTARIO",nombre:nombre,comentario:comentario}).then(function(){mensaje("comentarioMensaje","Comentario enviado y registrado.",true);document.getElementById("comentarioTexto").value="";}).catch(function(err){mensaje("comentarioMensaje",err.message);}).finally(function(){boton.disabled=false;});});
+      function cargar(){return fetch(urlAPI,{method:"GET",credentials:"omit",headers:{Accept:"application/json"}})
         .then(function(resp){return resp.json().catch(function(){return null;}).then(function(data){if(!resp.ok||!data||!data.ok)throw new Error("invalid");return data;});})
-        .then(render).catch(mostrarError);
+        .then(render).catch(mostrarError);}
+      cargar();
     })();
   </script>
 </body>

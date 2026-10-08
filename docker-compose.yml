@@ -31,6 +31,16 @@ services:
     networks:
       - cotiza_net
 
+  mailpit:
+    image: axllent/mailpit:v1.28
+    container_name: cotiza_mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_WEB_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+    networks:
+      - cotiza_net
+
   api:
     build:
       context: ./api-go
@@ -40,10 +50,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-cotiza_admin}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-cotiza}?sslmode=disable
       PORT: "8080"
       ENV: ${ENV:-development}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-cotiza@localhost.test}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

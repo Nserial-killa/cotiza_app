@@ -39,9 +39,12 @@ import (
 // nueva en la lista de públicas, no la agregues sin entender por qué
 // quedó fuera del grupo protegido.
 var rutasPublicasEsperadas = map[string]string{
-	"GET /api/health":                     "chequeo de vida, no expone datos de negocio",
-	"POST /api/auth/login":                "es el endpoint que entrega la sesión; no puede exigirla",
-	"GET /api/publico/cotizacion/{token}": "vista del cliente final; el token del enlace ES la credencial",
+	"GET /api/health":                                "chequeo de vida, no expone datos de negocio",
+	"POST /api/auth/login":                           "es el endpoint que entrega la sesión; no puede exigirla",
+	"GET /api/publico/cotizacion/{token}":            "vista del cliente final; el token del enlace ES la credencial",
+	"POST /api/publico/cotizacion/{token}/respuesta": "el cliente responde mediante el token del enlace, sin sesión interna",
+	"POST /api/publico/cotizacion/{token}/codigo":    "el cliente solicita verificación al correo autorizado mediante el token",
+	"POST /api/publico/cotizacion/{token}/aceptar":   "el cliente confirma con token y código recibido por correo",
 }
 
 // rutasApiKeyEsperadas son las rutas que se autentican con

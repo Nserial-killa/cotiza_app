@@ -90,8 +90,11 @@ window.CotizaApp = (function(){
         bind("btnVolverListadoCotizaciones","click",mostrarListadoCotizacionesV2);
         bind("btnCerrarCotizadorIntegrado","click",cerrarCotizadorIntegradoV2);
         bind("btnEditarCotizacionGestor","click",editarCotizacionDesdeDetalleV2);
+		bind("gestorNuevoCotizador","change",function(){const b=byId("btnCambiarCotizadorGestor");if(b)b.disabled=!this.value;});
+		bind("btnCambiarCotizadorGestor","click",cambiarCotizadorDesdeEditorV2);
         bind("btnNuevaVersionGestor","click",crearNuevaVersionDesdeDetalleV2);
-        bind("btnGenerarLinkGestor","click",generarLinkDesdeDetalleV2);
+        bind("btnGenerarLinkGestor","click",abrirModalEnlaceCliente);
+        bind("btnGuardarEnlaceCliente","click",generarLinkDesdeDetalleV2);
         bind("btnCerrarModalEnlaceCliente","click",cerrarModalEnlaceCliente);
         bind("btnCerrarEnlaceCliente","click",cerrarModalEnlaceCliente);
         bind("btnCopiarEnlaceCliente","click",copiarEnlaceCliente);
@@ -1543,7 +1546,7 @@ window.CotizaApp = (function(){
 
       function renderDetalleCotizacionV2(data){
         const c=data.cotizacion||{};const version=data.version||{};const links=data.links||[];const historial=data.historial||[];const versiones=data.versiones||[];
-        const linkActivo=links.find(function(x){return String(x.estado||"").toLowerCase()==="activo";})||links[0]||null;
+        const linkActivo=links.find(function(x){return Number(x.version)===Number(c.version)&&String(x.estado||"").toLowerCase()==="activo";})||links.find(function(x){return Number(x.version)===Number(c.version);})||null;
         const fact=function(label,value,privateValue){return '<div class="gestor-fact '+(privateValue?'private':'')+'"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===undefined||value===null||value===""?"—":value)+'</strong></div>';};
         const etiquetaVersion=function(v){return 'V'+String(v.numero_version||'')+(v.nombre_version?' — '+String(v.nombre_version):'');};
         const versionAceptada=String(c.version_aceptada||"");
@@ -1561,8 +1564,9 @@ window.CotizaApp = (function(){
         const puedeVerCosto=Object.prototype.hasOwnProperty.call(c,"total_costo");
         html+='<section class="card"><h2>Resumen económico</h2><div class="gestor-facts">'+fact("Precio",formatoMoneda(c.total_precio||0,c.moneda||"USD"))+(puedeVerCosto?fact("Costo",formatoMoneda(c.total_costo||0,c.moneda||"USD"),true)+fact("Ganancia",formatoMoneda(c.total_ganancia||0,c.moneda||"USD"),true)+fact("Margen",formatoNumero(c.margen_total||0)+"%",true):'')+'</div>'+(versionAceptada?'<div class="gestor-accepted-box"><span>Versión aceptada</span><strong>'+escapeHtml('V'+versionAceptada+(c.fecha_aceptacion?' · '+c.fecha_aceptacion:''))+'</strong><small>'+escapeHtml((c.aceptada_por||'')+(c.origen_aceptacion?' · '+c.origen_aceptacion:''))+'</small></div>':'')+acciones+'</section></div>';
         html+='<div class="gestor-detail-grid"><section class="card"><div class="card-head"><h2>Versiones</h2><span>'+versiones.length+' registrada(s)</span></div><div class="gestor-timeline gestor-versions">'+(versiones.length?versiones.map(function(v){const actual=String(v.numero_version||'')===String(c.version_actual||'');const aceptada=String(v.numero_version||'')===versionAceptada;return '<div class="gestor-version-row"><b>'+escapeHtml(etiquetaVersion(v))+'</b><span>'+escapeHtml(v.estado||"")+' · '+escapeHtml(v.fecha_actualizacion||v.fecha_creacion||"")+(actual?' · ACTUAL':'')+(aceptada?' · ACEPTADA':'')+(v.resumen_cambios?'<small>'+escapeHtml(v.resumen_cambios)+'</small>':'')+'</span><strong>'+formatoMoneda(v.total_precio||0,v.moneda||c.moneda||"USD")+'</strong><button class="btn btn-light" type="button" onclick="CotizaApp.verVersionGestor(\''+escapeHtml(v.numero_version||'')+'\')">Ver</button></div>';}).join(''):'<p>Sin versiones.</p>')+'</div></section>';
-        html+='<section class="card"><div class="card-head"><h2>Actividad</h2><span>'+historial.length+' evento(s)</span></div><div class="gestor-timeline">'+(historial.length?historial.slice(0,12).map(function(h){return '<div><b>'+escapeHtml(String(h.accion||"").replace(/_/g," "))+'</b><span>'+escapeHtml(h.nombre_usuario||"")+' · '+escapeHtml(h.fecha||"")+'</span><strong>'+escapeHtml(h.estado_nuevo||"")+'</strong></div>';}).join(''):'<p>Sin actividad.</p>')+'</div></section></div>';
-        html+='<section class="card gestor-client-link"><div><h2>Acceso del cliente</h2><p>'+(linkActivo?'Existe un enlace '+escapeHtml(linkActivo.estado||"")+' para esta versión.':'Todavía no se ha generado un enlace para esta versión.')+'</p></div>'+(linkActivo?'<div class="gestor-detail-actions"><button class="btn btn-secondary" type="button" onclick="CotizaApp.copiarEnlaceGestor(\''+escapeHtml(encodeURIComponent(linkActivo.url_publica||""))+'\')">Copiar enlace</button><a class="btn btn-light" target="_blank" href="'+escapeHtml(linkActivo.url_publica||"#")+'">Abrir propuesta</a></div>':'')+'</section>';
+        html+='<section class="card"><div class="card-head"><h2>Actividad</h2><span>'+historial.length+' evento(s)</span></div><div class="gestor-timeline">'+(historial.length?historial.slice(0,12).map(function(h){return '<div><b>'+escapeHtml(String(h.accion||"").replace(/_/g," "))+'</b><span>'+escapeHtml(h.nombre_usuario||"Cliente")+' · '+escapeHtml(h.fecha||"")+(h.comentario?'<small>'+escapeHtml(h.comentario)+'</small>':'')+'</span><strong>'+escapeHtml(h.estado_nuevo||"")+'</strong></div>';}).join(''):'<p>Sin actividad.</p>')+'</div></section></div>';
+        const urlPublica=linkActivo?linkActivo.url_publica||"":"";
+        html+='<section class="card gestor-client-link"><div><h2>Acceso del cliente</h2><p>'+(linkActivo?'Enlace '+escapeHtml(linkActivo.estado||"")+' para esta versión · '+escapeHtml(linkActivo.correo_destinatario||"Sin correo autorizado")+' · '+escapeHtml(linkActivo.visitas||0)+' visita(s).':'Todavía no se ha generado un enlace para esta versión.')+'</p>'+(linkActivo&&linkActivo.nombre_firmante?'<p><strong>Firma electrónica:</strong> '+escapeHtml(linkActivo.nombre_firmante)+' · Constancia '+escapeHtml(linkActivo.codigo_constancia||"")+'</p>':'')+'</div>'+(linkActivo?'<div class="gestor-detail-actions"><button class="btn btn-secondary" type="button" onclick="CotizaApp.copiarEnlaceGestor(\''+escapeHtml(encodeURIComponent(urlPublica))+'\')">Copiar enlace</button><a class="btn btn-light" target="_blank" rel="noopener" href="'+escapeHtml(urlPublica)+'">Abrir propuesta</a><a class="btn btn-light" target="_blank" rel="noopener" href="'+escapeHtml(urlPublica+(urlPublica.indexOf("?")>=0?"&":"?")+"imprimir=1")+'">Imprimir / Guardar PDF</a></div>':'')+'</section>';
         const box=byId("gestorDetalleContenido");if(box)box.innerHTML=html;
         const edit=byId("btnEditarCotizacionGestor");if(edit)edit.disabled=c.puede_editar===false;
         aplicarPermisoBoton_(edit,"puede_editar_borrador");
@@ -1628,6 +1632,7 @@ window.CotizaApp = (function(){
         mostrarPanelGestorV2("gestorCotizadorEditor");
         setText("gestorEditorTitulo", c.codigo_oferta || c.cotizacion_id || "Cotizador");
         setText("gestorEditorSubtitulo", "Versión " + (c.version || "1"));
+		prepararCambioCotizadorV2(c);
 
         const contenido = byId("gestorRuntimeContenido");
         if(contenido) contenido.innerHTML = '<div class="card">Cargando formulario...</div>';
@@ -1660,6 +1665,52 @@ window.CotizaApp = (function(){
           if(contenido) contenido.innerHTML = '<div class="card"><p>' + escapeHtml(error && error.message ? error.message : "No fue posible cargar el formulario del cotizador.") + '</p></div>';
         }
       }
+
+	  async function prepararCambioCotizadorV2(c){
+		const panel=byId("gestorCambioCotizador");
+		if(!panel)return;
+		panel.classList.toggle("hidden",!c.puede_cambiar_cotizador);
+		if(!c.puede_cambiar_cotizador)return;
+		const selector=byId("gestorNuevoCotizador");
+		const boton=byId("btnCambiarCotizadorGestor");
+		if(boton)boton.disabled=true;
+		if(selector)selector.innerHTML='<option value="">Cargando cotizadores...</option>';
+		try{
+		  const resp=await fetchAutenticado("/api/calculadoras?uso=cotizacion");
+		  const res=await resp.json();
+		  if(!resp.ok||!res.ok)throw new Error(res.error||"No fue posible cargar los cotizadores.");
+		  const disponibles=(res.calculadoras||[]).filter(function(x){return x.calculadora_id!==c.calculadora_id;});
+		  if(selector)selector.innerHTML='<option value="">'+(disponibles.length?'Seleccione un cotizador publicado':'No hay otro cotizador disponible')+'</option>'+disponibles.map(function(x){return '<option value="'+escapeHtml(x.calculadora_id)+'">'+escapeHtml(x.nombre_calculadora||x.calculadora_id)+(x.version_configuracion?' · V'+escapeHtml(x.version_configuracion):'')+'</option>';}).join('');
+		}catch(error){
+		  if(selector)selector.innerHTML='<option value="">No fue posible cargar los cotizadores</option>';
+		  mostrarToast(error&&error.message?error.message:"No fue posible cargar los cotizadores.");
+		}
+	  }
+
+	  async function cambiarCotizadorDesdeEditorV2(){
+		const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;
+		const selector=byId("gestorNuevoCotizador");
+		const boton=byId("btnCambiarCotizadorGestor");
+		const calculadoraID=selector&&selector.value;
+		if(!c||!c.puede_cambiar_cotizador||!calculadoraID)return;
+		if(!window.confirm("Se creará una versión nueva con el cotizador elegido. Tendrá que completar nuevamente sus campos y el precio se recalculará. La versión anterior y su enlace se conservarán. ¿Continuar?"))return;
+		if(runtimeAutoguardadoTimer){clearTimeout(runtimeAutoguardadoTimer);runtimeAutoguardadoTimer=null;}
+		if(boton)boton.disabled=true;
+		try{
+		  const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id)+"/cambiar-cotizador",{
+		    method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({calculadora_id:calculadoraID})
+		  });
+		  const res=await resp.json();
+		  if(!resp.ok||!res.ok)throw new Error(res.error||"No fue posible cambiar el cotizador.");
+		  state.cotizadorRuntime=null;
+		  await cargarDetalleCotizacionV2({cotizacion_id:c.cotizacion_id,version:res.version});
+		  await editarCotizacionDesdeDetalleV2();
+		  mostrarToast("Cotizador cambiado. Complete la nueva versión para calcular su precio.");
+		}catch(error){
+		  mostrarToast(error&&error.message?error.message:"No fue posible cambiar el cotizador.");
+		  if(boton)boton.disabled=false;
+		}
+	  }
 
       // Autoguardado con debounce (migración 0024, motor de Reglas en
       // tiempo real): cada cambio en un campo reprograma el guardado en
@@ -2494,18 +2545,30 @@ window.CotizaApp = (function(){
         }
       }
 
+      function abrirModalEnlaceCliente(){
+        const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
+        const link=(state.gestorDetalle.links||[]).find(function(x){return Number(x.version)===Number(c.version);});
+        if(byId("enlaceClienteCorreo"))byId("enlaceClienteCorreo").value=link&&link.correo_destinatario||"";
+        const url=link?new URL(link.url_publica,window.location.origin).toString():"";
+        state.enlaceClienteUrl=url;if(byId("enlaceClienteUrl"))byId("enlaceClienteUrl").value=url;
+        setText("enlaceClienteMensaje","");if(byId("modalEnlaceCliente"))byId("modalEnlaceCliente").classList.add("open");
+      }
+
       async function generarLinkDesdeDetalleV2(){
         const c=state.gestorDetalle&&state.gestorDetalle.cotizacion;if(!c)return;
         if(!tienePermiso("puede_editar_borrador")){mostrarToast(MOTIVOS_SIN_PERMISO.puede_editar_borrador);return;}
-        const boton=byId("btnGenerarLinkGestor");if(boton)boton.disabled=true;
+        const correo=(byId("enlaceClienteCorreo")?byId("enlaceClienteCorreo").value:"").trim();
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)){setText("enlaceClienteMensaje","Indique un correo válido para la verificación de aceptación.");return;}
+        const boton=byId("btnGuardarEnlaceCliente");if(boton)boton.disabled=true;
         try{
-          const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/enlace",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:Number(c.version||1)})});
+          const resp=await fetchAutenticado("/api/cotizaciones/"+encodeURIComponent(c.cotizacion_id||"")+"/enlace",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:Number(c.version||1),correo_destinatario:correo})});
           let res=null;try{res=await resp.json();}catch(e){res=null;}
           if(resp.status===409&&res&&res.error){mostrarRechazoAvanceGestor_(res.error);return;}
           if(!resp.ok||!res||!res.ok)throw new Error((res&&res.error)||"No fue posible generar el enlace.");
           const url=new URL(res.url||("/publico.html?token="+encodeURIComponent(res.token||"")),window.location.origin).toString();
-          state.enlaceClienteUrl=url;if(byId("enlaceClienteUrl"))byId("enlaceClienteUrl").value=url;setText("enlaceClienteMensaje","");
-          if(byId("modalEnlaceCliente"))byId("modalEnlaceCliente").classList.add("open");
+          state.enlaceClienteUrl=url;if(byId("enlaceClienteUrl"))byId("enlaceClienteUrl").value=url;
+          setText("enlaceClienteMensaje",res.correo_modo_prueba?"Aviso: el servidor usa Mailpit. El código de aceptación quedará en un buzón de pruebas y no llegará al correo del cliente.":"");
+          await cargarDetalleCotizacionV2(c);
         }catch(e){mostrarToast(e&&e.message?e.message:"No fue posible generar el enlace.");}
         finally{if(boton)boton.disabled=false;}
       }

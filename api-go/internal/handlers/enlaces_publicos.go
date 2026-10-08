@@ -28,7 +28,9 @@ import (
 )
 
 type EnlacesPublicosHandler struct {
-	DB *pgxpool.Pool
+	DB          *pgxpool.Pool
+	Correo      RemitenteOferta
+	BasePublica string
 }
 
 // mensajeEnlaceNoDisponible es intencionalmente el mismo para un
@@ -37,7 +39,8 @@ type EnlacesPublicosHandler struct {
 const mensajeEnlaceNoDisponible = "Enlace no disponible."
 
 type generarEnlaceRequest struct {
-	Version enteroFlexible `json:"version"`
+	Version            enteroFlexible `json:"version"`
+	CorreoDestinatario string         `json:"correo_destinatario"`
 }
 
 // GenerarEnlace responde POST /api/cotizaciones/{id}/enlace. Body
@@ -61,6 +64,11 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 		}
 	}
 	version := int(req.Version)
+	correoDestinatario := strings.ToLower(strings.TrimSpace(req.CorreoDestinatario))
+	if correoDestinatario != "" && !patronCorreoValido.MatchString(correoDestinatario) {
+		escribirJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "El correo del destinatario no tiene un formato válido."})
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
@@ -105,6 +113,22 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 	}
 
 	usuarioID := permisos.UsuarioID
+	if correoDestinatario == "" {
+		var correoContacto *string
+		err := h.DB.QueryRow(ctx, `
+			SELECT cc.correo FROM cotizaciones c
+			JOIN cliente_contactos cc ON cc.cliente_id=c.cliente_id
+			 WHERE c.cotizacion_id=$1 AND cc.estado='Activo' AND NULLIF(cc.correo,'') IS NOT NULL
+			 ORDER BY cc.contacto_principal DESC, cc.fecha_creacion LIMIT 1`, cotizacionID).Scan(&correoContacto)
+		if err == nil {
+			correoDestinatario = strings.ToLower(strings.TrimSpace(valorTexto(correoContacto)))
+		}
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			log.Printf("enlaces_publicos: error leyendo contacto: %v", err)
+			escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible consultar el contacto del cliente."})
+			return
+		}
+	}
 
 	// generarToken() es la misma función que auth.go usa para el token
 	// de sesión (crypto/rand, 32 bytes en hex) — no se reinventa acá.
@@ -136,12 +160,13 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 	// no el que se acaba de generar acá.
 	var token string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO cotizacion_enlaces_publicos (token, cotizacion_id, version, creado_por)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (cotizacion_id, version) DO UPDATE SET cotizacion_id = EXCLUDED.cotizacion_id
-		RETURNING token`,
-		nuevoToken, cotizacionID, version, usuarioID,
-	).Scan(&token)
+		INSERT INTO cotizacion_enlaces_publicos (token, cotizacion_id, version, creado_por, correo_destinatario)
+		VALUES ($1, $2, $3, $4, NULLIF($5,''))
+		ON CONFLICT (cotizacion_id, version) DO UPDATE
+		SET correo_destinatario=COALESCE(EXCLUDED.correo_destinatario, cotizacion_enlaces_publicos.correo_destinatario)
+		RETURNING token, COALESCE(correo_destinatario,'')`,
+		nuevoToken, cotizacionID, version, usuarioID, correoDestinatario,
+	).Scan(&token, &correoDestinatario)
 	if err != nil {
 		log.Printf("enlaces_publicos: error guardando enlace de %s v%d: %v", cotizacionID, version, err)
 		escribirJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "No fue posible generar el enlace."})
@@ -172,7 +197,8 @@ func (h *EnlacesPublicosHandler) GenerarEnlace(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	respuesta := map[string]any{"ok": true, "token": token, "url": "/publico.html?token=" + token,
+	respuesta := map[string]any{"ok": true, "token": token, "url": "/publico.html?token=" + token, "correo_destinatario": correoDestinatario,
+		"correo_modo_prueba": correoEnModoPrueba(h.Correo),
 		"plantilla_id_usada": nil, "plantilla_version_usada": nil}
 	if plantilla != nil {
 		respuesta["plantilla_id_usada"] = plantilla.ID
@@ -258,20 +284,29 @@ func (h *EnlacesPublicosHandler) VerCotizacion(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	aceptacion, err := consultarAceptacionPublica(ctx, h.DB, token)
+	if err != nil {
+		log.Printf("enlaces_publicos: error leyendo aceptación: %v", err)
+		escribirJSON(w, 500, map[string]any{"ok": false, "error": "No fue posible consultar la aceptación."})
+		return
+	}
 	escribirJSON(w, http.StatusOK, map[string]any{
-		"ok":               true,
-		"cotizacion_id":    doc.CotizacionID,
-		"version":          doc.Version,
-		"codigo_oferta":    doc.CodigoOferta,
-		"tipo_propuesta":   doc.TipoPropuesta,
-		"cliente":          doc.Cliente,
-		"empresa":          doc.Empresa,
-		"cotizador_nombre": doc.CotizadorNombre,
-		"estado":           doc.Estado,
-		"moneda":           doc.Moneda,
-		"total_precio":     doc.TotalPrecio,
-		"tabs":             doc.Tabs,
-		"plantilla":        doc.Plantilla,
+		"ok":                              true,
+		"cotizacion_id":                   doc.CotizacionID,
+		"version":                         doc.Version,
+		"codigo_oferta":                   doc.CodigoOferta,
+		"tipo_propuesta":                  doc.TipoPropuesta,
+		"cliente":                         doc.Cliente,
+		"empresa":                         doc.Empresa,
+		"cotizador_nombre":                doc.CotizadorNombre,
+		"estado":                          doc.Estado,
+		"moneda":                          doc.Moneda,
+		"total_precio":                    doc.TotalPrecio,
+		"tabs":                            doc.Tabs,
+		"plantilla":                       doc.Plantilla,
+		"aceptacion":                      aceptacion,
+		"correo_verificacion_configurado": h.Correo != nil,
+		"correo_verificacion_modo_prueba": correoEnModoPrueba(h.Correo),
 	})
 }
 
@@ -320,9 +355,9 @@ func construirDocumentoOferta(ctx context.Context, db *pgxpool.Pool, cotizacionI
 		SELECT c.codigo_oferta, c.tipo_propuesta, cl.nombre_comercial, COALESCE(cl.razon_social, cl.nombre_comercial),
 		       calc.nombre_calculadora, cv.estado, cv.moneda, cv.total_precio
 		  FROM cotizaciones c
-		  JOIN calculadoras calc ON calc.calculadora_id = c.calculadora_id
 		  LEFT JOIN clientes cl ON cl.cliente_id = c.cliente_id
 		  JOIN cotizacion_versiones cv ON cv.cotizacion_id = c.cotizacion_id AND cv.numero_version = $2
+		  JOIN calculadoras calc ON calc.calculadora_id = COALESCE(cv.calculadora_id,c.calculadora_id)
 		 WHERE c.cotizacion_id = $1`,
 		cotizacionID, version,
 	).Scan(&codigoOferta, &tipoPropuesta, &cliente, &empresa, &doc.CotizadorNombre, &doc.Estado, &doc.Moneda, &doc.TotalPrecio)
@@ -435,7 +470,9 @@ func (h *EnlacesPublicosHandler) consultarTabsYValores(ctx context.Context, coti
 		return tabsPublicasSnapshot(snapshot), nil
 	}
 	var calculadoraID string
-	if err := h.DB.QueryRow(ctx, `SELECT calculadora_id FROM cotizaciones WHERE cotizacion_id = $1`, cotizacionID).Scan(&calculadoraID); err != nil {
+	if err := h.DB.QueryRow(ctx, `SELECT COALESCE(v.calculadora_id,c.calculadora_id)
+	 FROM cotizacion_versiones v JOIN cotizaciones c ON c.cotizacion_id=v.cotizacion_id
+	 WHERE v.cotizacion_id=$1 AND v.numero_version=$2`, cotizacionID, version).Scan(&calculadoraID); err != nil {
 		return nil, err
 	}
 
